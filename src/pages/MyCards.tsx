@@ -19,7 +19,7 @@ interface UserCard {
     era: string;
     image_url?: string;
     description?: string;
-  };
+  }[];
 }
 
 export default function MyCards() {
@@ -52,7 +52,7 @@ export default function MyCards() {
           .select(`
             id,
             claimed_at,
-            cards (
+            cards!inner (
               id,
               name,
               suit,
@@ -84,24 +84,24 @@ export default function MyCards() {
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(userCard =>
-        userCard.cards.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        userCard.cards.suit.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        userCard.cards.rank.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        userCard.cards.era.toLowerCase().includes(searchTerm.toLowerCase())
+        userCard.cards[0]?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        userCard.cards[0]?.suit.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        userCard.cards[0]?.rank.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        userCard.cards[0]?.era.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Suit filter
     if (selectedSuit !== 'all') {
       filtered = filtered.filter(userCard =>
-        userCard.cards.suit.toLowerCase() === selectedSuit.toLowerCase()
+        userCard.cards[0]?.suit.toLowerCase() === selectedSuit.toLowerCase()
       );
     }
 
     // Era filter
     if (selectedEra !== 'all') {
       filtered = filtered.filter(userCard =>
-        userCard.cards.era.toLowerCase() === selectedEra.toLowerCase()
+        userCard.cards[0]?.era.toLowerCase() === selectedEra.toLowerCase()
       );
     }
 
@@ -109,8 +109,8 @@ export default function MyCards() {
   }, [cards, searchTerm, selectedSuit, selectedEra]);
 
   // Get unique values for filters
-  const uniqueSuits = [...new Set(cards.map(card => card.cards.suit))];
-  const uniqueEras = [...new Set(cards.map(card => card.cards.era))];
+  const uniqueSuits = [...new Set(cards.map(card => card.cards[0]?.suit).filter(Boolean))];
+  const uniqueEras = [...new Set(cards.map(card => card.cards[0]?.era).filter(Boolean))];
 
   if (authLoading || loading) {
     return (
@@ -252,7 +252,7 @@ export default function MyCards() {
               <div key={userCard.id} className="relative">
                 <TradingCard 
                   card={{
-                    ...userCard.cards,
+                    ...userCard.cards[0],
                     is_claimed: true
                   }}
                   size="sm"
