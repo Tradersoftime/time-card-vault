@@ -1,38 +1,51 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
-import CardRedirect from "./pages/CardRedirect";   // /r/:code
-import ClaimCard from "./pages/ClaimCard";         // /claim?code=...
+import CardRedirect from "./pages/CardRedirect";
+import ClaimCard from "./pages/ClaimCard";
+import MyCards from "./pages/MyCards";
+import Admin from "./pages/Admin";
+import NotFound from "./pages/NotFound";
 
-function Home() {
-  return (
-    <div className="p-8 space-y-4">
-      <h1 className="text-2xl font-semibold">TOT Cards</h1>
-      <p>Scan a card QR or sign in to claim.</p>
-      <div className="space-x-3">
-        <Link to="/auth/login" className="underline">Sign in</Link>
-      </div>
-    </div>
-  );
-}
+const queryClient = new QueryClient();
 
-export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <BrowserRouter>
+            <div className="min-h-screen bg-background text-foreground dark">
+              <Navbar />
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/auth/login" element={<Login />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/r/:code" element={<CardRedirect />} />
+                <Route path="/claim" element={<ClaimCard />} />
+                <Route path="/me/cards" element={<MyCards />} />
+                <Route path="/admin" element={<Admin />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              <Footer />
+            </div>
+          </BrowserRouter>
+        </AuthProvider>
+      </ErrorBoundary>
+      <Toaster />
+      <Sonner />
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
-        {/* Auth */}
-        <Route path="/auth/login" element={<Login />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-
-        {/* QR entry and claim */}
-        <Route path="/r/:code" element={<CardRedirect />} />
-        <Route path="/claim" element={<ClaimCard />} />
-
-        {/* NOTE: We intentionally removed MyCards/Admin/NotFound for now
-           to avoid “module not found” errors until we create them. */}
-      </Routes>
-    </BrowserRouter>
-  );
-}
+export default App;
