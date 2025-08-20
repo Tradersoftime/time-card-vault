@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { CreditCard, Scan, Sparkles, Trophy, Users } from 'lucide-react';
+import { CreditCard, Scan, Sparkles } from 'lucide-react';
 import heroImage from '@/assets/hero-cards.jpg';
 
 export default function Home() {
@@ -58,31 +58,6 @@ export default function Home() {
                   </Button>
                 </>
               )}
-            </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-3xl mx-auto">
-            <div className="glass-panel p-6 rounded-xl text-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-glow rounded-lg flex items-center justify-center mx-auto mb-4">
-                <CreditCard className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <h3 className="text-2xl font-bold mb-2">500+</h3>
-              <p className="text-muted-foreground">Unique Cards</p>
-            </div>
-            <div className="glass-panel p-6 rounded-xl text-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-glow rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Users className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <h3 className="text-2xl font-bold mb-2">10K+</h3>
-              <p className="text-muted-foreground">Collectors</p>
-            </div>
-            <div className="glass-panel p-6 rounded-xl text-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-glow rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Trophy className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <h3 className="text-2xl font-bold mb-2">50+</h3>
-              <p className="text-muted-foreground">Eras</p>
-            </div>
             </div>
           </div>
         </div>
