@@ -1,14 +1,20 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-
-// Pages that already exist in your project (left sidebar > src/pages)
-import Home from "./pages/Home";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
-import CardRedirect from "./pages/CardRedirect";   // (/r/:code)
-import ClaimCard from "./pages/ClaimCard";         // (/claim?code=...)
-import MyCards from "./pages/MyCards";
-import Admin from "./pages/Admin";
-import NotFound from "./pages/NotFound";
+import CardRedirect from "./pages/CardRedirect";   // /r/:code
+import ClaimCard from "./pages/ClaimCard";         // /claim?code=...
+
+function Home() {
+  return (
+    <div className="p-8 space-y-4">
+      <h1 className="text-2xl font-semibold">TOT Cards</h1>
+      <p>Scan a card QR or sign in to claim.</p>
+      <div className="space-x-3">
+        <Link to="/auth/login" className="underline">Sign in</Link>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -24,14 +30,8 @@ export default function App() {
         <Route path="/r/:code" element={<CardRedirect />} />
         <Route path="/claim" element={<ClaimCard />} />
 
-        {/* User collection */}
-        <Route path="/me/cards" element={<MyCards />} />
-
-        {/* Admin placeholder */}
-        <Route path="/admin" element={<Admin />} />
-
-        {/* 404 */}
-        <Route path="*" element={<NotFound />} />
+        {/* NOTE: We intentionally removed MyCards/Admin/NotFound for now
+           to avoid “module not found” errors until we create them. */}
       </Routes>
     </BrowserRouter>
   );
