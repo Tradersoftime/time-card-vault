@@ -1,51 +1,38 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+// Pages that already exist in your project (left sidebar > src/pages)
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
-import CardRedirect from "./pages/CardRedirect";
-import ClaimCard from "./pages/ClaimCard";
+import CardRedirect from "./pages/CardRedirect";   // (/r/:code)
+import ClaimCard from "./pages/ClaimCard";         // (/claim?code=...)
 import MyCards from "./pages/MyCards";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ErrorBoundary>
-        <AuthProvider>
-          <BrowserRouter>
-            <div className="min-h-screen bg-background text-foreground dark">
-              <Navbar />
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/auth/login" element={<Login />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route path="/r/:code" element={<CardRedirect />} />
-                <Route path="/claim" element={<ClaimCard />} />
-                <Route path="/me/cards" element={<MyCards />} />
-                <Route path="/admin" element={<Admin />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-              <Footer />
-            </div>
-          </BrowserRouter>
-        </AuthProvider>
-      </ErrorBoundary>
-      <Toaster />
-      <Sonner />
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+        {/* Auth */}
+        <Route path="/auth/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
-export default App;
+        {/* QR entry and claim */}
+        <Route path="/r/:code" element={<CardRedirect />} />
+        <Route path="/claim" element={<ClaimCard />} />
+
+        {/* User collection */}
+        <Route path="/me/cards" element={<MyCards />} />
+
+        {/* Admin placeholder */}
+        <Route path="/admin" element={<Admin />} />
+
+        {/* 404 */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
