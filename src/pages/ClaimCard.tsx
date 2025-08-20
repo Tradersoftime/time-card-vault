@@ -1,24 +1,17 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/integrations/supabase/client";
 
 type Card = {
   id: string;
   code: string;
   name: string | null;
-  rarity: string | null;
-  suit: string | null;
-  rank: string | null;          // rank is text in your DB
-  trader_value: string | null;
+  description: string | null;
   era: string | null;
   image_url: string | null;
-  status: string | null;
-  created_at: string;
+  is_claimed: boolean;
+  rank: string | null;
+  suit: string | null;
 };
 
 export default function ClaimCard() {
@@ -55,9 +48,9 @@ export default function ClaimCard() {
     const { data, error } = await supabase.rpc("claim_card", { p_code: code });
     if (error) {
       setMsg(error.message); // e.g., not_authenticated
-    } else if (data?.ok) {
+    } else if ((data as any)?.ok) {
       setMsg("✅ Added to your collection!");
-    } else if (data?.error === "already_claimed") {
+    } else if ((data as any)?.error === "already_claimed") {
       setMsg("⚠️ Already claimed.");
     } else {
       setMsg("Something went wrong.");
@@ -82,11 +75,6 @@ export default function ClaimCard() {
             <div className="opacity-80">
               {card.era} • {card.suit} {card.rank}
             </div>
-            <div className="opacity-80">Rarity: {card.rarity ?? "—"}</div>
-            <div className="opacity-80">Trader Value: {card.trader_value ?? "—"}</div>
-            {card.status !== "active" && (
-              <div className="text-amber-500">Status: {card.status}</div>
-            )}
           </div>
         </div>
       ) : (
