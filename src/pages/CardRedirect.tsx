@@ -1,32 +1,26 @@
-import { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function CardRedirect() {
-  const { code } = useParams<{ code: string }>();
-  const { user, loading } = useAuth();
+  const { code } = useParams();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (loading) return;
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const target = `/claim?code=${encodeURIComponent(code ?? "")}`;
+      if (!mounted) return;
+      navigate(
+        data.user ? target : `/auth/login?next=${encodeURIComponent(target)}`,
+        { replace: true }
+      );
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [code, navigate]);
 
-    if (!user) {
-      // Redirect to login with next parameter pointing to claim page
-      navigate(`/auth/login?next=${encodeURIComponent(`/claim?code=${code}`)}`);
-    } else {
-      // User is signed in, redirect to claim page
-      navigate(`/claim?code=${code}`);
-    }
-  }, [user, loading, code, navigate]);
-
-  return (
-    <div className="min-h-screen hero-gradient flex items-center justify-center p-4">
-      <div className="text-center">
-        <div className="glass-panel p-8 rounded-2xl max-w-md mx-auto">
-          <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Redirecting...</p>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="p-8 text-center opacity-80">Checking card…</div>;
 }
