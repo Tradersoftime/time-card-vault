@@ -1,7 +1,7 @@
 // src/pages/MyCards.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 
 type Row = {
   claimed_at: string;
@@ -18,12 +18,14 @@ type Row = {
 };
 
 export default function MyCards() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;
@@ -160,6 +162,13 @@ export default function MyCards() {
 
   return (
     <div className="p-6 space-y-8">
+      {/* Just-claimed banner */}
+      {new URLSearchParams(location.search).get("claimed") === "1" && (
+        <div className="mb-2 text-sm px-3 py-2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+          ✅ Card added to your collection.
+        </div>
+      )}
+
       {/* Ready + Pending section */}
       <section>
         <div className="flex items-center justify-between mb-3">
@@ -178,6 +187,12 @@ export default function MyCards() {
             </button>
           </div>
         </div>
+
+        {msg && (
+          <div className="mb-3 text-sm px-3 py-2 rounded bg-slate-100 dark:bg-slate-800/60">
+            {msg}
+          </div>
+        )}
 
         {readyAndPending.length === 0 ? (
           <div className="opacity-70">No cards to submit — go scan a card.</div>
