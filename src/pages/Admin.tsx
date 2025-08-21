@@ -1,4 +1,6 @@
+// src/pages/Admin.tsx
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 type RedCard = {
@@ -27,6 +29,7 @@ export default function Admin() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<RedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toolMsg, setToolMsg] = useState<string | null>(null);
 
   // Check admin
   useEffect(() => {
@@ -47,7 +50,9 @@ export default function Admin() {
       if (error) setError(error.message);
       setIsAdmin(!!data);
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -59,6 +64,7 @@ export default function Admin() {
   async function loadQueue() {
     setLoading(true);
     setError(null);
+    setToolMsg(null);
     const { data, error } = await supabase
       .from("redemptions")
       .select(`
@@ -142,12 +148,25 @@ export default function Admin() {
 
   return (
     <div className="p-6 space-y-4">
+      {/* Header with QR Generator link */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
-        <button onClick={loadQueue} className="border rounded px-3 py-1">
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <Link to="/admin/qr" className="border rounded px-3 py-1">
+            QR Generator
+          </Link>
+          <button onClick={loadQueue} className="border rounded px-3 py-1">
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {/* Admin tools */}
+      <div className="border rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-3">
+        <BlockTool onMsg={setToolMsg} />
+        <UnclaimTool onMsg={setToolMsg} />
+      </div>
+      {toolMsg && <div className="text-sm opacity-90">{toolMsg}</div>}
 
       {loading ? (
         <div>Loading queue…</div>
@@ -167,7 +186,8 @@ export default function Admin() {
               </div>
 
               <div className="text-sm opacity-80 mb-2">
-                User: <code className="opacity-90">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
+                User: <code className="opacity-90">{r.user_id}</code> • Cards:{" "}
+                {r.redemption_cards?.length ?? 0}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
@@ -183,7 +203,9 @@ export default function Admin() {
                         />
                       )}
                       <div className="p-2 text-sm">
-                        <div className="font-medium truncate">{c.name ?? "—"}</div>
+                        <div className="font-medium truncate">
+                          {c.name ?? "—"}
+                        </div>
                         <div className="opacity-70">
                           {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
                         </div>
@@ -214,6 +236,115 @@ export default function Admin() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------------- Admin helper components ---------------- */
+
+function BlockTool({ onMsg }: { onMsg: (m: string | null) => void }) {
+  const [email, setEmail] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function doBlock() {
+    onMsg(null);
+    if (!email.trim()) {
+      onMsg("Enter an email.");
+      return;
+    }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_block_user_by_email", {
+      p_email: email.trim(),
+      p_reason: reason.trim() || null,
+    });
+    setBusy(false);
+    if (error) onMsg(error.message);
+    else if (data?.ok) onMsg("✅ User blocked.");
+    else onMsg("Could not block user.");
+  }
+
+  async function doUnblock() {
+    onMsg(null);
+    if (!email.trim()) {
+      onMsg("Enter an email.");
+      return;
+    }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
+      p_email: email.trim(),
+    });
+    setBusy(false);
+    if (error) onMsg(error.message);
+    else if (data?.ok) onMsg("✅ User unblocked.");
+    else onMsg("Could not unblock user.");
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row md:items-center gap-2 w-full">
+      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="user@email.com"
+        className="border rounded px-2 py-1 w-full md:w-64"
+      />
+      <input
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Reason (optional)"
+        className="border rounded px-2 py-1 w-full md:w-64"
+      />
+      <div className="flex gap-2">
+        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+          {busy ? "Blocking…" : "Block"}
+        </button>
+        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+          {busy ? "Unblocking…" : "Unblock"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UnclaimTool({ onMsg }: { onMsg: (m: string | null) => void }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function unclaim() {
+    onMsg(null);
+    if (!code.trim()) {
+      onMsg("Enter a code.");
+      return;
+    }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_unclaim_card", {
+      p_code: code.trim(),
+    });
+    setBusy(false);
+    if (error) {
+      onMsg(error.message);
+      return;
+    }
+    if (data?.ok) onMsg("✅ Unclaimed (or wasn’t owned).");
+    else if (data?.error === "credited_cannot_unclaim")
+      onMsg("❌ Card has credited TIME; cannot unclaim.");
+    else if (data?.error === "not_found") onMsg("Card not found.");
+    else if (data?.error === "forbidden") onMsg("Not authorized.");
+    else onMsg("Something went wrong.");
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Enter card code (e.g., TOT-ABCD...)"
+        className="border rounded px-2 py-1"
+      />
+      <button onClick={unclaim} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        {busy ? "Working…" : "Unclaim"}
+      </button>
     </div>
   );
 }
