@@ -21,6 +21,9 @@ type RedItem = {
   status: string;
   submitted_at: string;
   redemption_cards: RedCard[];
+  profiles: {
+    email: string;
+  } | null;
 };
 
 type BlockedRow = {
@@ -83,6 +86,9 @@ export default function Admin() {
         user_id,
         status,
         submitted_at,
+        profiles (
+          email
+        ),
         redemption_cards (
           card_id,
           cards (
@@ -258,7 +264,7 @@ export default function Admin() {
               </div>
 
               <div className="text-sm opacity-80 mb-2 text-muted-foreground">
-                User: <code className="opacity-90 text-foreground">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
+                User: <code className="opacity-90 text-foreground">{r.profiles?.email ?? "No email found"}</code> • Cards: {r.redemption_cards?.length ?? 0}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
