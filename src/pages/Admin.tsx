@@ -2,6 +2,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type RedCard = {
   card_id: string;
@@ -171,137 +175,155 @@ export default function Admin() {
     }
   }
 
-  if (isAdmin === null) return <div className="p-6">Loading…</div>;
-  if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (isAdmin === null) return <div className="p-6 text-foreground">Loading…</div>;
+  if (isAdmin === false) return <div className="p-6 text-foreground">Not authorized.</div>;
+  if (error) return <div className="p-6 text-destructive">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-background text-foreground p-6 space-y-6">
       {/* Header with QR Generator link */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
-        <div className="flex gap-2">
-          <Link to="/admin/qr" className="border rounded px-3 py-1">QR Generator</Link>
-          <button onClick={loadQueue} className="border rounded px-3 py-1">Refresh</button>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-2xl">Admin — Redemptions</CardTitle>
+            <div className="flex gap-2">
+              <Button variant="outline" asChild>
+                <Link to="/admin/qr">QR Generator</Link>
+              </Button>
+              <Button variant="outline" onClick={loadQueue}>Refresh</Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* Admin tools */}
-      <div className="border rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-3">
-        <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
-        <UnclaimTool onMsg={setToolMsg} />
-      </div>
-      {toolMsg && <div className="text-sm opacity-90">{toolMsg}</div>}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
+            <UnclaimTool onMsg={setToolMsg} />
+          </div>
+          {toolMsg && <div className="text-sm text-muted-foreground mt-4">{toolMsg}</div>}
+        </CardContent>
+      </Card>
 
       {/* Blocked users list */}
-      <section className="border rounded-xl p-3">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold">Blocked users</h2>
-          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
-            Refresh list
-          </button>
-        </div>
-
-        {loadingBlocked ? (
-          <div className="opacity-70 text-sm">Loading blocked users…</div>
-        ) : blocked.length === 0 ? (
-          <div className="opacity-70 text-sm">No one is blocked.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2 pr-3">Email</th>
-                  <th className="py-2 pr-3">Reason</th>
-                  <th className="py-2 pr-3">Blocked at</th>
-                  <th className="py-2 pr-3">Blocked by</th>
-                  <th className="py-2 pr-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {blocked.map((b) => (
-                  <tr key={b.user_id} className="border-b last:border-b-0">
-                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
-                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
-                    <td className="py-2 pr-3">
-                      {new Date(b.blocked_at).toLocaleString()}
-                    </td>
-                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
-                    <td className="py-2 pr-0">
-                      {b.email && (
-                        <button
-                          onClick={() => unblock(b.email!)}
-                          className="border rounded px-2 py-1 text-xs"
-                        >
-                          Unblock
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Blocked users</CardTitle>
+            <Button variant="outline" size="sm" onClick={loadBlocked}>
+              Refresh list
+            </Button>
           </div>
-        )}
-      </section>
+        </CardHeader>
+        <CardContent>
+          {loadingBlocked ? (
+            <div className="text-muted-foreground text-sm">Loading blocked users…</div>
+          ) : blocked.length === 0 ? (
+            <div className="text-muted-foreground text-sm">No one is blocked.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Blocked at</TableHead>
+                    <TableHead>Blocked by</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {blocked.map((b) => (
+                    <TableRow key={b.user_id}>
+                      <TableCell>{b.email ?? "—"}</TableCell>
+                      <TableCell>{b.reason ?? "—"}</TableCell>
+                      <TableCell>
+                        {new Date(b.blocked_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell>{b.blocked_by_email ?? "—"}</TableCell>
+                      <TableCell>
+                        {b.email && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => unblock(b.email!)}
+                          >
+                            Unblock
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Redemption queue */}
       {loading ? (
-        <div>Loading queue…</div>
+        <div className="text-foreground">Loading queue…</div>
       ) : items.length === 0 ? (
-        <div className="opacity-70">No pending redemptions.</div>
+        <div className="text-muted-foreground">No pending redemptions.</div>
       ) : (
         <div className="space-y-4">
           {items.map((r) => (
-            <div key={r.id} className="border rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-medium">
-                  Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
+            <Card key={r.id}>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-medium text-foreground">
+                    Redemption <span className="text-muted-foreground">{r.id.slice(0, 8)}…</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Submitted {new Date(r.submitted_at).toLocaleString()}
+                  </div>
                 </div>
-                <div className="text-sm opacity-70">
-                  Submitted {new Date(r.submitted_at).toLocaleString()}
+
+                <div className="text-sm text-muted-foreground mb-2">
+                  User: <code className="text-foreground">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
                 </div>
-              </div>
 
-              <div className="text-sm opacity-80 mb-2">
-                User: <code className="opacity-90">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
-              </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                  {r.redemption_cards?.map((rc) => {
+                    const c = rc.cards || {};
+                    return (
+                      <Card key={rc.card_id} className="overflow-hidden">
+                        {c.image_url && (
+                          <img
+                            src={c.image_url}
+                            alt={c.name ?? "Card"}
+                            className="w-full aspect-[3/4] object-cover"
+                          />
+                        )}
+                        <CardContent className="p-2">
+                          <div className="text-sm">
+                            <div className="font-medium truncate text-foreground">{c.name ?? "—"}</div>
+                            <div className="text-muted-foreground">
+                              {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                {r.redemption_cards?.map((rc) => {
-                  const c = rc.cards || {};
-                  return (
-                    <div key={rc.card_id} className="border rounded-lg overflow-hidden">
-                      {c.image_url && (
-                        <img
-                          src={c.image_url}
-                          alt={c.name ?? "Card"}
-                          className="w-full aspect-[3/4] object-cover"
-                        />
-                      )}
-                      <div className="p-2 text-sm">
-                        <div className="font-medium truncate">{c.name ?? "—"}</div>
-                        <div className="opacity-70">
-                          {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
-                        </div>
-                        <div className="text-xs opacity-60">
-                          Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex gap-2">
-                <button onClick={() => markCredited(r.id)} className="border rounded px-3 py-1">
-                  Mark Credited
-                </button>
-                <button onClick={() => markRejected(r.id)} className="border rounded px-3 py-1">
-                  Reject
-                </button>
-              </div>
-            </div>
+                <div className="flex gap-2">
+                  <Button variant="default" onClick={() => markCredited(r.id)}>
+                    Mark Credited
+                  </Button>
+                  <Button variant="outline" onClick={() => markRejected(r.id)}>
+                    Reject
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
@@ -349,26 +371,26 @@ function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; on
 
   return (
     <div className="flex flex-col md:flex-row md:items-center gap-2 w-full">
-      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
-      <input
+      <div className="text-sm font-medium whitespace-nowrap text-foreground">Block / Unblock</div>
+      <Input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="user@email.com"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="w-full md:w-64"
       />
-      <input
+      <Input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (optional)"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="w-full md:w-64"
       />
       <div className="flex gap-2">
-        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        <Button variant="default" size="sm" onClick={doBlock} disabled={busy}>
           {busy ? "Blocking…" : "Block"}
-        </button>
-        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        </Button>
+        <Button variant="outline" size="sm" onClick={doUnblock} disabled={busy}>
           {busy ? "Unblocking…" : "Unblock"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -394,15 +416,15 @@ function UnclaimTool({ onMsg }: { onMsg: (m: string | null) => void }) {
 
   return (
     <div className="flex items-center gap-2">
-      <input
+      <Input
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="Enter card code (e.g., TOT-ABCD...)"
-        className="border rounded px-2 py-1"
+        className="w-full"
       />
-      <button onClick={unclaim} disabled={busy} className="border rounded px-3 py-1 text-sm">
+      <Button variant="outline" size="sm" onClick={unclaim} disabled={busy}>
         {busy ? "Working…" : "Unclaim"}
-      </button>
+      </Button>
     </div>
   );
 }
