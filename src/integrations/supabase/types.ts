@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      admins: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      blocked_users: {
+        Row: {
+          blocked_at: string
+          blocked_by: string | null
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          blocked_at?: string
+          blocked_by?: string | null
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          blocked_at?: string
+          blocked_by?: string | null
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       cards: {
         Row: {
           code: string
@@ -25,7 +61,10 @@ export type Database = {
           is_active: boolean
           name: string
           rank: string
+          rarity: string | null
+          status: string
           suit: string
+          trader_value: string | null
         }
         Insert: {
           code: string
@@ -37,7 +76,10 @@ export type Database = {
           is_active?: boolean
           name: string
           rank: string
+          rarity?: string | null
+          status?: string
           suit: string
+          trader_value?: string | null
         }
         Update: {
           code?: string
@@ -49,7 +91,10 @@ export type Database = {
           is_active?: boolean
           name?: string
           rank?: string
+          rarity?: string | null
+          status?: string
           suit?: string
+          trader_value?: string | null
         }
         Relationships: []
       }
@@ -80,21 +125,93 @@ export type Database = {
         }
         Relationships: []
       }
+      redemption_cards: {
+        Row: {
+          card_id: string
+          id: string
+          redemption_id: string
+        }
+        Insert: {
+          card_id: string
+          id?: string
+          redemption_id: string
+        }
+        Update: {
+          card_id?: string
+          id?: string
+          redemption_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "redemption_cards_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: true
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "redemption_cards_redemption_id_fkey"
+            columns: ["redemption_id"]
+            isOneToOne: false
+            referencedRelation: "redemptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      redemptions: {
+        Row: {
+          admin_notes: string | null
+          credited_amount: number | null
+          credited_at: string | null
+          credited_by: string | null
+          external_ref: string | null
+          id: string
+          status: string
+          submitted_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          credited_amount?: number | null
+          credited_at?: string | null
+          credited_by?: string | null
+          external_ref?: string | null
+          id?: string
+          status?: string
+          submitted_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          credited_amount?: number | null
+          credited_at?: string | null
+          credited_by?: string | null
+          external_ref?: string | null
+          id?: string
+          status?: string
+          submitted_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_cards: {
         Row: {
           card_id: string
+          claim_source: string
           claimed_at: string
           id: string
           user_id: string
         }
         Insert: {
           card_id: string
+          claim_source?: string
           claimed_at?: string
           id?: string
           user_id: string
         }
         Update: {
           card_id?: string
+          claim_source?: string
           claimed_at?: string
           id?: string
           user_id?: string
@@ -103,7 +220,7 @@ export type Database = {
           {
             foreignKeyName: "user_cards_card_id_fkey"
             columns: ["card_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "cards"
             referencedColumns: ["id"]
           },
@@ -138,18 +255,55 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_block_user_by_email: {
+        Args: { p_email: string; p_reason?: string }
+        Returns: Json
+      }
+      admin_list_blocked: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          blocked_at: string
+          blocked_by: string
+          blocked_by_email: string
+          email: string
+          reason: string
+          user_id: string
+        }[]
+      }
+      admin_unblock_user_by_email: {
+        Args: { p_email: string }
+        Returns: Json
+      }
+      card_claims_with_time_status: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          card_id: string
+          claimed_at: string
+          era: string
+          image_url: string
+          is_credited: boolean
+          is_pending: boolean
+          name: string
+          rank: string
+          rarity: string
+          suit: string
+          trader_value: string
+        }[]
+      }
       card_preview: {
         Args: { p_code: string }
         Returns: {
           code: string
-          description: string
+          created_at: string
           era: string
           id: string
           image_url: string
-          is_claimed: boolean
           name: string
           rank: string
+          rarity: string
+          status: string
           suit: string
+          trader_value: string
         }[]
       }
       claim_card: {
