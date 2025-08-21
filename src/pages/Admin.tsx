@@ -2,6 +2,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { QrCode, RefreshCw, Shield, AlertTriangle } from "lucide-react";
 
 type RedCard = {
   card_id: string;
@@ -142,51 +146,58 @@ export default function Admin() {
     await loadQueue();
   }
 
-  if (isAdmin === null) return <div className="p-6">Loading…</div>;
-  if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (isAdmin === null) return <div className="p-6 text-foreground">Loading…</div>;
+  if (isAdmin === false) return <div className="p-6 text-foreground">Not authorized.</div>;
+  if (error) return <div className="p-6 text-destructive">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-4 bg-background text-foreground">
       {/* Header with QR Generator link */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
+        <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
+          <Shield className="h-6 w-6 text-destructive" />
+          Admin — Redemptions
+        </h1>
         <div className="flex gap-2">
-          <Link to="/admin/qr" className="border rounded px-3 py-1">
-            QR Generator
-          </Link>
-          <button onClick={loadQueue} className="border rounded px-3 py-1">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/qr">
+              <QrCode className="h-4 w-4 mr-2" />
+              QR Generator
+            </Link>
+          </Button>
+          <Button onClick={loadQueue} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Admin tools */}
-      <div className="border rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-3">
+      <div className="glass-panel rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-3">
         <BlockTool onMsg={setToolMsg} />
         <UnclaimTool onMsg={setToolMsg} />
       </div>
-      {toolMsg && <div className="text-sm opacity-90">{toolMsg}</div>}
+      {toolMsg && <div className="text-sm text-foreground bg-muted p-3 rounded-lg">{toolMsg}</div>}
 
       {loading ? (
-        <div>Loading queue…</div>
+        <div className="text-foreground">Loading queue…</div>
       ) : items.length === 0 ? (
-        <div className="opacity-70">No pending redemptions.</div>
+        <div className="text-muted-foreground">No pending redemptions.</div>
       ) : (
         <div className="space-y-4">
           {items.map((r) => (
-            <div key={r.id} className="border rounded-xl p-4">
+            <div key={r.id} className="glass-panel rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="font-medium">
-                  Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
+                <div className="font-medium text-foreground">
+                  Redemption <span className="text-muted-foreground">{r.id.slice(0, 8)}…</span>
                 </div>
-                <div className="text-sm opacity-70">
+                <div className="text-sm text-muted-foreground">
                   Submitted {new Date(r.submitted_at).toLocaleString()}
                 </div>
               </div>
 
-              <div className="text-sm opacity-80 mb-2">
-                User: <code className="opacity-90">{r.user_id}</code> • Cards:{" "}
+              <div className="text-sm text-muted-foreground mb-2">
+                User: <code className="text-foreground bg-muted px-1 rounded">{r.user_id}</code> • Cards:{" "}
                 {r.redemption_cards?.length ?? 0}
               </div>
 
@@ -194,7 +205,7 @@ export default function Admin() {
                 {r.redemption_cards?.map((rc) => {
                   const c = rc.cards || {};
                   return (
-                    <div key={rc.card_id} className="border rounded-lg overflow-hidden">
+                    <div key={rc.card_id} className="glass-panel rounded-lg overflow-hidden">
                       {c.image_url && (
                         <img
                           src={c.image_url}
@@ -203,13 +214,13 @@ export default function Admin() {
                         />
                       )}
                       <div className="p-2 text-sm">
-                        <div className="font-medium truncate">
+                        <div className="font-medium truncate text-foreground">
                           {c.name ?? "—"}
                         </div>
-                        <div className="opacity-70">
+                        <div className="text-muted-foreground">
                           {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
                         </div>
-                        <div className="text-xs opacity-60">
+                        <div className="text-xs text-muted-foreground">
                           Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
                         </div>
                       </div>
@@ -219,18 +230,20 @@ export default function Admin() {
               </div>
 
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={() => markCredited(r.id)}
-                  className="border rounded px-3 py-1"
+                  variant="default"
+                  size="sm"
                 >
                   Mark Credited
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => markRejected(r.id)}
-                  className="border rounded px-3 py-1"
+                  variant="destructive"
+                  size="sm"
                 >
                   Reject
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -282,26 +295,29 @@ function BlockTool({ onMsg }: { onMsg: (m: string | null) => void }) {
 
   return (
     <div className="flex flex-col md:flex-row md:items-center gap-2 w-full">
-      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
-      <input
+      <div className="text-sm font-medium whitespace-nowrap text-foreground flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-destructive" />
+        Block / Unblock
+      </div>
+      <Input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="user@email.com"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="w-full md:w-64 text-foreground"
       />
-      <input
+      <Input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (optional)"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="w-full md:w-64 text-foreground"
       />
       <div className="flex gap-2">
-        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        <Button onClick={doBlock} disabled={busy} variant="destructive" size="sm">
           {busy ? "Blocking…" : "Block"}
-        </button>
-        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        </Button>
+        <Button onClick={doUnblock} disabled={busy} variant="outline" size="sm">
           {busy ? "Unblocking…" : "Unblock"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -336,15 +352,15 @@ function UnclaimTool({ onMsg }: { onMsg: (m: string | null) => void }) {
 
   return (
     <div className="flex items-center gap-2">
-      <input
+      <Input
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="Enter card code (e.g., TOT-ABCD...)"
-        className="border rounded px-2 py-1"
+        className="text-foreground"
       />
-      <button onClick={unclaim} disabled={busy} className="border rounded px-3 py-1 text-sm">
+      <Button onClick={unclaim} disabled={busy} variant="outline" size="sm">
         {busy ? "Working…" : "Unclaim"}
-      </button>
+      </Button>
     </div>
   );
 }
