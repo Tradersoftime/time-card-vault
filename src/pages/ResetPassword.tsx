@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -16,22 +19,27 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="max-w-md mx-auto p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Set a new password</h1>
-      <form onSubmit={updatePwd} className="space-y-3">
-        <input
-          type="password"
-          required
-          placeholder="New password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full border rounded px-3 py-2"
-        />
-        <button type="submit" disabled={busy} className="border rounded px-4 py-2">
-          {busy ? "Saving…" : "Save password"}
-        </button>
-      </form>
-      {msg && <div className="text-sm opacity-90">{msg}</div>}
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-2xl font-semibold text-center">Set a new password</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={updatePwd} className="space-y-4">
+            <Input
+              type="password"
+              required
+              placeholder="New password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <Button type="submit" disabled={busy} className="w-full">
+              {busy ? "Saving…" : "Save password"}
+            </Button>
+          </form>
+          {msg && <div className="text-sm text-muted-foreground mt-4 text-center">{msg}</div>}
+        </CardContent>
+      </Card>
     </div>
   );
 }
