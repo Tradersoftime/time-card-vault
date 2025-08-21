@@ -2,10 +2,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { QrCode, RefreshCw, Shield, AlertTriangle } from "lucide-react";
 
 type RedCard = {
   card_id: string;
@@ -28,12 +24,24 @@ type RedItem = {
   redemption_cards: RedCard[];
 };
 
+type BlockedRow = {
+  user_id: string;
+  email: string | null;
+  reason: string | null;
+  blocked_at: string;
+  blocked_by: string | null;
+  blocked_by_email: string | null;
+};
+
 export default function Admin() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<RedItem[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [toolMsg, setToolMsg] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<BlockedRow[]>([]);
+  const [loadingBlocked, setLoadingBlocked] = useState(false);
 
   // Check admin
   useEffect(() => {
@@ -54,14 +62,13 @@ export default function Admin() {
       if (error) setError(error.message);
       setIsAdmin(!!data);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
     if (isAdmin !== true) return;
     loadQueue();
+    loadBlocked();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
@@ -97,9 +104,17 @@ export default function Admin() {
     setLoading(false);
   }
 
+  async function loadBlocked() {
+    setLoadingBlocked(true);
+    const { data, error } = await supabase.rpc("admin_list_blocked");
+    if (error) setToolMsg(error.message);
+    setBlocked((data as BlockedRow[]) ?? []);
+    setLoadingBlocked(false);
+  }
+
   async function markCredited(id: string) {
     const amtStr = window.prompt("TIME amount to credit?", "0");
-    if (amtStr === null) return; // cancelled
+    if (amtStr === null) return;
     const amount = Number(amtStr);
     if (!Number.isFinite(amount)) {
       alert("Please enter a valid number.");
@@ -108,10 +123,7 @@ export default function Admin() {
     const ref = window.prompt("External reference / note (optional)") || null;
 
     const { data: u } = await supabase.auth.getUser();
-    if (!u?.user) {
-      alert("Not signed in.");
-      return;
-    }
+    if (!u?.user) { alert("Not signed in."); return; }
 
     const { error } = await supabase
       .from("redemptions")
@@ -130,7 +142,6 @@ export default function Admin() {
 
   async function markRejected(id: string) {
     const reason = window.prompt("Reason (optional)") || null;
-
     const { error } = await supabase
       .from("redemptions")
       .update({
@@ -146,66 +157,121 @@ export default function Admin() {
     await loadQueue();
   }
 
-  if (isAdmin === null) return <div className="p-6 text-foreground">Loading…</div>;
-  if (isAdmin === false) return <div className="p-6 text-foreground">Not authorized.</div>;
-  if (error) return <div className="p-6 text-destructive">Error: {error}</div>;
+  async function unblock(email: string) {
+    setToolMsg(null);
+    const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
+      p_email: email,
+    });
+    if (error) setToolMsg(error.message);
+    else if (data?.ok) {
+      setToolMsg(`✅ Unblocked ${email}`);
+      await loadBlocked();
+    } else {
+      setToolMsg("Could not unblock user.");
+    }
+  }
+
+  if (isAdmin === null) return <div className="p-6">Loading…</div>;
+  if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
+  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-4 bg-background text-foreground">
+    <div className="p-6 space-y-6">
       {/* Header with QR Generator link */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-          <Shield className="h-6 w-6 text-destructive" />
-          Admin — Redemptions
-        </h1>
+        <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
         <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link to="/admin/qr">
-              <QrCode className="h-4 w-4 mr-2" />
-              QR Generator
-            </Link>
-          </Button>
-          <Button onClick={loadQueue} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <Link to="/admin/qr" className="border rounded px-3 py-1">QR Generator</Link>
+          <button onClick={loadQueue} className="border rounded px-3 py-1">Refresh</button>
         </div>
       </div>
 
       {/* Admin tools */}
-      <div className="glass-panel rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-3">
-        <BlockTool onMsg={setToolMsg} />
+      <div className="border rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-3">
+        <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
         <UnclaimTool onMsg={setToolMsg} />
       </div>
-      {toolMsg && <div className="text-sm text-foreground bg-muted p-3 rounded-lg">{toolMsg}</div>}
+      {toolMsg && <div className="text-sm opacity-90">{toolMsg}</div>}
 
+      {/* Blocked users list */}
+      <section className="border rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold">Blocked users</h2>
+          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
+            Refresh list
+          </button>
+        </div>
+
+        {loadingBlocked ? (
+          <div className="opacity-70 text-sm">Loading blocked users…</div>
+        ) : blocked.length === 0 ? (
+          <div className="opacity-70 text-sm">No one is blocked.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Reason</th>
+                  <th className="py-2 pr-3">Blocked at</th>
+                  <th className="py-2 pr-3">Blocked by</th>
+                  <th className="py-2 pr-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {blocked.map((b) => (
+                  <tr key={b.user_id} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
+                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
+                    <td className="py-2 pr-3">
+                      {new Date(b.blocked_at).toLocaleString()}
+                    </td>
+                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
+                    <td className="py-2 pr-0">
+                      {b.email && (
+                        <button
+                          onClick={() => unblock(b.email!)}
+                          className="border rounded px-2 py-1 text-xs"
+                        >
+                          Unblock
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Redemption queue */}
       {loading ? (
-        <div className="text-foreground">Loading queue…</div>
+        <div>Loading queue…</div>
       ) : items.length === 0 ? (
-        <div className="text-muted-foreground">No pending redemptions.</div>
+        <div className="opacity-70">No pending redemptions.</div>
       ) : (
         <div className="space-y-4">
           {items.map((r) => (
-            <div key={r.id} className="glass-panel rounded-xl p-4">
+            <div key={r.id} className="border rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="font-medium text-foreground">
-                  Redemption <span className="text-muted-foreground">{r.id.slice(0, 8)}…</span>
+                <div className="font-medium">
+                  Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm opacity-70">
                   Submitted {new Date(r.submitted_at).toLocaleString()}
                 </div>
               </div>
 
-              <div className="text-sm text-muted-foreground mb-2">
-                User: <code className="text-foreground bg-muted px-1 rounded">{r.user_id}</code> • Cards:{" "}
-                {r.redemption_cards?.length ?? 0}
+              <div className="text-sm opacity-80 mb-2">
+                User: <code className="opacity-90">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 {r.redemption_cards?.map((rc) => {
                   const c = rc.cards || {};
                   return (
-                    <div key={rc.card_id} className="glass-panel rounded-lg overflow-hidden">
+                    <div key={rc.card_id} className="border rounded-lg overflow-hidden">
                       {c.image_url && (
                         <img
                           src={c.image_url}
@@ -214,13 +280,11 @@ export default function Admin() {
                         />
                       )}
                       <div className="p-2 text-sm">
-                        <div className="font-medium truncate text-foreground">
-                          {c.name ?? "—"}
-                        </div>
-                        <div className="text-muted-foreground">
+                        <div className="font-medium truncate">{c.name ?? "—"}</div>
+                        <div className="opacity-70">
                           {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs opacity-60">
                           Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
                         </div>
                       </div>
@@ -230,20 +294,12 @@ export default function Admin() {
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  onClick={() => markCredited(r.id)}
-                  variant="default"
-                  size="sm"
-                >
+                <button onClick={() => markCredited(r.id)} className="border rounded px-3 py-1">
                   Mark Credited
-                </Button>
-                <Button
-                  onClick={() => markRejected(r.id)}
-                  variant="destructive"
-                  size="sm"
-                >
+                </button>
+                <button onClick={() => markRejected(r.id)} className="border rounded px-3 py-1">
                   Reject
-                </Button>
+                </button>
               </div>
             </div>
           ))}
@@ -255,17 +311,14 @@ export default function Admin() {
 
 /* ---------------- Admin helper components ---------------- */
 
-function BlockTool({ onMsg }: { onMsg: (m: string | null) => void }) {
+function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; onChanged: () => void }) {
   const [email, setEmail] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function doBlock() {
     onMsg(null);
-    if (!email.trim()) {
-      onMsg("Enter an email.");
-      return;
-    }
+    if (!email.trim()) { onMsg("Enter an email."); return; }
     setBusy(true);
     const { data, error } = await supabase.rpc("admin_block_user_by_email", {
       p_email: email.trim(),
@@ -273,51 +326,49 @@ function BlockTool({ onMsg }: { onMsg: (m: string | null) => void }) {
     });
     setBusy(false);
     if (error) onMsg(error.message);
-    else if (data?.ok) onMsg("✅ User blocked.");
-    else onMsg("Could not block user.");
+    else if (data?.ok) {
+      onMsg(`✅ Blocked ${email.trim()}.`);
+      onChanged();
+    } else onMsg("Could not block user.");
   }
 
   async function doUnblock() {
     onMsg(null);
-    if (!email.trim()) {
-      onMsg("Enter an email.");
-      return;
-    }
+    if (!email.trim()) { onMsg("Enter an email."); return; }
     setBusy(true);
     const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
       p_email: email.trim(),
     });
     setBusy(false);
     if (error) onMsg(error.message);
-    else if (data?.ok) onMsg("✅ User unblocked.");
-    else onMsg("Could not unblock user.");
+    else if (data?.ok) {
+      onMsg(`✅ Unblocked ${email.trim()}.`);
+      onChanged();
+    } else onMsg("Could not unblock user.");
   }
 
   return (
     <div className="flex flex-col md:flex-row md:items-center gap-2 w-full">
-      <div className="text-sm font-medium whitespace-nowrap text-foreground flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 text-destructive" />
-        Block / Unblock
-      </div>
-      <Input
+      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
+      <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="user@email.com"
-        className="w-full md:w-64 text-foreground"
+        className="border rounded px-2 py-1 w-full md:w-64"
       />
-      <Input
+      <input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (optional)"
-        className="w-full md:w-64 text-foreground"
+        className="border rounded px-2 py-1 w-full md:w-64"
       />
       <div className="flex gap-2">
-        <Button onClick={doBlock} disabled={busy} variant="destructive" size="sm">
+        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
           {busy ? "Blocking…" : "Block"}
-        </Button>
-        <Button onClick={doUnblock} disabled={busy} variant="outline" size="sm">
+        </button>
+        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
           {busy ? "Unblocking…" : "Unblock"}
-        </Button>
+        </button>
       </div>
     </div>
   );
@@ -329,22 +380,13 @@ function UnclaimTool({ onMsg }: { onMsg: (m: string | null) => void }) {
 
   async function unclaim() {
     onMsg(null);
-    if (!code.trim()) {
-      onMsg("Enter a code.");
-      return;
-    }
+    if (!code.trim()) { onMsg("Enter a code."); return; }
     setBusy(true);
-    const { data, error } = await supabase.rpc("admin_unclaim_card", {
-      p_code: code.trim(),
-    });
+    const { data, error } = await supabase.rpc("admin_unclaim_card", { p_code: code.trim() });
     setBusy(false);
-    if (error) {
-      onMsg(error.message);
-      return;
-    }
+    if (error) { onMsg(error.message); return; }
     if (data?.ok) onMsg("✅ Unclaimed (or wasn’t owned).");
-    else if (data?.error === "credited_cannot_unclaim")
-      onMsg("❌ Card has credited TIME; cannot unclaim.");
+    else if (data?.error === "credited_cannot_unclaim") onMsg("❌ Card has credited TIME; cannot unclaim.");
     else if (data?.error === "not_found") onMsg("Card not found.");
     else if (data?.error === "forbidden") onMsg("Not authorized.");
     else onMsg("Something went wrong.");
@@ -352,15 +394,15 @@ function UnclaimTool({ onMsg }: { onMsg: (m: string | null) => void }) {
 
   return (
     <div className="flex items-center gap-2">
-      <Input
+      <input
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="Enter card code (e.g., TOT-ABCD...)"
-        className="text-foreground"
+        className="border rounded px-2 py-1"
       />
-      <Button onClick={unclaim} disabled={busy} variant="outline" size="sm">
+      <button onClick={unclaim} disabled={busy} className="border rounded px-3 py-1 text-sm">
         {busy ? "Working…" : "Unclaim"}
-      </Button>
+      </button>
     </div>
   );
 }
