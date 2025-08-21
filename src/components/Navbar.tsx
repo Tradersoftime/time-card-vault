@@ -10,20 +10,26 @@ export function Navbar() {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  const [userRole, setUserRole] = useState<string>('user');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      // Check user role from profiles table
-      supabase
-        .from('profiles')
-        .select('role')
+    let mounted = true;
+    (async () => {
+      if (!user) {
+        if (mounted) setIsAdmin(false);
+        return;
+      }
+      // Check admins table (we created this earlier)
+      const { data } = await supabase
+        .from('admins')
+        .select('user_id')
         .eq('user_id', user.id)
-        .single()
-        .then(({ data }) => {
-          if (data?.role) setUserRole(data.role);
-        });
-    }
+        .maybeSingle();
+      if (mounted) setIsAdmin(!!data);
+    })();
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
   const isActive = (path: string) => location.pathname === path;
@@ -42,18 +48,18 @@ export function Navbar() {
 
           {/* Navigation Links */}
           <div className="hidden md:flex items-center space-x-6">
-            <Link 
-              to="/" 
+            <Link
+              to="/"
               className={`interactive text-sm font-medium transition-colors ${
                 isActive('/') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Home
             </Link>
-            
+
             {user && (
-              <Link 
-                to="/me/cards" 
+              <Link
+                to="/me/cards"
                 className={`interactive text-sm font-medium transition-colors ${
                   isActive('/me/cards') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
@@ -62,9 +68,20 @@ export function Navbar() {
               </Link>
             )}
 
-            {user && (userRole === 'admin' || userRole === 'superadmin') && (
-              <Link 
-                to="/admin" 
+            {user && (
+              <Link
+                to="/redeem"
+                className={`interactive text-sm font-medium transition-colors ${
+                  isActive('/redeem') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Redeem
+              </Link>
+            )}
+
+            {user && isAdmin && (
+              <Link
+                to="/admin"
                 className={`interactive text-sm font-medium transition-colors flex items-center space-x-1 ${
                   isActive('/admin') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
@@ -84,11 +101,7 @@ export function Navbar() {
               onClick={toggleTheme}
               className="interactive"
             >
-              {theme === 'dark' ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
 
             {user ? (
