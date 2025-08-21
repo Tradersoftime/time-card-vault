@@ -50,42 +50,91 @@ export default function Admin() {
     return () => { mounted = false; };
   }, []);
 
-  // Load pending queue (after admin confirmed)
   useEffect(() => {
     if (isAdmin !== true) return;
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("redemptions")
-        .select(`
-          id,
-          user_id,
-          status,
-          submitted_at,
-          redemption_cards (
-            card_id,
-            cards (
-              name,
-              image_url,
-              era,
-              suit,
-              rank,
-              rarity,
-              trader_value
-            )
-          )
-        `)
-        .eq("status", "pending")
-        .order("submitted_at", { ascending: true });
-
-      if (!mounted) return;
-      if (error) setError(error.message);
-      setItems((data as RedItem[]) ?? []);
-      setLoading(false);
-    })();
-    return () => { mounted = false; };
+    loadQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
+
+  async function loadQueue() {
+    setLoading(true);
+    setError(null);
+    const { data, error } = await supabase
+      .from("redemptions")
+      .select(`
+        id,
+        user_id,
+        status,
+        submitted_at,
+        redemption_cards (
+          card_id,
+          cards (
+            name,
+            image_url,
+            era,
+            suit,
+            rank,
+            rarity,
+            trader_value
+          )
+        )
+      `)
+      .eq("status", "pending")
+      .order("submitted_at", { ascending: true });
+
+    if (error) setError(error.message);
+    setItems((data as any) ?? []);
+    setLoading(false);
+  }
+
+  async function markCredited(id: string) {
+    const amtStr = window.prompt("TIME amount to credit?", "0");
+    if (amtStr === null) return; // cancelled
+    const amount = Number(amtStr);
+    if (!Number.isFinite(amount)) {
+      alert("Please enter a valid number.");
+      return;
+    }
+    const ref = window.prompt("External reference / note (optional)") || null;
+
+    const { data: u } = await supabase.auth.getUser();
+    if (!u?.user) {
+      alert("Not signed in.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("redemptions")
+      .update({
+        status: "credited",
+        credited_amount: amount,
+        external_ref: ref,
+        credited_at: new Date().toISOString(),
+        credited_by: u.user.id,
+      })
+      .eq("id", id);
+
+    if (error) alert(error.message);
+    await loadQueue();
+  }
+
+  async function markRejected(id: string) {
+    const reason = window.prompt("Reason (optional)") || null;
+
+    const { error } = await supabase
+      .from("redemptions")
+      .update({
+        status: "rejected",
+        admin_notes: reason,
+        credited_amount: null,
+        credited_at: null,
+        credited_by: null,
+      })
+      .eq("id", id);
+
+    if (error) alert(error.message);
+    await loadQueue();
+  }
 
   if (isAdmin === null) return <div className="p-6">Loading…</div>;
   if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
@@ -93,7 +142,12 @@ export default function Admin() {
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
+        <button onClick={loadQueue} className="border rounded px-3 py-1">
+          Refresh
+        </button>
+      </div>
 
       {loading ? (
         <div>Loading queue…</div>
@@ -116,7 +170,7 @@ export default function Admin() {
                 User: <code className="opacity-90">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 {r.redemption_cards?.map((rc) => {
                   const c = rc.cards || {};
                   return (
@@ -142,7 +196,20 @@ export default function Admin() {
                 })}
               </div>
 
-              {/* Buttons to mark credited/rejected will be added next step */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => markCredited(r.id)}
+                  className="border rounded px-3 py-1"
+                >
+                  Mark Credited
+                </button>
+                <button
+                  onClick={() => markRejected(r.id)}
+                  className="border rounded px-3 py-1"
+                >
+                  Reject
+                </button>
+              </div>
             </div>
           ))}
         </div>
