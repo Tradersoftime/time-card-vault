@@ -67,6 +67,17 @@ export function Navbar() {
               </Link>
             )}
 
+            {user && (
+              <Link
+                to="/scan"
+                className={`interactive text-sm font-medium transition-colors ${
+                  isActive('/scan') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Scan
+              </Link>
+            )}
+
             {user && isAdmin && (
               <Link
                 to="/admin"
