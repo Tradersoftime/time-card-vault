@@ -15,6 +15,7 @@ import CardRedirect from "./pages/CardRedirect";
 import ClaimCard from "./pages/ClaimCard";
 import MyCards from "./pages/MyCards";
 import Admin from "./pages/Admin";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
                 <Route path="/" element={<Home />} />
                 <Route path="/auth/login" element={<Login />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/auth/reset" element={<ResetPassword />} />
                 <Route path="/r/:code" element={<CardRedirect />} />
                 <Route path="/claim" element={<ClaimCard />} />
                 <Route path="/me/cards" element={<MyCards />} />
