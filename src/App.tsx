@@ -1,4 +1,5 @@
 import AdminLogin from "./pages/AdminLogin";
+import ResetPassword from "./pages/ResetPassword";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,7 +16,6 @@ import CardRedirect from "./pages/CardRedirect";
 import ClaimCard from "./pages/ClaimCard";
 import MyCards from "./pages/MyCards";
 import Admin from "./pages/Admin";
-import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,12 +32,10 @@ const App = () => (
                 <Route path="/" element={<Home />} />
                 <Route path="/auth/login" element={<Login />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route path="/auth/reset" element={<ResetPassword />} />
                 <Route path="/r/:code" element={<CardRedirect />} />
                 <Route path="/claim" element={<ClaimCard />} />
                 <Route path="/me/cards" element={<MyCards />} />
                 <Route path="/admin" element={<Admin />} />
-                <Route path="/auth/admin" element={<AdminLogin />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
