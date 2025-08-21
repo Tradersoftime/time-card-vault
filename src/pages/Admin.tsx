@@ -168,64 +168,64 @@ export default function Admin() {
     }
   }
 
-  if (isAdmin === null) return <div className="p-6">Loading…</div>;
-  if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (isAdmin === null) return <div className="p-6 text-foreground">Loading…</div>;
+  if (isAdmin === false) return <div className="p-6 text-foreground">Not authorized.</div>;
+  if (error) return <div className="p-6 text-destructive">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 text-foreground">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
-        <button onClick={loadQueue} className="border rounded px-3 py-1">
+        <h1 className="text-2xl font-semibold text-foreground">Admin — Redemptions</h1>
+        <button onClick={loadQueue} className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border rounded px-3 py-1 transition-colors">
           Refresh
         </button>
       </div>
 
       {/* Admin tools */}
-      <div className="border rounded-xl p-3">
-        <div className="text-sm font-medium mb-2">Admin Tools</div>
+      <div className="bg-card border border-border rounded-xl p-3">
+        <div className="text-sm font-medium mb-2 text-foreground">Admin Tools</div>
         <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
-        {toolMsg && <div className="mt-2 text-sm opacity-90">{toolMsg}</div>}
+        {toolMsg && <div className="mt-2 text-sm opacity-90 text-muted-foreground">{toolMsg}</div>}
       </div>
 
       {/* Blocked users list */}
-      <section className="border rounded-xl p-3">
+      <section className="bg-card border border-border rounded-xl p-3">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold">Blocked users</h2>
-          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
+          <h2 className="text-lg font-semibold text-foreground">Blocked users</h2>
+          <button onClick={loadBlocked} className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border rounded px-3 py-1 text-sm transition-colors">
             Refresh list
           </button>
         </div>
 
         {loadingBlocked ? (
-          <div className="opacity-70 text-sm">Loading blocked users…</div>
+          <div className="opacity-70 text-sm text-muted-foreground">Loading blocked users…</div>
         ) : blocked.length === 0 ? (
-          <div className="opacity-70 text-sm">No one is blocked.</div>
+          <div className="opacity-70 text-sm text-muted-foreground">No one is blocked.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm text-foreground">
               <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2 pr-3">Email</th>
-                  <th className="py-2 pr-3">Reason</th>
-                  <th className="py-2 pr-3">Blocked at</th>
-                  <th className="py-2 pr-3">Blocked by</th>
+                <tr className="text-left border-b border-border">
+                  <th className="py-2 pr-3 text-foreground">Email</th>
+                  <th className="py-2 pr-3 text-foreground">Reason</th>
+                  <th className="py-2 pr-3 text-foreground">Blocked at</th>
+                  <th className="py-2 pr-3 text-foreground">Blocked by</th>
                   <th className="py-2 pr-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {blocked.map((b) => (
-                  <tr key={b.user_id} className="border-b last:border-b-0">
-                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
-                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
-                    <td className="py-2 pr-3">{new Date(b.blocked_at).toLocaleString()}</td>
-                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
+                  <tr key={b.user_id} className="border-b border-border last:border-b-0">
+                    <td className="py-2 pr-3 text-foreground">{b.email ?? "—"}</td>
+                    <td className="py-2 pr-3 text-foreground">{b.reason ?? "—"}</td>
+                    <td className="py-2 pr-3 text-foreground">{new Date(b.blocked_at).toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-foreground">{b.blocked_by_email ?? "—"}</td>
                     <td className="py-2 pr-0">
                       {b.email && (
                         <button
                           onClick={() => unblock(b.email!)}
-                          className="border rounded px-2 py-1 text-xs"
+                          className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border rounded px-2 py-1 text-xs transition-colors"
                         >
                           Unblock
                         </button>
@@ -241,31 +241,31 @@ export default function Admin() {
 
       {/* Redemption queue */}
       {loading ? (
-        <div>Loading queue…</div>
+        <div className="text-foreground">Loading queue…</div>
       ) : items.length === 0 ? (
-        <div className="opacity-70">No pending redemptions.</div>
+        <div className="opacity-70 text-muted-foreground">No pending redemptions.</div>
       ) : (
         <div className="space-y-4">
           {items.map((r) => (
-            <div key={r.id} className="border rounded-xl p-4">
+            <div key={r.id} className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="font-medium">
+                <div className="font-medium text-foreground">
                   Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
                 </div>
-                <div className="text-sm opacity-70">
+                <div className="text-sm opacity-70 text-muted-foreground">
                   Submitted {new Date(r.submitted_at).toLocaleString()}
                 </div>
               </div>
 
-              <div className="text-sm opacity-80 mb-2">
-                User: <code className="opacity-90">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
+              <div className="text-sm opacity-80 mb-2 text-muted-foreground">
+                User: <code className="opacity-90 text-foreground">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 {r.redemption_cards?.map((rc) => {
                   const c = rc.cards || {};
                   return (
-                    <div key={rc.card_id} className="border rounded-lg overflow-hidden">
+                    <div key={rc.card_id} className="border border-border rounded-lg overflow-hidden">
                       {c.image_url && (
                         <img
                           src={c.image_url}
@@ -274,11 +274,11 @@ export default function Admin() {
                         />
                       )}
                       <div className="p-2 text-sm">
-                        <div className="font-medium truncate">{c.name ?? "—"}</div>
-                        <div className="opacity-70">
+                        <div className="font-medium truncate text-foreground">{c.name ?? "—"}</div>
+                        <div className="opacity-70 text-muted-foreground">
                           {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
                         </div>
-                        <div className="text-xs opacity-60">
+                        <div className="text-xs opacity-60 text-muted-foreground">
                           Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
                         </div>
                       </div>
@@ -288,10 +288,10 @@ export default function Admin() {
               </div>
 
               <div className="flex gap-2">
-                <button onClick={() => markCredited(r.id)} className="border rounded px-3 py-1">
+                <button onClick={() => markCredited(r.id)} className="bg-primary text-primary-foreground hover:bg-primary/90 border border-border rounded px-3 py-1 transition-colors">
                   Mark Credited
                 </button>
-                <button onClick={() => markRejected(r.id)} className="border rounded px-3 py-1">
+                <button onClick={() => markRejected(r.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 border border-border rounded px-3 py-1 transition-colors">
                   Reject
                 </button>
               </div>
@@ -357,24 +357,24 @@ function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; on
 
   return (
     <div className="flex flex-col md:flex-row md:items-center gap-2">
-      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
+      <div className="text-sm font-medium whitespace-nowrap text-foreground">Block / Unblock</div>
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="user@email.com"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="bg-input border border-input rounded px-2 py-1 w-full md:w-64 text-foreground placeholder:text-muted-foreground"
       />
       <input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (optional)"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="bg-input border border-input rounded px-2 py-1 w-full md:w-64 text-foreground placeholder:text-muted-foreground"
       />
       <div className="flex gap-2">
-        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        <button onClick={doBlock} disabled={busy} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 border border-border rounded px-3 py-1 text-sm transition-colors">
           {busy ? "Blocking…" : "Block"}
         </button>
-        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        <button onClick={doUnblock} disabled={busy} className="bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 border border-border rounded px-3 py-1 text-sm transition-colors">
           {busy ? "Unblocking…" : "Unblock"}
         </button>
       </div>
