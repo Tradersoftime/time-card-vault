@@ -1,4 +1,4 @@
-import Redeem from "./pages/Redeem";
+import AdminLogin from "./pages/AdminLogin";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -35,7 +35,7 @@ const App = () => (
                 <Route path="/claim" element={<ClaimCard />} />
                 <Route path="/me/cards" element={<MyCards />} />
                 <Route path="/admin" element={<Admin />} />
-                <Route path="/redeem" element={<Redeem />} />
+                <Route path="/auth/admin" element={<AdminLogin />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
