@@ -141,56 +141,56 @@ export default function Admin() {
     await loadQueue();
   }
 
-  if (isAdmin === null) return <div className="p-6">Loading…</div>;
-  if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (isAdmin === null) return <div className="p-6 text-foreground">Loading…</div>;
+  if (isAdmin === false) return <div className="p-6 text-foreground">Not authorized.</div>;
+  if (error) return <div className="p-6 text-destructive">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-4 text-foreground">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
-        <button onClick={loadQueue} className="border rounded px-3 py-1">
+        <h1 className="text-2xl font-semibold text-foreground">Admin — Redemptions</h1>
+        <button onClick={loadQueue} className="border border-border bg-background text-foreground rounded px-3 py-1 hover:bg-accent">
           Refresh
         </button>
       </div>
 
       {/* Admin tools: Block / Unblock */}
-      <div className="border rounded-xl p-3">
-        <div className="text-sm font-medium mb-2">Admin Tools</div>
+      <div className="border border-border rounded-xl p-3 bg-card">
+        <div className="text-sm font-medium mb-2 text-foreground">Admin Tools</div>
         <BlockTool onMsg={setToolMsg} />
         {toolMsg && (
-          <div className="mt-2 text-sm opacity-90">{toolMsg}</div>
+          <div className="mt-2 text-sm opacity-90 text-foreground">{toolMsg}</div>
         )}
       </div>
 
       {/* Redemption queue */}
       {loading ? (
-        <div>Loading queue…</div>
+        <div className="text-foreground">Loading queue…</div>
       ) : items.length === 0 ? (
-        <div className="opacity-70">No pending redemptions.</div>
+        <div className="opacity-70 text-foreground">No pending redemptions.</div>
       ) : (
         <div className="space-y-4">
           {items.map((r) => (
-            <div key={r.id} className="border rounded-xl p-4">
+            <div key={r.id} className="border border-border rounded-xl p-4 bg-card">
               <div className="flex items-center justify-between mb-3">
-                <div className="font-medium">
+                <div className="font-medium text-foreground">
                   Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
                 </div>
-                <div className="text-sm opacity-70">
+                <div className="text-sm opacity-70 text-foreground">
                   Submitted {new Date(r.submitted_at).toLocaleString()}
                 </div>
               </div>
 
-              <div className="text-sm opacity-80 mb-2">
-                User: <code className="opacity-90">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
+              <div className="text-sm opacity-80 mb-2 text-foreground">
+                User: <code className="opacity-90 bg-muted text-muted-foreground px-1 rounded">{r.user_id}</code> • Cards: {r.redemption_cards?.length ?? 0}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 {r.redemption_cards?.map((rc) => {
                   const c = rc.cards || {};
                   return (
-                    <div key={rc.card_id} className="border rounded-lg overflow-hidden">
+                    <div key={rc.card_id} className="border border-border rounded-lg overflow-hidden bg-background">
                       {c.image_url && (
                         <img
                           src={c.image_url}
@@ -199,11 +199,11 @@ export default function Admin() {
                         />
                       )}
                       <div className="p-2 text-sm">
-                        <div className="font-medium truncate">{c.name ?? "—"}</div>
-                        <div className="opacity-70">
+                        <div className="font-medium truncate text-foreground">{c.name ?? "—"}</div>
+                        <div className="opacity-70 text-foreground">
                           {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
                         </div>
-                        <div className="text-xs opacity-60">
+                        <div className="text-xs opacity-60 text-foreground">
                           Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
                         </div>
                       </div>
@@ -215,13 +215,13 @@ export default function Admin() {
               <div className="flex gap-2">
                 <button
                   onClick={() => markCredited(r.id)}
-                  className="border rounded px-3 py-1"
+                  className="border border-border bg-background text-foreground rounded px-3 py-1 hover:bg-accent"
                 >
                   Mark Credited
                 </button>
                 <button
                   onClick={() => markRejected(r.id)}
-                  className="border rounded px-3 py-1"
+                  className="border border-border bg-background text-foreground rounded px-3 py-1 hover:bg-accent"
                 >
                   Reject
                 </button>
@@ -286,24 +286,24 @@ function BlockTool({ onMsg }: { onMsg: (m: string | null) => void }) {
 
   return (
     <div className="flex flex-col md:flex-row md:items-center gap-2">
-      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
+      <div className="text-sm font-medium whitespace-nowrap text-foreground">Block / Unblock</div>
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="user@email.com"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="border border-input bg-background text-foreground rounded px-2 py-1 w-full md:w-64 placeholder:text-muted-foreground"
       />
       <input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (optional)"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="border border-input bg-background text-foreground rounded px-2 py-1 w-full md:w-64 placeholder:text-muted-foreground"
       />
       <div className="flex gap-2">
-        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        <button onClick={doBlock} disabled={busy} className="border border-border bg-background text-foreground rounded px-3 py-1 text-sm hover:bg-accent disabled:opacity-50">
           {busy ? "Blocking…" : "Block"}
         </button>
-        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        <button onClick={doUnblock} disabled={busy} className="border border-border bg-background text-foreground rounded px-3 py-1 text-sm hover:bg-accent disabled:opacity-50">
           {busy ? "Unblocking…" : "Unblock"}
         </button>
       </div>
