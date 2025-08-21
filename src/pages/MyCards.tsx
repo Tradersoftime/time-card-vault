@@ -3,17 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Row = {
   claimed_at: string;
-  // Supabase returns the related "cards" row (one-to-one) thanks to the FK.
-  // We'll type it loosely to avoid TS mismatches across setups.
-  cards: {
-    name?: string | null;
-    suit?: string | null;
-    rank?: string | null;
-    era?: string | null;
-    image_url?: string | null;
-    rarity?: string | null;
-    trader_value?: string | null;
-  } | any;
+  card_id: string;
+  name: string | null;
+  suit: string | null;
+  rank: string | null;          // rank is text in your DB
+  era: string | null;
+  image_url: string | null;
+  rarity: string | null;
+  trader_value: string | null;
+  is_pending: boolean;
+  is_credited: boolean;
 };
 
 export default function MyCards() {
@@ -26,23 +25,10 @@ export default function MyCards() {
     (async () => {
       setLoading(true);
       setError(null);
+
+      // Call the helper RPC that returns each claimed card with TIME status
       const { data, error } = await supabase
-        .from("user_cards")
-        .select(
-          `
-          claimed_at,
-          cards(
-            name,
-            suit,
-            rank,
-            era,
-            image_url,
-            rarity,
-            trader_value
-          )
-        `
-        )
-        .order("claimed_at", { ascending: false });
+        .rpc("card_claims_with_time_status");
 
       if (!mounted) return;
 
@@ -51,9 +37,7 @@ export default function MyCards() {
       setLoading(false);
     })();
 
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   if (loading) return <div className="p-6">Loading your collection…</div>;
@@ -70,27 +54,35 @@ export default function MyCards() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {rows.map((r, i) => {
-            const c = r.cards || {};
+            const badge = r.is_credited
+              ? { text: "TIME: Credited", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" }
+              : r.is_pending
+              ? { text: "TIME: Pending", cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" }
+              : { text: "TIME: Not submitted", cls: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200" };
+
             return (
               <div key={i} className="border rounded-xl overflow-hidden">
-                {c.image_url && (
+                {r.image_url && (
                   <img
-                    src={c.image_url}
-                    alt={c.name ?? "Card"}
+                    src={r.image_url}
+                    alt={r.name ?? "Card"}
                     className="w-full aspect-[3/4] object-cover"
                   />
                 )}
-                <div className="p-3">
-                  <div className="font-medium">{c.name ?? "Unnamed Trader"}</div>
+                <div className="p-3 space-y-1">
+                  <div className="font-medium">{r.name ?? "Unnamed Trader"}</div>
                   <div className="text-sm opacity-80">
-                    {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
+                    {r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}
                   </div>
                   <div className="text-xs opacity-70">
-                    Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
+                    Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}
                   </div>
-                  <div className="text-xs opacity-60 mt-1">
+                  <div className="text-xs opacity-60">
                     Claimed {new Date(r.claimed_at).toLocaleString()}
                   </div>
+                  <span className={`inline-block text-xs px-2 py-0.5 rounded ${badge.cls}`}>
+                    {badge.text}
+                  </span>
                 </div>
               </div>
             );
