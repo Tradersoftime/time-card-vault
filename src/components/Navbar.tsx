@@ -1,3 +1,4 @@
+// src/components/Navbar.tsx
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,7 +20,7 @@ export function Navbar() {
         if (mounted) setIsAdmin(false);
         return;
       }
-      // Check admins table (we created this earlier)
+      // Show Admin link only if the user is in the admins table
       const { data } = await supabase
         .from('admins')
         .select('user_id')
@@ -27,9 +28,7 @@ export function Navbar() {
         .maybeSingle();
       if (mounted) setIsAdmin(!!data);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [user]);
 
   const isActive = (path: string) => location.pathname === path;
@@ -68,17 +67,6 @@ export function Navbar() {
               </Link>
             )}
 
-            {user && (
-              <Link
-                to="/redeem"
-                className={`interactive text-sm font-medium transition-colors ${
-                  isActive('/redeem') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Redeem
-              </Link>
-            )}
-
             {user && isAdmin && (
               <Link
                 to="/admin"
@@ -95,12 +83,7 @@ export function Navbar() {
           {/* Right Side Actions */}
           <div className="flex items-center space-x-3">
             {/* Theme Toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleTheme}
-              className="interactive"
-            >
+            <Button variant="ghost" size="sm" onClick={toggleTheme} className="interactive">
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
 
@@ -110,12 +93,7 @@ export function Navbar() {
                   <User className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">{user.email}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={signOut}
-                  className="interactive"
-                >
+                <Button variant="ghost" size="sm" onClick={signOut} className="interactive">
                   <LogOut className="h-4 w-4" />
                   <span className="hidden sm:inline ml-2">Sign Out</span>
                 </Button>
