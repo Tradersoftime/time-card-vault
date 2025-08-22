@@ -1,7 +1,7 @@
 // src/pages/Scan.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { QrScanner } from "@yudiel/react-qr-scanner";
+import { Scanner } from "@yudiel/react-qr-scanner";
 import { supabase } from "@/integrations/supabase/client";
 
 type LogItem = {
@@ -192,8 +192,8 @@ export default function Scan() {
   }
 
   /* ---------- scanner callbacks ---------- */
-  const onScan = useCallback(async (detections: { rawValue: string }[]) => {
-    const raw = detections?.[0]?.rawValue;
+  const onScan = useCallback(async (detectedCodes: any[]) => {
+    const raw = detectedCodes?.[0]?.rawValue;
     if (!raw) return;
     const code = extractCode(raw);
     if (!code) { setError("Could not read a card code from that QR."); return; }
@@ -240,13 +240,10 @@ export default function Scan() {
         {/* Camera */}
         <div className="space-y-3">
           <div className="border rounded-xl overflow-hidden">
-            <QrScanner
-              onDecode={onScan}
+            <Scanner
+              onScan={onScan}
               onError={onError}
               constraints={{ facingMode: "environment" }}
-              containerStyle={{ width: "100%", aspectRatio: "1 / 1" }}
-              videoStyle={{ width: "100%", height: "auto" }}
-              onInit={() => setCameraReady(true)}
             />
           </div>
 
