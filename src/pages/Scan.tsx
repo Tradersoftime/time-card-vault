@@ -1,14 +1,13 @@
 // src/pages/Scan.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { QrScanner } from "@yudiel/react-qr-scanner";
+import { Scanner } from "@yudiel/react-qr-scanner";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function Scan() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [lastText, setLastText] = useState<string | null>(null);
-  const [cameraReady, setCameraReady] = useState(false);
   const [processing, setProcessing] = useState(false);
 
   // Ensure signed-in
@@ -98,21 +97,16 @@ export default function Scan() {
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-3">
           <div className="border rounded-xl overflow-hidden">
-            <QrScanner
-              onDecode={onScan}
+            <Scanner
+              onScan={onScan}
               onError={onError}
               constraints={{ facingMode: "environment" }} // prefer back camera on mobile
-              containerStyle={{ width: "100%", aspectRatio: "1 / 1" }}
-              videoStyle={{ width: "100%", height: "auto" }}
-              onInit={() => setCameraReady(true)}
+              styles={{ 
+                container: { width: "100%", aspectRatio: "1 / 1" },
+                video: { width: "100%", height: "auto" }
+              }}
             />
           </div>
-
-          {!cameraReady && (
-            <div className="text-sm opacity-80">
-              Initializing camera… If asked, please allow camera access.
-            </div>
-          )}
 
           {lastText && (
             <div className="text-xs opacity-70 break-all">
