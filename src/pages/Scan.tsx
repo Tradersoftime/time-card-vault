@@ -1,16 +1,45 @@
 // src/pages/Scan.tsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Scanner } from "@yudiel/react-qr-scanner";
+import { QrScanner } from "@yudiel/react-qr-scanner";
 import { supabase } from "@/integrations/supabase/client";
+
+type LogItem = {
+  id: string;                // unique per row
+  ts: number;
+  code: string;
+  status:
+    | "claimed"
+    | "already_owner"
+    | "owned_by_other"
+    | "not_found"
+    | "blocked"
+    | "error";
+  message: string;
+  card?: {
+    id?: string;
+    name?: string | null;
+    image_url?: string | null;
+    era?: string | null;
+    suit?: string | null;
+    rank?: string | null;
+    rarity?: string | null;
+    trader_value?: string | null;
+  };
+};
 
 export default function Scan() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const [lastText, setLastText] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
 
-  // Ensure signed-in
+  // live log
+  const [log, setLog] = useState<LogItem[]>([]);
+  // in-session cooldown so a single QR doesn't flood
+  const cooldownRef = useRef<Record<string, number>>({});
+  const COOLDOWN_MS = 3000;
+
+  // Ensure signed in
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
@@ -20,147 +49,326 @@ export default function Scan() {
     })();
   }, [navigate]);
 
-  // Extract the code from any scanned text (URL or raw code)
-  const extractCode = useCallback((text: string): string | null => {
-    if (!text) return null;
+  /* ---------- helpers ---------- */
 
-    // Common patterns:
-    // 1) Full URL like https://your-app.com/r/TOT-ABCD-1234
-    // 2) Maybe just the code itself (TOT-ABCD-1234)
-    // 3) URL with query/fragment
-    try {
-      let possible = text.trim();
+  const now = () => Date.now();
 
-      // If it's a URL, try to grab the last non-empty path segment after "/r/"
-      if (/^https?:\/\//i.test(possible)) {
-        const url = new URL(possible);
-        // prefer /r/:code path part if present
-        const path = url.pathname || "/";
-        const rMatch = path.match(/\/r\/([^/]+)$/i);
-        if (rMatch?.[1]) return decodeURIComponent(rMatch[1]);
-
-        // fallback to last segment
-        const parts = path.split("/").filter(Boolean);
-        if (parts.length > 0) return decodeURIComponent(parts[parts.length - 1]);
-      }
-
-      // If not a URL, assume the whole string is the code
-      // Allow letters, digits, dashes, and underscores
-      const codeMatch = possible.match(/[A-Za-z0-9\-_]+/);
-      if (codeMatch) return codeMatch[0];
-
-      return null;
-    } catch {
-      return null;
-    }
+  const pushLog = useCallback((item: LogItem) => {
+    setLog((prev) => {
+      const next = [item, ...prev];
+      // keep last 30 only
+      return next.slice(0, 30);
+    });
   }, []);
 
+  function shouldProcess(code: string) {
+    const t = now();
+    const last = cooldownRef.current[code] ?? 0;
+    if (t - last < COOLDOWN_MS) return false;
+    cooldownRef.current[code] = t;
+    return true;
+  }
+
+  function extractCode(text: string): string | null {
+    if (!text) return null;
+    const s = text.trim();
+
+    // Full URL? Try /r/:code or last path part
+    if (/^https?:\/\//i.test(s)) {
+      try {
+        const url = new URL(s);
+        const rMatch = url.pathname.match(/\/r\/([^/]+)$/i);
+        if (rMatch?.[1]) return decodeURIComponent(rMatch[1]);
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length > 0) return decodeURIComponent(parts[parts.length - 1]);
+      } catch {
+        // ignore
+      }
+    }
+
+    // Otherwise allow letters/digits/_/-
+    const m = s.match(/[A-Za-z0-9\-_]+/);
+    return m ? m[0] : null;
+  }
+
+  async function fetchCardById(id: string) {
+    const { data } = await supabase
+      .from("cards")
+      .select("id,name,image_url,era,suit,rank,rarity,trader_value")
+      .eq("id", id)
+      .limit(1)
+      .maybeSingle();
+    return data || undefined;
+  }
+
+  async function fetchCardByCodeLike(code: string) {
+    const { data } = await supabase
+      .from("cards")
+      .select("id,name,image_url,era,suit,rank,rarity,trader_value")
+      .ilike("code", code)
+      .limit(1)
+      .maybeSingle();
+    return data || undefined;
+  }
+
+  async function claim(code: string) {
+    // ensure session (if expired mid-scan)
+    const { data: u } = await supabase.auth.getUser();
+    if (!u?.user) {
+      navigate("/auth/login?next=/scan", { replace: true });
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("claim_card", {
+      p_code: code,
+      p_source: "scan",
+    });
+
+    if (error) {
+      pushLog({
+        id: crypto.randomUUID(),
+        ts: now(),
+        code,
+        status: "error",
+        message: error.message || "Error claiming card",
+      });
+      return;
+    }
+
+    // Success / errors from RPC
+    if (data?.ok) {
+      // either newly claimed OR already owner
+      const status: LogItem["status"] = data.already_owner ? "already_owner" : "claimed";
+      const card = data.card_id ? await fetchCardById(data.card_id) : undefined;
+      pushLog({
+        id: crypto.randomUUID(),
+        ts: now(),
+        code,
+        status,
+        message: status === "claimed" ? "Added to your collection" : "Already in your collection",
+        card,
+      });
+      return;
+    }
+
+    // not ok → switch on error code
+    let status: LogItem["status"] = "error";
+    let message = "Something went wrong.";
+    switch (data?.error) {
+      case "not_found":
+        status = "not_found";
+        message = "Card not found.";
+        break;
+      case "owned_by_other":
+        status = "owned_by_other";
+        message = "Already claimed by another user.";
+        break;
+      case "blocked":
+        status = "blocked";
+        message = "Your account is blocked from claiming cards.";
+        break;
+      case "not_signed_in":
+        navigate("/auth/login?next=/scan", { replace: true });
+        return;
+    }
+
+    const card = await fetchCardByCodeLike(code);
+    pushLog({
+      id: crypto.randomUUID(),
+      ts: now(),
+      code,
+      status,
+      message,
+      card,
+    });
+  }
+
+  /* ---------- scanner callbacks ---------- */
+
   const onScan = useCallback(
-    async (texts: { rawValue: string }[]) => {
-      if (processing) return;
-      const first = texts?.[0]?.rawValue;
-      if (!first) return;
-
-      const code = extractCode(first);
-      setLastText(first);
-
+    async (detections: { rawValue: string }[]) => {
+      const raw = detections?.[0]?.rawValue;
+      if (!raw) return;
+      const code = extractCode(raw);
       if (!code) {
-        setError("Could not recognize a card code in that QR.");
+        setError("Could not read a card code from that QR.");
         return;
       }
-
-      setProcessing(true);
-      // Go to redirect route which auto-claims
-      navigate(`/r/${encodeURIComponent(code)}`, { replace: true });
+      if (!shouldProcess(code)) return; // debounce same code
+      await claim(code);
     },
-    [extractCode, navigate, processing]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   const onError = useCallback((err: any) => {
-    // NOTE: This fires repeatedly if the camera is blocked; keep it quiet but visible
+    // Camera errors can fire repeatedly; show once softly
     setError(String(err?.message || err) || "Camera error");
   }, []);
 
   const tips = useMemo(
     () => [
       "Allow camera access when prompted.",
-      "Hold your card steady so the QR fills most of the square.",
-      "Good, even lighting helps the camera focus.",
+      "Hold the QR steady; fill most of the square.",
+      "Good, even lighting helps focus and decode.",
     ],
     []
   );
 
+  /* ---------- UI ---------- */
+
+  function StatusPill({ s }: { s: LogItem["status"] }) {
+    const map: Record<LogItem["status"], string> = {
+      claimed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+      already_owner: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
+      owned_by_other: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+      not_found: "bg-zinc-200 text-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-200",
+      blocked: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
+      error: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
+    };
+    const label: Record<LogItem["status"], string> = {
+      claimed: "Claimed",
+      already_owner: "Already Yours",
+      owned_by_other: "Owned by Another",
+      not_found: "Not Found",
+      blocked: "Blocked",
+      error: "Error",
+    };
+    return (
+      <span className={`inline-block text-xs px-2 py-0.5 rounded ${map[s]}`}>
+        {label[s]}
+      </span>
+    );
+  }
+
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Scan Your Card</h1>
+      <h1 className="text-2xl font-semibold">Scan Cards</h1>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-5">
+        {/* Camera */}
         <div className="space-y-3">
           <div className="border rounded-xl overflow-hidden">
-            <Scanner
-              onScan={onScan}
+            <QrScanner
+              onDecode={onScan}
               onError={onError}
-              constraints={{ facingMode: "environment" }} // prefer back camera on mobile
-              styles={{ 
-                container: { width: "100%", aspectRatio: "1 / 1" },
-                video: { width: "100%", height: "auto" }
-              }}
+              constraints={{ facingMode: "environment" }}
+              containerStyle={{ width: "100%", aspectRatio: "1 / 1" }}
+              videoStyle={{ width: "100%", height: "auto" }}
+              onInit={() => setCameraReady(true)}
             />
           </div>
 
-          {lastText && (
-            <div className="text-xs opacity-70 break-all">
-              Last raw scan: <code>{lastText}</code>
+          {!cameraReady && (
+            <div className="text-sm opacity-80">
+              Initializing camera… If asked, please allow camera access.
             </div>
           )}
-
           {error && (
             <div className="text-sm px-3 py-2 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
               {error}
             </div>
           )}
+
+          {/* Manual Entry */}
+          <ManualEntry onSubmit={(text) => {
+            const code = extractCode(text);
+            if (!code) { setError("Enter a valid code or URL."); return; }
+            if (!shouldProcess(code)) return;
+            claim(code);
+          }} />
         </div>
 
+        {/* Log */}
         <div className="space-y-3">
-          <div className="border rounded-xl p-3">
-            <div className="font-medium mb-2">Tips</div>
-            <ul className="list-disc list-inside text-sm opacity-80 space-y-1">
-              {tips.map((t, i) => <li key={i}>{t}</li>)}
-            </ul>
+          <div className="flex items-center justify-between">
+            <div className="font-medium">Scan Log</div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate("/me/cards")}
+                className="border rounded px-3 py-1 text-sm"
+              >
+                Open My Collection
+              </button>
+              <button
+                onClick={() => setLog([])}
+                className="border rounded px-3 py-1 text-sm"
+              >
+                Clear Log
+              </button>
+            </div>
           </div>
 
-          {/* Manual fallback */}
-          <ManualEntry navigateTo={(code) => navigate(`/r/${encodeURIComponent(code)}`)} />
+          {log.length === 0 ? (
+            <div className="opacity-70 text-sm">
+              No scans yet. Point the camera at a card QR, or paste a code.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {log.map((row) => (
+                <li key={row.id} className="border rounded-lg p-2 flex gap-3 items-center">
+                  <div className="w-12 h-16 bg-zinc-200/40 dark:bg-zinc-800/40 rounded overflow-hidden flex-shrink-0">
+                    {row.card?.image_url ? (
+                      <img
+                        src={row.card.image_url}
+                        alt={row.card?.name ?? "Card"}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium truncate">
+                        {row.card?.name ?? row.code}
+                      </div>
+                      <StatusPill s={row.status} />
+                    </div>
+                    {row.card && (
+                      <div className="text-xs opacity-70 truncate">
+                        {(row.card.era ?? "—")} • {(row.card.suit ?? "—")} {(row.card.rank ?? "—")}
+                      </div>
+                    )}
+                    <div className="text-xs opacity-60">
+                      {row.message} · {new Date(row.ts).toLocaleTimeString()}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
+      </div>
+
+      <div className="border rounded-xl p-3">
+        <div className="font-medium mb-2">Tips</div>
+        <ul className="list-disc list-inside text-sm opacity-80 space-y-1">
+          {tips.map((t, i) => <li key={i}>{t}</li>)}
+        </ul>
       </div>
     </div>
   );
 }
 
-function ManualEntry({ navigateTo }: { navigateTo: (code: string) => void }) {
-  const [code, setCode] = useState("");
-
+/* -------- Manual Entry sub-component -------- */
+function ManualEntry({ onSubmit }: { onSubmit: (text: string) => void }) {
+  const [text, setText] = useState("");
   return (
     <div className="border rounded-xl p-3 space-y-2">
       <div className="font-medium">Manual Code Entry</div>
       <input
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-        placeholder="Paste code or full URL (e.g., TOT-ABCD-1234)"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Paste code or full URL (e.g., TEST-CODE-ONE or https://app/r/TEST-CODE-ONE)"
         className="border rounded px-2 py-1 w-full"
       />
       <button
-        onClick={() => {
-          const trimmed = code.trim();
-          if (!trimmed) return;
-          navigateTo(trimmed);
-        }}
+        onClick={() => onSubmit(text)}
         className="border rounded px-3 py-1"
       >
-        Go
+        Add
       </button>
       <div className="text-xs opacity-70">
-        This tries both a full URL and a raw code.
+        Accepts both full URLs and raw codes.
       </div>
     </div>
   );
