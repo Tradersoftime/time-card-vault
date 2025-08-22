@@ -19,9 +19,30 @@ type PendingCard = {
 type PendingRedemption = {
   id: string;
   user_id: string;
-  email: string | null;
+  email: string | null; // we fetch emails via RPC below (for pending we still use old join)
   submitted_at: string;
   cards: PendingCard[];
+};
+
+type RedCard = {
+  card_id: string;
+  cards: {
+    name?: string | null;
+    image_url?: string | null;
+    era?: string | null;
+    suit?: string | null;
+    rank?: string | null;
+    rarity?: string | null;
+    trader_value?: string | null;
+  } | null;
+};
+
+type RedItem = {
+  id: string;
+  user_id: string;
+  status: string;
+  submitted_at: string;
+  redemption_cards: RedCard[];
 };
 
 type BlockedRow = {
@@ -33,23 +54,36 @@ type BlockedRow = {
   blocked_by_email: string | null;
 };
 
+type ScanRow = {
+  created_at: string;
+  user_id: string;
+  email: string | null;
+  code: string;
+  card_id: string | null;
+  outcome: "claimed" | "already_owner" | "owned_by_other" | "not_found" | "blocked" | "error";
+};
+
 /* ---------- Page ---------- */
 
 export default function Admin() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Pending redemptions (from RPC with emails)
+  // -------- Pending redemptions (grouped by user) --------
   const [pending, setPending] = useState<PendingRedemption[]>([]);
   const [loadingPending, setLoadingPending] = useState(true);
-
-  // Selection for bulk actions (by redemption id)
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-
-  // Admin tools messaging + blocked list
   const [toolMsg, setToolMsg] = useState<string | null>(null);
+
+  // -------- Blocked users --------
   const [blocked, setBlocked] = useState<BlockedRow[]>([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
+
+  // -------- Scan log --------
+  const [scans, setScans] = useState<ScanRow[]>([]);
+  const [loadingScans, setLoadingScans] = useState(false);
+  const [scanQuery, setScanQuery] = useState("");
+  const [scanOutcome, setScanOutcome] = useState<ScanRow["outcome"] | "all">("all");
 
   /* ---- Admin check ---- */
   useEffect(() => {
@@ -74,6 +108,7 @@ export default function Admin() {
     if (isAdmin !== true) return;
     loadPending();
     loadBlocked();
+    loadScans();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
@@ -82,9 +117,43 @@ export default function Admin() {
     setLoadingPending(true);
     setSelected({});
     setError(null);
-    const { data, error } = await supabase.rpc("admin_redemptions_pending");
+    // Use the existing table join for pending redemptions (no emails here)
+    const { data, error } = await supabase
+      .from("redemptions")
+      .select(`
+        id,
+        user_id,
+        status,
+        submitted_at,
+        redemption_cards (
+          card_id,
+          cards ( name, image_url, era, suit, rank, rarity, trader_value )
+        )
+      `)
+      .eq("status", "pending")
+      .order("submitted_at", { ascending: true });
+
     if (error) setError(error.message);
-    setPending((data as PendingRedemption[]) ?? []);
+    const items = (data as RedItem[]) ?? [];
+    // Map into PendingRedemption (email will be blank here; grouped by user_id works fine)
+    const mapped: PendingRedemption[] = items.map(r => ({
+      id: r.id,
+      user_id: r.user_id,
+      email: null,
+      submitted_at: r.submitted_at,
+      cards: (r.redemption_cards || []).map(rc => ({
+        card_id: rc.card_id,
+        name: rc.cards?.name ?? null,
+        image_url: rc.cards?.image_url ?? null,
+        era: rc.cards?.era ?? null,
+        suit: rc.cards?.suit ?? null,
+        rank: rc.cards?.rank ?? null,
+        rarity: rc.cards?.rarity ?? null,
+        trader_value: rc.cards?.trader_value ?? null,
+      })),
+    }));
+
+    setPending(mapped);
     setLoadingPending(false);
   }
 
@@ -96,16 +165,24 @@ export default function Admin() {
     setLoadingBlocked(false);
   }
 
-  /* ---- Selection helpers ---- */
+  async function loadScans() {
+    setLoadingScans(true);
+    const { data, error } = await supabase.rpc("admin_scan_events", { p_limit: 200 });
+    if (error) setToolMsg(error.message);
+    setScans((data as ScanRow[]) ?? []);
+    setLoadingScans(false);
+  }
+
+  /* ---- Selection helpers (pending) ---- */
   function toggle(id: string) {
     setSelected(s => ({ ...s, [id]: !s[id] }));
   }
-  function selectAllUser(emailKey: string) {
+  function selectAllUser(userId: string) {
     const next = { ...selected };
-    groups[emailKey]?.forEach(r => { next[r.id] = true; });
+    pending.filter(r => r.user_id === userId).forEach(r => { next[r.id] = true; });
     setSelected(next);
   }
-  function clearAll() {
+  function clearSelection() {
     setSelected({});
   }
 
@@ -133,7 +210,7 @@ export default function Admin() {
     }
   }
 
-  /* ---- Per-item approve / reject (kept for convenience) ---- */
+  /* ---- Per-item approve / reject ---- */
   async function markCredited(id: string) {
     const amtStr = window.prompt("TIME amount to credit?", "0");
     if (amtStr === null) return;
@@ -174,73 +251,83 @@ export default function Admin() {
     await loadPending();
   }
 
-  /* ---- Group by user (email) ---- */
-  const groups = useMemo<Record<string, PendingRedemption[]>>(() => {
+  /* ---- Group pending by user_id ---- */
+  const pendingGroups = useMemo<Record<string, PendingRedemption[]>>(() => {
     const map: Record<string, PendingRedemption[]> = {};
     for (const r of pending) {
-      const key = (r.email || r.user_id);
+      const key = r.user_id;
       if (!map[key]) map[key] = [];
       map[key].push(r);
     }
     return map;
   }, [pending]);
 
+  /* ---- Filtered scans ---- */
+  const filteredScans = useMemo(() => {
+    const q = scanQuery.trim().toLowerCase();
+    return scans.filter(s => {
+      const matchQ =
+        !q ||
+        (s.email ?? "").toLowerCase().includes(q) ||
+        s.code.toLowerCase().includes(q);
+      const matchOutcome = (scanOutcome === "all") || s.outcome === scanOutcome;
+      return matchQ && matchOutcome;
+    });
+  }, [scans, scanQuery, scanOutcome]);
+
   if (isAdmin === null) return <div className="p-6">Loading…</div>;
   if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Admin — Redemptions</h1>
+        <h1 className="text-2xl font-semibold">Admin</h1>
         <div className="flex gap-2">
           <Link to="/admin/qr" className="border rounded px-3 py-1">QR Generator</Link>
-          <button onClick={loadPending} className="border rounded px-3 py-1">Refresh</button>
+          <button onClick={() => { loadPending(); loadScans(); }} className="border rounded px-3 py-1">
+            Refresh
+          </button>
         </div>
       </div>
 
-      {/* Global bulk bar */}
-      <div className="border rounded-xl p-3 flex flex-wrap items-center gap-2">
-        <button onClick={approveSelected} className="border rounded px-3 py-1">
-          Approve Selected
-        </button>
-        <button onClick={clearAll} className="border rounded px-3 py-1">
-          Clear Selection
-        </button>
-        {toolMsg && <div className="text-sm opacity-90">{toolMsg}</div>}
-      </div>
+      {toolMsg && (
+        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+          {toolMsg}
+        </div>
+      )}
 
-      {/* Grouped pending by user */}
-      <section className="space-y-5">
+      {/* ---------- Pending Redemptions (group by user) ---------- */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Pending Redemptions</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={approveSelected} className="border rounded px-3 py-1">Approve Selected</button>
+            <button onClick={clearSelection} className="border rounded px-3 py-1">Clear Selection</button>
+          </div>
+        </div>
+
         {loadingPending ? (
           <div>Loading pending…</div>
         ) : pending.length === 0 ? (
           <div className="opacity-70">No pending redemptions.</div>
         ) : (
-          Object.entries(groups).map(([emailKey, reds]) => {
-            const email = reds[0]?.email ?? "—";
-            const uid = reds[0]?.user_id ?? "—";
+          Object.entries(pendingGroups).map(([userId, reds]) => {
             const selectedCount = reds.filter(r => selected[r.id]).length;
-
             return (
-              <div key={emailKey} className="border rounded-xl p-3">
+              <div key={userId} className="border rounded-xl p-3">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
                   <div>
-                    <div className="font-medium">{email}</div>
-                    <div className="text-xs opacity-70">User ID: {uid}</div>
+                    <div className="font-medium">User ID: {userId}</div>
+                    <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => selectAllUser(emailKey)}
-                      className="border rounded px-3 py-1 text-sm"
-                    >
+                    <button onClick={() => selectAllUser(userId)} className="border rounded px-3 py-1 text-sm">
                       Select All ({reds.length})
                     </button>
                     {selectedCount > 0 && (
-                      <div className="text-xs opacity-80">
-                        Selected in this user: {selectedCount}
-                      </div>
+                      <div className="text-xs opacity-80">Selected: {selectedCount}</div>
                     )}
                   </div>
                 </div>
@@ -304,7 +391,68 @@ export default function Admin() {
         )}
       </section>
 
-      {/* Blocked users */}
+      {/* ---------- Scan Log ---------- */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
+          <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            value={scanQuery}
+            onChange={(e) => setScanQuery(e.target.value)}
+            placeholder="Search by email or code…"
+            className="border rounded px-2 py-1"
+          />
+          <select
+            value={scanOutcome}
+            onChange={(e) => setScanOutcome(e.target.value as any)}
+            className="border rounded px-2 py-1"
+          >
+            <option value="all">All outcomes</option>
+            <option value="claimed">claimed</option>
+            <option value="already_owner">already_owner</option>
+            <option value="owned_by_other">owned_by_other</option>
+            <option value="not_found">not_found</option>
+            <option value="blocked">blocked</option>
+            <option value="error">error</option>
+          </select>
+        </div>
+
+        {loadingScans ? (
+          <div>Loading scan log…</div>
+        ) : filteredScans.length === 0 ? (
+          <div className="opacity-70 text-sm">No scans match your filter.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">When</th>
+                  <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Code</th>
+                  <th className="py-2 pr-3">Outcome</th>
+                  <th className="py-2 pr-3">Card ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredScans.map((s, idx) => (
+                  <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{new Date(s.created_at).toLocaleString()}</td>
+                    <td className="py-2 pr-3">{s.email ?? "—"}</td>
+                    <td className="py-2 pr-3 font-mono">{s.code}</td>
+                    <td className="py-2 pr-3">{s.outcome}</td>
+                    <td className="py-2 pr-3 font-mono">{s.card_id ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ---------- Blocked users ---------- */}
       <section className="border rounded-xl p-3">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold">Blocked users</h2>
