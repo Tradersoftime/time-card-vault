@@ -16,6 +16,7 @@ import CardRedirect from "./pages/CardRedirect";
 import ClaimCard from "./pages/ClaimCard";
 import MyCards from "./pages/MyCards";
 import Admin from "./pages/Admin";
+import AdminQR from "./pages/AdminQR";
 import NotFound from "./pages/NotFound";
 import Scan from "./pages/Scan";
 
@@ -38,6 +39,7 @@ const App = () => (
                 <Route path="/me/cards" element={<MyCards />} />
                 <Route path="/scan" element={<Scan />} />
                 <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <Footer />
