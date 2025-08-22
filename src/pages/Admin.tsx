@@ -1,313 +1,593 @@
-// src/pages/AdminQR.tsx
+// src/pages/Admin.tsx
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import QRCode from "qrcode";
-import JSZip from "jszip";
 
-type CardMinimal = {
-  code: string;
-  name?: string | null;
-  is_active?: boolean | null;
-  current_target?: string | null;
+/* ---------- Types ---------- */
+
+type PendingCard = {
+  card_id: string;
+  name: string | null;
+  image_url: string | null;
+  era: string | null;
+  suit: string | null;
+  rank: string | null;
+  rarity: string | null;
+  trader_value: string | null;
 };
 
-export default function AdminQR() {
+type PendingRedemption = {
+  id: string;
+  user_id: string;
+  email: string | null; // we fetch emails via RPC below (for pending we still use old join)
+  submitted_at: string;
+  cards: PendingCard[];
+};
+
+type RedCard = {
+  card_id: string;
+  cards: {
+    name?: string | null;
+    image_url?: string | null;
+    era?: string | null;
+    suit?: string | null;
+    rank?: string | null;
+    rarity?: string | null;
+    trader_value?: string | null;
+  } | null;
+};
+
+type RedItem = {
+  id: string;
+  user_id: string;
+  status: string;
+  submitted_at: string;
+  redemption_cards: RedCard[];
+};
+
+type BlockedRow = {
+  user_id: string;
+  email: string | null;
+  reason: string | null;
+  blocked_at: string;
+  blocked_by: string | null;
+  blocked_by_email: string | null;
+};
+
+type ScanRow = {
+  created_at: string;
+  user_id: string;
+  email: string | null;
+  code: string;
+  card_id: string | null;
+  outcome: "claimed" | "already_owner" | "owned_by_other" | "not_found" | "blocked" | "error";
+};
+
+/* ---------- Page ---------- */
+
+export default function Admin() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Single QR
-  const [singleCode, setSingleCode] = useState("");
-  const [singleLabel, setSingleLabel] = useState("");
-  const [pngDataUrl, setPngDataUrl] = useState<string | null>(null);
+  // -------- Pending redemptions (grouped by user) --------
+  const [pending, setPending] = useState<PendingRedemption[]>([]);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [toolMsg, setToolMsg] = useState<string | null>(null);
 
-  // Bulk random
-  const [prefix, setPrefix] = useState("TOT");
-  const [count, setCount] = useState(10);
-  const [saving, setSaving] = useState(false);
+  // -------- Blocked users --------
+  const [blocked, setBlocked] = useState<BlockedRow[]>([]);
+  const [loadingBlocked, setLoadingBlocked] = useState(false);
 
-  // Edit redirect
-  const [editCode, setEditCode] = useState("");
-  const [editTarget, setEditTarget] = useState("");
-  const [editFound, setEditFound] = useState<CardMinimal | null>(null);
+  // -------- Scan log --------
+  const [scans, setScans] = useState<ScanRow[]>([]);
+  const [loadingScans, setLoadingScans] = useState(false);
+  const [scanQuery, setScanQuery] = useState("");
+  const [scanOutcome, setScanOutcome] = useState<ScanRow["outcome"] | "all">("all");
 
-  const baseUrl = useMemo(() => {
-    // Where QR should point: https://your-site/r/<CODE>
-    return `${window.location.origin}/r/`;
-  }, []);
-
+  /* ---- Admin check ---- */
   useEffect(() => {
+    let mounted = true;
     (async () => {
+      setError(null);
       const { data: u } = await supabase.auth.getUser();
-      if (!u?.user) { setIsAdmin(false); return; }
-      const { data } = await supabase
+      if (!u?.user) { if (mounted) setIsAdmin(false); return; }
+      const { data, error } = await supabase
         .from("admins")
         .select("user_id")
         .eq("user_id", u.user.id)
         .maybeSingle();
+      if (!mounted) return;
+      if (error) setError(error.message);
       setIsAdmin(!!data);
     })();
+    return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (isAdmin !== true) return;
+    loadPending();
+    loadBlocked();
+    loadScans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  /* ---- Loaders ---- */
+  async function loadPending() {
+    setLoadingPending(true);
+    setSelected({});
+    setError(null);
+    // Use the existing table join for pending redemptions (no emails here)
+    const { data, error } = await supabase
+      .from("redemptions")
+      .select(`
+        id,
+        user_id,
+        status,
+        submitted_at,
+        redemption_cards (
+          card_id,
+          cards ( name, image_url, era, suit, rank, rarity, trader_value )
+        )
+      `)
+      .eq("status", "pending")
+      .order("submitted_at", { ascending: true });
+
+    if (error) setError(error.message);
+    const items = (data as RedItem[]) ?? [];
+    // Map into PendingRedemption (email will be blank here; grouped by user_id works fine)
+    const mapped: PendingRedemption[] = items.map(r => ({
+      id: r.id,
+      user_id: r.user_id,
+      email: null,
+      submitted_at: r.submitted_at,
+      cards: (r.redemption_cards || []).map(rc => ({
+        card_id: rc.card_id,
+        name: rc.cards?.name ?? null,
+        image_url: rc.cards?.image_url ?? null,
+        era: rc.cards?.era ?? null,
+        suit: rc.cards?.suit ?? null,
+        rank: rc.cards?.rank ?? null,
+        rarity: rc.cards?.rarity ?? null,
+        trader_value: rc.cards?.trader_value ?? null,
+      })),
+    }));
+
+    setPending(mapped);
+    setLoadingPending(false);
+  }
+
+  async function loadBlocked() {
+    setLoadingBlocked(true);
+    const { data, error } = await supabase.rpc("admin_list_blocked");
+    if (error) setToolMsg(error.message);
+    setBlocked((data as BlockedRow[]) ?? []);
+    setLoadingBlocked(false);
+  }
+
+  async function loadScans() {
+    setLoadingScans(true);
+    const { data, error } = await supabase.rpc("admin_scan_events", { p_limit: 200 });
+    if (error) setToolMsg(error.message);
+    setScans((data as ScanRow[]) ?? []);
+    setLoadingScans(false);
+  }
+
+  /* ---- Selection helpers (pending) ---- */
+  function toggle(id: string) {
+    setSelected(s => ({ ...s, [id]: !s[id] }));
+  }
+  function selectAllUser(userId: string) {
+    const next = { ...selected };
+    pending.filter(r => r.user_id === userId).forEach(r => { next[r.id] = true; });
+    setSelected(next);
+  }
+  function clearSelection() {
+    setSelected({});
+  }
+
+  /* ---- Bulk approve ---- */
+  async function approveSelected() {
+    const ids = Object.keys(selected).filter(id => selected[id]);
+    if (ids.length === 0) { setToolMsg("Select at least one redemption."); return; }
+    const amtStr = window.prompt("TIME amount PER redemption?", "0");
+    if (amtStr === null) return;
+    const amount = Number(amtStr);
+    if (!Number.isFinite(amount)) { setToolMsg("Enter a valid number."); return; }
+    const ref = window.prompt("External reference / note (optional)") || null;
+
+    const { data, error } = await supabase.rpc("admin_bulk_credit", {
+      p_ids: ids,
+      p_amount: amount,
+      p_ref: ref,
+    });
+    if (error) { setToolMsg(error.message); return; }
+    if (data?.ok) {
+      setToolMsg(`✅ Credited ${data.updated ?? ids.length} redemption(s).`);
+      await loadPending();
+    } else {
+      setToolMsg("Could not credit.");
+    }
+  }
+
+  /* ---- Per-item approve / reject ---- */
+  async function markCredited(id: string) {
+    const amtStr = window.prompt("TIME amount to credit?", "0");
+    if (amtStr === null) return;
+    const amount = Number(amtStr);
+    if (!Number.isFinite(amount)) { alert("Please enter a valid number."); return; }
+    const ref = window.prompt("External reference / note (optional)") || null;
+
+    const { data: u } = await supabase.auth.getUser();
+    if (!u?.user) { alert("Not signed in."); return; }
+
+    const { error } = await supabase
+      .from("redemptions")
+      .update({
+        status: "credited",
+        credited_amount: amount,
+        external_ref: ref,
+        credited_at: new Date().toISOString(),
+        credited_by: u.user.id,
+      })
+      .eq("id", id);
+    if (error) alert(error.message);
+    await loadPending();
+  }
+
+  async function markRejected(id: string) {
+    const reason = window.prompt("Reason (optional)") || null;
+    const { error } = await supabase
+      .from("redemptions")
+      .update({
+        status: "rejected",
+        admin_notes: reason,
+        credited_amount: null,
+        credited_at: null,
+        credited_by: null,
+      })
+      .eq("id", id);
+    if (error) alert(error.message);
+    await loadPending();
+  }
+
+  /* ---- Group pending by user_id ---- */
+  const pendingGroups = useMemo<Record<string, PendingRedemption[]>>(() => {
+    const map: Record<string, PendingRedemption[]> = {};
+    for (const r of pending) {
+      const key = r.user_id;
+      if (!map[key]) map[key] = [];
+      map[key].push(r);
+    }
+    return map;
+  }, [pending]);
+
+  /* ---- Filtered scans ---- */
+  const filteredScans = useMemo(() => {
+    const q = scanQuery.trim().toLowerCase();
+    return scans.filter(s => {
+      const matchQ =
+        !q ||
+        (s.email ?? "").toLowerCase().includes(q) ||
+        s.code.toLowerCase().includes(q);
+      const matchOutcome = (scanOutcome === "all") || s.outcome === scanOutcome;
+      return matchQ && matchOutcome;
+    });
+  }, [scans, scanQuery, scanOutcome]);
 
   if (isAdmin === null) return <div className="p-6">Loading…</div>;
   if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
-
-  /* -------------- Helpers -------------- */
-
-  function randomCode(prefix: string) {
-    // Example: TOT-4K9V-7XQ2
-    const block = () => Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(2, 6);
-    return `${prefix}-${block()}-${block()}`;
-  }
-
-  async function toPNG(data: string, label?: string) {
-    // Make a nice, crisp PNG data URL with QR + optional label below
-    const qrCanvas = document.createElement("canvas");
-    await QRCode.toCanvas(qrCanvas, data, { errorCorrectionLevel: "M", margin: 2, width: 512 });
-
-    if (!label) return qrCanvas.toDataURL("image/png");
-
-    // draw label onto a taller canvas
-    const pad = 16;
-    const fontPx = 32;
-    const w = qrCanvas.width;
-    const h = qrCanvas.height + pad + fontPx + pad;
-    const out = document.createElement("canvas");
-    out.width = w;
-    out.height = h;
-    const ctx = out.getContext("2d")!;
-    // background white
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, w, h);
-    // draw qr
-    ctx.drawImage(qrCanvas, 0, 0);
-    // label
-    ctx.fillStyle = "#000";
-    ctx.font = `${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.fillText(label, w / 2, h - pad);
-    return out.toDataURL("image/png");
-  }
-
-  async function downloadDataUrl(filename: string, dataUrl: string) {
-    const a = document.createElement("a");
-    a.href = dataUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-
-  /* -------------- Single QR -------------- */
-
-  async function buildSingle() {
-    setMsg(null);
-    const code = singleCode.trim();
-    if (!code) { setMsg("Enter a card code."); return; }
-    const url = baseUrl + encodeURIComponent(code);
-    const dataUrl = await toPNG(url, singleLabel || code);
-    setPngDataUrl(dataUrl);
-  }
-
-  /* -------------- Bulk random generate + ZIP -------------- */
-
-  async function bulkGenerate() {
-    setMsg(null);
-    if (!prefix.trim()) { setMsg("Enter a prefix (e.g., TOT)."); return; }
-    if (count <= 0 || count > 1000) { setMsg("Enter a count between 1 and 1000."); return; }
-
-    // Make codes
-    const codes: string[] = [];
-    const seen = new Set<string>();
-    while (codes.length < count) {
-      const c = randomCode(prefix.trim().toUpperCase());
-      if (seen.has(c)) continue;
-      seen.add(c);
-      codes.push(c);
-    }
-
-    // Save to DB (minimal rows; upsert by code)
-    setSaving(true);
-    const rows = codes.map(code => ({
-      code,
-      is_active: true,
-      // you can prefill metadata later in Admin/CMS
-    }));
-    const { error } = await supabase
-      .from("cards")
-      .upsert(rows, { onConflict: "code", ignoreDuplicates: true });
-    setSaving(false);
-    if (error) { setMsg(error.message); return; }
-
-    // Build ZIP of PNGs
-    const zip = new JSZip();
-    const folder = zip.folder("qrs")!;
-    for (const code of codes) {
-      const url = baseUrl + encodeURIComponent(code);
-      const png = await toPNG(url, code);
-      const base64 = png.split(",")[1];
-      folder.file(`${code}.png`, base64, { base64: true });
-    }
-    const blob = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `tot-cards-qrs-${prefix}-${codes.length}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-
-    setMsg(`✅ Generated ${codes.length} codes, saved to DB, and downloaded ZIP.`);
-  }
-
-  /* -------------- Edit redirect (current_target) -------------- */
-
-  async function lookupCode() {
-    setMsg(null);
-    const code = editCode.trim();
-    if (!code) { setMsg("Enter a code to look up."); return; }
-    const { data, error } = await supabase
-      .from("cards")
-      .select("code, is_active, current_target, name")
-      .ilike("code", code)
-      .maybeSingle();
-    if (error) { setMsg(error.message); return; }
-    setEditFound(data as CardMinimal);
-    setEditTarget((data?.current_target as string) || "");
-  }
-
-  async function saveRedirect() {
-    setMsg(null);
-    const code = editCode.trim();
-    const target = editTarget.trim() || null;
-    if (!code) { setMsg("Enter a code."); return; }
-    const { error } = await supabase
-      .from("cards")
-      .update({ current_target: target })
-      .ilike("code", code);
-    if (error) { setMsg(error.message); return; }
-    setMsg("✅ Updated redirect.");
-  }
-
-  /* -------------- UI -------------- */
+  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
   return (
     <div className="p-6 space-y-8">
-      <h1 className="text-2xl font-semibold">Admin — QR Tools</h1>
-      {msg && (
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Admin</h1>
+        <div className="flex gap-2">
+          <Link to="/admin/qr" className="border rounded px-3 py-1">QR Generator</Link>
+          <button onClick={() => { loadPending(); loadScans(); }} className="border rounded px-3 py-1">
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {toolMsg && (
         <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
-          {msg}
+          {toolMsg}
         </div>
       )}
 
-      {/* Single QR */}
-      <section className="border rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Single QR</h2>
-        <div className="grid md:grid-cols-3 gap-3">
+      {/* ---------- Pending Redemptions (group by user) ---------- */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Pending Redemptions</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={approveSelected} className="border rounded px-3 py-1">Approve Selected</button>
+            <button onClick={clearSelection} className="border rounded px-3 py-1">Clear Selection</button>
+          </div>
+        </div>
+
+        {loadingPending ? (
+          <div>Loading pending…</div>
+        ) : pending.length === 0 ? (
+          <div className="opacity-70">No pending redemptions.</div>
+        ) : (
+          Object.entries(pendingGroups).map(([userId, reds]) => {
+            const selectedCount = reds.filter(r => selected[r.id]).length;
+            return (
+              <div key={userId} className="border rounded-xl p-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                  <div>
+                    <div className="font-medium">User ID: {userId}</div>
+                    <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => selectAllUser(userId)} className="border rounded px-3 py-1 text-sm">
+                      Select All ({reds.length})
+                    </button>
+                    {selectedCount > 0 && (
+                      <div className="text-xs opacity-80">Selected: {selectedCount}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {reds.map((r) => (
+                    <div key={r.id} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={!!selected[r.id]}
+                            onChange={() => toggle(r.id)}
+                          />
+                          <span className="font-medium">
+                            Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
+                          </span>
+                        </label>
+                        <div className="text-xs opacity-70">
+                          Submitted {new Date(r.submitted_at).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {r.cards?.map((c) => (
+                          <div key={c.card_id} className="border rounded-lg overflow-hidden">
+                            {c.image_url && (
+                              <img
+                                src={c.image_url}
+                                alt={c.name ?? "Card"}
+                                className="w-full aspect-[3/4] object-cover"
+                              />
+                            )}
+                            <div className="p-2 text-sm">
+                              <div className="font-medium truncate">{c.name ?? "—"}</div>
+                              <div className="opacity-70">
+                                {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
+                              </div>
+                              <div className="text-xs opacity-60">
+                                Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={() => markCredited(r.id)} className="border rounded px-3 py-1">
+                          Approve (single)
+                        </button>
+                        <button onClick={() => markRejected(r.id)} className="border rounded px-3 py-1">
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </section>
+
+      {/* ---------- Scan Log ---------- */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
+          <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
           <input
-            value={singleCode}
-            onChange={(e) => setSingleCode(e.target.value)}
-            placeholder="Card code (e.g., TOT-ABCD-1234)"
+            value={scanQuery}
+            onChange={(e) => setScanQuery(e.target.value)}
+            placeholder="Search by email or code…"
             className="border rounded px-2 py-1"
           />
-          <input
-            value={singleLabel}
-            onChange={(e) => setSingleLabel(e.target.value)}
-            placeholder="Label under QR (optional)"
+          <select
+            value={scanOutcome}
+            onChange={(e) => setScanOutcome(e.target.value as any)}
             className="border rounded px-2 py-1"
-          />
-          <button onClick={buildSingle} className="border rounded px-3 py-1">
-            Build Preview
+          >
+            <option value="all">All outcomes</option>
+            <option value="claimed">claimed</option>
+            <option value="already_owner">already_owner</option>
+            <option value="owned_by_other">owned_by_other</option>
+            <option value="not_found">not_found</option>
+            <option value="blocked">blocked</option>
+            <option value="error">error</option>
+          </select>
+        </div>
+
+        {loadingScans ? (
+          <div>Loading scan log…</div>
+        ) : filteredScans.length === 0 ? (
+          <div className="opacity-70 text-sm">No scans match your filter.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">When</th>
+                  <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Code</th>
+                  <th className="py-2 pr-3">Outcome</th>
+                  <th className="py-2 pr-3">Card ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredScans.map((s, idx) => (
+                  <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{new Date(s.created_at).toLocaleString()}</td>
+                    <td className="py-2 pr-3">{s.email ?? "—"}</td>
+                    <td className="py-2 pr-3 font-mono">{s.code}</td>
+                    <td className="py-2 pr-3">{s.outcome}</td>
+                    <td className="py-2 pr-3 font-mono">{s.card_id ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ---------- Blocked users ---------- */}
+      <section className="border rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold">Blocked users</h2>
+          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
+            Refresh list
           </button>
         </div>
-        {pngDataUrl && (
-          <div className="space-y-2">
-            <img src={pngDataUrl} alt="QR preview" className="w-64 border rounded" />
-            <div>
-              <button
-                onClick={() => downloadDataUrl(`${singleCode || "qr"}.png`, pngDataUrl)}
-                className="border rounded px-3 py-1"
-              >
-                Download PNG
-              </button>
-            </div>
+
+        <div className="mb-3">
+          <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
+        </div>
+
+        {loadingBlocked ? (
+          <div className="opacity-70 text-sm">Loading blocked users…</div>
+        ) : blocked.length === 0 ? (
+          <div className="opacity-70 text-sm">No one is blocked.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Reason</th>
+                  <th className="py-2 pr-3">Blocked at</th>
+                  <th className="py-2 pr-3">Blocked by</th>
+                  <th className="py-2 pr-0"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {blocked.map((b) => (
+                  <tr key={b.user_id} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
+                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
+                    <td className="py-2 pr-3">{new Date(b.blocked_at).toLocaleString()}</td>
+                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
+                    <td className="py-2 pr-0">
+                      {b.email && (
+                        <button
+                          onClick={async () => {
+                            const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: b.email! });
+                            if (error) setToolMsg(error.message);
+                            else if (data?.ok) { setToolMsg(`✅ Unblocked ${b.email}`); await loadBlocked(); }
+                          }}
+                          className="border rounded px-2 py-1 text-xs"
+                        >
+                          Unblock
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
+    </div>
+  );
+}
 
-      {/* Bulk random generate */}
-      <section className="border rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Bulk Generate Codes + ZIP</h2>
-        <div className="grid md:grid-cols-4 gap-3">
-          <input
-            value={prefix}
-            onChange={(e) => setPrefix(e.target.value)}
-            placeholder="Prefix (e.g., TOT)"
-            className="border rounded px-2 py-1"
-          />
-          <input
-            type="number"
-            value={count}
-            min={1}
-            max={1000}
-            onChange={(e) => setCount(parseInt(e.target.value || "0", 10))}
-            placeholder="How many?"
-            className="border rounded px-2 py-1"
-          />
-          <div className="col-span-2 flex items-center">
-            <button onClick={bulkGenerate} disabled={saving} className="border rounded px-3 py-1">
-              {saving ? "Saving…" : "Generate + Download ZIP"}
-            </button>
-          </div>
-        </div>
-        <div className="text-xs opacity-70">
-          Creates codes like <code>{prefix}-4K9V-7XQ2</code>, saves them as active cards in Supabase, and downloads a ZIP of PNG QRs pointing to <code>{baseUrl}&lt;code&gt;</code>.
-        </div>
-      </section>
+/* ---------------- Admin helper: Block / Unblock ---------------- */
 
-      {/* Edit redirect */}
-      <section className="border rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Edit Card Redirect</h2>
-        <div className="grid md:grid-cols-3 gap-3">
-          <input
-            value={editCode}
-            onChange={(e) => setEditCode(e.target.value)}
-            placeholder="Card code"
-            className="border rounded px-2 py-1"
-          />
-          <button onClick={lookupCode} className="border rounded px-3 py-1">Lookup</button>
-        </div>
+function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; onChanged: () => void }) {
+  const [email, setEmail] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
 
-        {editFound && (
-          <div className="space-y-2">
-            <div className="text-sm">
-              <span className="font-medium">Code:</span> {editFound.code} ·{" "}
-              <span className="font-medium">Active:</span>{" "}
-              {editFound.is_active ? "Yes" : "No"} {editFound.name ? `· ${editFound.name}` : ""}
-            </div>
-            <input
-              value={editTarget}
-              onChange={(e) => setEditTarget(e.target.value)}
-              placeholder="https://destination.example/page (optional)"
-              className="border rounded px-2 py-1 w-full"
-            />
-            <div className="flex gap-2">
-              <button onClick={saveRedirect} className="border rounded px-3 py-1">Save Redirect</button>
-              {editTarget && (
-                <a
-                  href={editTarget}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="border rounded px-3 py-1"
-                >
-                  Open Current Target
-                </a>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
+  async function doBlock() {
+    onMsg(null);
+    const e = email.trim();
+    if (!e) { onMsg("Enter an email."); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_block_user_by_email", {
+      p_email: e,
+      p_reason: reason.trim() || null,
+    });
+    setBusy(false);
+    if (error) { onMsg(error.message); return; }
+    if (data?.ok) {
+      onMsg(`✅ Blocked ${e}.`);
+      onChanged();
+    } else if (data?.error === "not_found") {
+      onMsg(`❌ No auth user found with email: ${e}`);
+    } else if (data?.error === "forbidden") {
+      onMsg("❌ You are not authorized as admin.");
+    } else {
+      onMsg("Could not block user.");
+    }
+  }
+
+  async function doUnblock() {
+    onMsg(null);
+    const e = email.trim();
+    if (!e) { onMsg("Enter an email."); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
+      p_email: e,
+    });
+    setBusy(false);
+    if (error) { onMsg(error.message); return; }
+    if (data?.ok) {
+      onMsg(`✅ Unblocked ${e}.`);
+      onChanged();
+    } else if (data?.error === "not_found") {
+      onMsg(`❌ No auth user found with email: ${e}`);
+    } else if (data?.error === "forbidden") {
+      onMsg("❌ You are not authorized as admin.");
+    } else {
+      onMsg("Could not unblock user.");
+    }
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row md:items-center gap-2">
+      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="user@email.com"
+        className="border rounded px-2 py-1 w-full md:w-64"
+      />
+      <input
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Reason (optional)"
+        className="border rounded px-2 py-1 w-full md:w-64"
+      />
+      <div className="flex gap-2">
+        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+          {busy ? "Blocking…" : "Block"}
+        </button>
+        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+          {busy ? "Unblocking…" : "Unblock"}
+        </button>
+      </div>
     </div>
   );
 }
