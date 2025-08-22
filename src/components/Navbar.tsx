@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
-import { Sun, Moon, LogOut, User, CreditCard, Shield } from 'lucide-react';
+import { Sun, Moon, LogOut, User, CreditCard, Shield, ScanLine } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 
@@ -16,11 +16,7 @@ export function Navbar() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!user) {
-        if (mounted) setIsAdmin(false);
-        return;
-      }
-      // Show Admin link only if the user is in the admins table
+      if (!user) { if (mounted) setIsAdmin(false); return; }
       const { data } = await supabase
         .from('admins')
         .select('user_id')
@@ -57,25 +53,26 @@ export function Navbar() {
             </Link>
 
             {user && (
-              <Link
-                to="/me/cards"
-                className={`interactive text-sm font-medium transition-colors ${
-                  isActive('/me/cards') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                My Collection
-              </Link>
-            )}
+              <>
+                <Link
+                  to="/scan"
+                  className={`interactive text-sm font-medium transition-colors flex items-center gap-1 ${
+                    isActive('/scan') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <ScanLine className="h-4 w-4" />
+                  Scan
+                </Link>
 
-            {user && (
-              <Link
-                to="/scan"
-                className={`interactive text-sm font-medium transition-colors ${
-                  isActive('/scan') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Scan
-              </Link>
+                <Link
+                  to="/me/cards"
+                  className={`interactive text-sm font-medium transition-colors ${
+                    isActive('/me/cards') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  My Collection
+                </Link>
+              </>
             )}
 
             {user && isAdmin && (
