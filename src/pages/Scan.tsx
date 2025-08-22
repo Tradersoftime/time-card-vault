@@ -5,16 +5,10 @@ import { QrScanner } from "@yudiel/react-qr-scanner";
 import { supabase } from "@/integrations/supabase/client";
 
 type LogItem = {
-  id: string;                // unique per row
+  id: string;
   ts: number;
   code: string;
-  status:
-    | "claimed"
-    | "already_owner"
-    | "owned_by_other"
-    | "not_found"
-    | "blocked"
-    | "error";
+  status: "claimed" | "already_owner" | "owned_by_other" | "not_found" | "blocked" | "error";
   message: string;
   card?: {
     id?: string;
@@ -35,7 +29,7 @@ export default function Scan() {
 
   // live log
   const [log, setLog] = useState<LogItem[]>([]);
-  // in-session cooldown so a single QR doesn't flood
+  // per-code cooldown so the same QR doesn’t spam
   const cooldownRef = useRef<Record<string, number>>({});
   const COOLDOWN_MS = 3000;
 
@@ -43,22 +37,47 @@ export default function Scan() {
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
-      if (!data?.user) {
-        navigate("/auth/login?next=/scan", { replace: true });
-      }
+      if (!data?.user) navigate("/auth/login?next=/scan", { replace: true });
     })();
   }, [navigate]);
 
-  /* ---------- helpers ---------- */
+  /* ---------- tiny feedback: beep + vibrate ---------- */
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  function beep(freq = 880, ms = 120) {
+    try {
+      if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const ctx = audioCtxRef.current!;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = freq;
+      g.gain.value = 0.0001;
+      o.start();
+      const t = ctx.currentTime;
+      g.gain.exponentialRampToValueAtTime(0.2, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + ms / 1000);
+      o.stop(t + ms / 1000);
+    } catch { /* ignore */ }
+  }
+  function haptic(pattern: number | number[]) {
+    try { navigator.vibrate?.(pattern as any); } catch { /* ignore */ }
+  }
+  function feedback(status: LogItem["status"]) {
+    switch (status) {
+      case "claimed":        beep(880, 120);  haptic(60); break;
+      case "already_owner":  beep(660, 100);  haptic(40); break;
+      case "owned_by_other": beep(440, 200);  haptic([120, 60, 120]); break;
+      case "not_found":      beep(330, 160);  haptic(80); break;
+      case "blocked":        beep(220, 220);  haptic([180, 80, 180]); break;
+      case "error":          beep(200, 250);  haptic([200, 80, 200]); break;
+    }
+  }
 
+  /* ---------- helpers ---------- */
   const now = () => Date.now();
 
   const pushLog = useCallback((item: LogItem) => {
-    setLog((prev) => {
-      const next = [item, ...prev];
-      // keep last 30 only
-      return next.slice(0, 30);
-    });
+    setLog(prev => [item, ...prev].slice(0, 30)); // keep last 30
   }, []);
 
   function shouldProcess(code: string) {
@@ -81,9 +100,7 @@ export default function Scan() {
         if (rMatch?.[1]) return decodeURIComponent(rMatch[1]);
         const parts = url.pathname.split("/").filter(Boolean);
         if (parts.length > 0) return decodeURIComponent(parts[parts.length - 1]);
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     }
 
     // Otherwise allow letters/digits/_/-
@@ -112,111 +129,89 @@ export default function Scan() {
   }
 
   async function claim(code: string) {
-    // ensure session (if expired mid-scan)
+    // session may expire mid-scan
     const { data: u } = await supabase.auth.getUser();
-    if (!u?.user) {
-      navigate("/auth/login?next=/scan", { replace: true });
-      return;
-    }
+    if (!u?.user) { navigate("/auth/login?next=/scan", { replace: true }); return; }
 
-    const { data, error } = await supabase.rpc("claim_card", {
+    const { data, error } = await supabase.rpc("claim_card_and_log", {
       p_code: code,
       p_source: "scan",
     });
 
     if (error) {
-      pushLog({
+      const item: LogItem = {
         id: crypto.randomUUID(),
         ts: now(),
         code,
         status: "error",
         message: error.message || "Error claiming card",
-      });
+      };
+      feedback(item.status);
+      pushLog(item);
       return;
     }
 
-    // Success / errors from RPC
+    // ok or not_ok from RPC
     if (data?.ok) {
-      // either newly claimed OR already owner
       const status: LogItem["status"] = data.already_owner ? "already_owner" : "claimed";
       const card = data.card_id ? await fetchCardById(data.card_id) : undefined;
-      pushLog({
+      const item: LogItem = {
         id: crypto.randomUUID(),
         ts: now(),
         code,
         status,
         message: status === "claimed" ? "Added to your collection" : "Already in your collection",
         card,
-      });
+      };
+      feedback(item.status);
+      pushLog(item);
       return;
     }
 
-    // not ok → switch on error code
+    // not ok → map
     let status: LogItem["status"] = "error";
     let message = "Something went wrong.";
     switch (data?.error) {
-      case "not_found":
-        status = "not_found";
-        message = "Card not found.";
-        break;
-      case "owned_by_other":
-        status = "owned_by_other";
-        message = "Already claimed by another user.";
-        break;
-      case "blocked":
-        status = "blocked";
-        message = "Your account is blocked from claiming cards.";
-        break;
-      case "not_signed_in":
-        navigate("/auth/login?next=/scan", { replace: true });
-        return;
+      case "not_found":      status = "not_found";      message = "Card not found."; break;
+      case "owned_by_other": status = "owned_by_other"; message = "Already claimed by another user."; break;
+      case "blocked":        status = "blocked";        message = "Your account is blocked from claiming cards."; break;
+      case "not_signed_in":  navigate("/auth/login?next=/scan", { replace: true }); return;
     }
 
     const card = await fetchCardByCodeLike(code);
-    pushLog({
+    const item: LogItem = {
       id: crypto.randomUUID(),
       ts: now(),
       code,
       status,
       message,
       card,
-    });
+    };
+    feedback(item.status);
+    pushLog(item);
   }
 
   /* ---------- scanner callbacks ---------- */
-
-  const onScan = useCallback(
-    async (detections: { rawValue: string }[]) => {
-      const raw = detections?.[0]?.rawValue;
-      if (!raw) return;
-      const code = extractCode(raw);
-      if (!code) {
-        setError("Could not read a card code from that QR.");
-        return;
-      }
-      if (!shouldProcess(code)) return; // debounce same code
-      await claim(code);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  const onScan = useCallback(async (detections: { rawValue: string }[]) => {
+    const raw = detections?.[0]?.rawValue;
+    if (!raw) return;
+    const code = extractCode(raw);
+    if (!code) { setError("Could not read a card code from that QR."); return; }
+    if (!shouldProcess(code)) return; // debounce
+    await claim(code);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onError = useCallback((err: any) => {
-    // Camera errors can fire repeatedly; show once softly
     setError(String(err?.message || err) || "Camera error");
   }, []);
 
-  const tips = useMemo(
-    () => [
-      "Allow camera access when prompted.",
-      "Hold the QR steady; fill most of the square.",
-      "Good, even lighting helps focus and decode.",
-    ],
-    []
-  );
+  const tips = useMemo(() => [
+    "Allow camera access when prompted.",
+    "Hold the QR steady; fill most of the square.",
+    "Good, even lighting helps focus and decode.",
+  ], []);
 
   /* ---------- UI ---------- */
-
   function StatusPill({ s }: { s: LogItem["status"] }) {
     const map: Record<LogItem["status"], string> = {
       claimed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
@@ -234,11 +229,7 @@ export default function Scan() {
       blocked: "Blocked",
       error: "Error",
     };
-    return (
-      <span className={`inline-block text-xs px-2 py-0.5 rounded ${map[s]}`}>
-        {label[s]}
-      </span>
-    );
+    return <span className={`inline-block text-xs px-2 py-0.5 rounded ${map[s]}`}>{label[s]}</span>;
   }
 
   return (
@@ -260,9 +251,7 @@ export default function Scan() {
           </div>
 
           {!cameraReady && (
-            <div className="text-sm opacity-80">
-              Initializing camera… If asked, please allow camera access.
-            </div>
+            <div className="text-sm opacity-80">Initializing camera… If asked, please allow camera access.</div>
           )}
           {error && (
             <div className="text-sm px-3 py-2 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
@@ -270,7 +259,6 @@ export default function Scan() {
             </div>
           )}
 
-          {/* Manual Entry */}
           <ManualEntry onSubmit={(text) => {
             const code = extractCode(text);
             if (!code) { setError("Enter a valid code or URL."); return; }
@@ -284,43 +272,29 @@ export default function Scan() {
           <div className="flex items-center justify-between">
             <div className="font-medium">Scan Log</div>
             <div className="flex gap-2">
-              <button
-                onClick={() => navigate("/me/cards")}
-                className="border rounded px-3 py-1 text-sm"
-              >
+              <button onClick={() => navigate("/me/cards")} className="border rounded px-3 py-1 text-sm">
                 Open My Collection
               </button>
-              <button
-                onClick={() => setLog([])}
-                className="border rounded px-3 py-1 text-sm"
-              >
+              <button onClick={() => setLog([])} className="border rounded px-3 py-1 text-sm">
                 Clear Log
               </button>
             </div>
           </div>
 
           {log.length === 0 ? (
-            <div className="opacity-70 text-sm">
-              No scans yet. Point the camera at a card QR, or paste a code.
-            </div>
+            <div className="opacity-70 text-sm">No scans yet. Point the camera at a card QR, or paste a code.</div>
           ) : (
             <ul className="space-y-2">
               {log.map((row) => (
                 <li key={row.id} className="border rounded-lg p-2 flex gap-3 items-center">
                   <div className="w-12 h-16 bg-zinc-200/40 dark:bg-zinc-800/40 rounded overflow-hidden flex-shrink-0">
-                    {row.card?.image_url ? (
-                      <img
-                        src={row.card.image_url}
-                        alt={row.card?.name ?? "Card"}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : null}
+                    {row.card?.image_url && (
+                      <img src={row.card.image_url} alt={row.card?.name ?? "Card"} className="w-full h-full object-cover" />
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="font-medium truncate">
-                        {row.card?.name ?? row.code}
-                      </div>
+                      <div className="font-medium truncate">{row.card?.name ?? row.code}</div>
                       <StatusPill s={row.status} />
                     </div>
                     {row.card && (
@@ -328,9 +302,7 @@ export default function Scan() {
                         {(row.card.era ?? "—")} • {(row.card.suit ?? "—")} {(row.card.rank ?? "—")}
                       </div>
                     )}
-                    <div className="text-xs opacity-60">
-                      {row.message} · {new Date(row.ts).toLocaleTimeString()}
-                    </div>
+                    <div className="text-xs opacity-60">{row.message} · {new Date(row.ts).toLocaleTimeString()}</div>
                   </div>
                 </li>
               ))}
@@ -361,15 +333,8 @@ function ManualEntry({ onSubmit }: { onSubmit: (text: string) => void }) {
         placeholder="Paste code or full URL (e.g., TEST-CODE-ONE or https://app/r/TEST-CODE-ONE)"
         className="border rounded px-2 py-1 w-full"
       />
-      <button
-        onClick={() => onSubmit(text)}
-        className="border rounded px-3 py-1"
-      >
-        Add
-      </button>
-      <div className="text-xs opacity-70">
-        Accepts both full URLs and raw codes.
-      </div>
+      <button onClick={() => onSubmit(text)} className="border rounded px-3 py-1">Add</button>
+      <div className="text-xs opacity-70">Accepts both full URLs and raw codes.</div>
     </div>
   );
 }
