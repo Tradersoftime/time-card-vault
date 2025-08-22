@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
+import Papa from "papaparse";
 
 type CardMinimal = {
   code: string;
@@ -10,6 +11,21 @@ type CardMinimal = {
   is_active?: boolean | null;
   current_target?: string | null;
 };
+
+type CardUpsert = {
+  code: string;
+  name?: string | null;
+  suit?: string | null;
+  rank?: string | null;
+  era?: string | null;
+  rarity?: string | null;
+  trader_value?: string | null;
+  image_url?: string | null;
+  current_target?: string | null;
+  is_active?: boolean;
+};
+
+type CsvRow = Partial<CardUpsert> & { code?: string | null };
 
 export default function AdminQR() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -30,10 +46,13 @@ export default function AdminQR() {
   const [editTarget, setEditTarget] = useState("");
   const [editFound, setEditFound] = useState<CardMinimal | null>(null);
 
-  const baseUrl = useMemo(() => {
-    // Where QR should point: https://your-site/r/<CODE>
-    return `${window.location.origin}/r/`;
-  }, []);
+  // CSV Import
+  const [csvText, setCsvText] = useState("");
+  const [csvRows, setCsvRows] = useState<CardUpsert[]>([]);
+  const [csvErrors, setCsvErrors] = useState<string[]>([]);
+  const [csvBusy, setCsvBusy] = useState(false);
+
+  const baseUrl = useMemo(() => `${window.location.origin}/r/`, []);
 
   useEffect(() => {
     (async () => {
@@ -53,20 +72,30 @@ export default function AdminQR() {
 
   /* -------------- Helpers -------------- */
 
+  function norm(s?: string | null) {
+    return (s ?? "").trim();
+  }
+
+  function parseBool(v: any): boolean | undefined {
+    if (v === undefined || v === null || v === "") return undefined;
+    const s = String(v).trim().toLowerCase();
+    if (["true", "t", "1", "yes", "y"].includes(s)) return true;
+    if (["false", "f", "0", "no", "n"].includes(s)) return false;
+    return undefined;
+  }
+
   function randomCode(prefix: string) {
-    // Example: TOT-4K9V-7XQ2
     const block = () => Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(2, 6);
     return `${prefix}-${block()}-${block()}`;
   }
 
   async function toPNG(data: string, label?: string) {
-    // Make a nice, crisp PNG data URL with QR + optional label below
     const qrCanvas = document.createElement("canvas");
     await QRCode.toCanvas(qrCanvas, data, { errorCorrectionLevel: "M", margin: 2, width: 512 });
 
     if (!label) return qrCanvas.toDataURL("image/png");
 
-    // draw label onto a taller canvas
+    // draw label onto taller canvas
     const pad = 16;
     const fontPx = 32;
     const w = qrCanvas.width;
@@ -75,12 +104,9 @@ export default function AdminQR() {
     out.width = w;
     out.height = h;
     const ctx = out.getContext("2d")!;
-    // background white
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, w, h);
-    // draw qr
     ctx.drawImage(qrCanvas, 0, 0);
-    // label
     ctx.fillStyle = "#000";
     ctx.font = `${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
     ctx.textAlign = "center";
@@ -102,7 +128,7 @@ export default function AdminQR() {
 
   async function buildSingle() {
     setMsg(null);
-    const code = singleCode.trim();
+    const code = norm(singleCode);
     if (!code) { setMsg("Enter a card code."); return; }
     const url = baseUrl + encodeURIComponent(code);
     const dataUrl = await toPNG(url, singleLabel || code);
@@ -113,26 +139,22 @@ export default function AdminQR() {
 
   async function bulkGenerate() {
     setMsg(null);
-    if (!prefix.trim()) { setMsg("Enter a prefix (e.g., TOT)."); return; }
+    if (!norm(prefix)) { setMsg("Enter a prefix (e.g., TOT)."); return; }
     if (count <= 0 || count > 1000) { setMsg("Enter a count between 1 and 1000."); return; }
 
     // Make codes
     const codes: string[] = [];
     const seen = new Set<string>();
     while (codes.length < count) {
-      const c = randomCode(prefix.trim().toUpperCase());
+      const c = randomCode(norm(prefix).toUpperCase());
       if (seen.has(c)) continue;
       seen.add(c);
       codes.push(c);
     }
 
-    // Save to DB (minimal rows; upsert by code)
+    // Save to DB
     setSaving(true);
-    const rows = codes.map(code => ({
-      code,
-      is_active: true,
-      // you can prefill metadata later in Admin/CMS
-    }));
+    const rows = codes.map(code => ({ code, is_active: true }));
     const { error } = await supabase
       .from("cards")
       .upsert(rows, { onConflict: "code", ignoreDuplicates: true });
@@ -165,7 +187,7 @@ export default function AdminQR() {
 
   async function lookupCode() {
     setMsg(null);
-    const code = editCode.trim();
+    const code = norm(editCode);
     if (!code) { setMsg("Enter a code to look up."); return; }
     const { data, error } = await supabase
       .from("cards")
@@ -179,8 +201,8 @@ export default function AdminQR() {
 
   async function saveRedirect() {
     setMsg(null);
-    const code = editCode.trim();
-    const target = editTarget.trim() || null;
+    const code = norm(editCode);
+    const target = norm(editTarget) || null;
     if (!code) { setMsg("Enter a code."); return; }
     const { error } = await supabase
       .from("cards")
@@ -188,6 +210,113 @@ export default function AdminQR() {
       .ilike("code", code);
     if (error) { setMsg(error.message); return; }
     setMsg("✅ Updated redirect.");
+  }
+
+  /* -------------- CSV Import -------------- */
+
+  function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setCsvText("");           // clear paste box
+    setCsvErrors([]);
+    Papa.parse<CsvRow>(f, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (res) => {
+        if (res.errors?.length) {
+          setCsvErrors(res.errors.map(er => `Row ${er.row}: ${er.message}`));
+        }
+        ingestCsv(res.data);
+      }
+    });
+    e.currentTarget.value = ""; // reset input
+  }
+
+  function validateAndNormalize(rows: CsvRow[]): { ok: CardUpsert[]; errors: string[] } {
+    const errors: string[] = [];
+    const ok: CardUpsert[] = [];
+    const seen = new Set<string>();
+
+    rows.forEach((r, idx) => {
+      const line = idx + 2; // header is line 1
+      const codeRaw = norm(r.code ?? "");
+      if (!codeRaw) { errors.push(`Line ${line}: missing code`); return; }
+      const code = codeRaw; // keep case as provided; DB has case-insensitive unique
+
+      if (seen.has(code.toLowerCase())) {
+        errors.push(`Line ${line}: duplicate code in file (${code})`);
+        return;
+      }
+      seen.add(code.toLowerCase());
+
+      const row: CardUpsert = {
+        code,
+        name: r.name ? norm(r.name) : undefined,
+        suit: r.suit ? norm(r.suit) : undefined,
+        rank: r.rank ? norm(r.rank) : undefined,
+        era: r.era ? norm(r.era) : undefined,
+        rarity: r.rarity ? norm(r.rarity) : undefined,
+        trader_value: r.trader_value ? norm(r.trader_value) : undefined,
+        image_url: r.image_url ? norm(r.image_url) : undefined,
+        current_target: r.current_target ? norm(r.current_target) : undefined,
+      };
+      const b = parseBool((r as any).is_active);
+      if (b !== undefined) row.is_active = b;
+
+      ok.push(row);
+    });
+
+    return { ok, errors };
+  }
+
+  function ingestCsv(data: CsvRow[]) {
+    const { ok, errors } = validateAndNormalize(data);
+    setCsvRows(ok);
+    setCsvErrors(errors);
+    setMsg(errors.length ? `Parsed with ${errors.length} issue(s).` : `Parsed ${ok.length} row(s).`);
+  }
+
+  function handleCsvPaste() {
+    setCsvErrors([]);
+    Papa.parse<CsvRow>(csvText, { header: true, skipEmptyLines: true, complete: (res) => {
+      if (res.errors?.length) {
+        setCsvErrors(res.errors.map(er => `Row ${er.row}: ${er.message}`));
+      }
+      ingestCsv(res.data);
+    }});
+  }
+
+  async function upsertCsv() {
+    if (csvRows.length === 0) { setMsg("Nothing to upsert."); return; }
+    setCsvBusy(true);
+    const { error } = await supabase
+      .from("cards")
+      .upsert(csvRows, { onConflict: "code" });
+    setCsvBusy(false);
+    if (error) { setMsg(error.message); return; }
+    setMsg(`✅ Upserted ${csvRows.length} card(s) to database.`);
+  }
+
+  async function downloadZipFromCsv() {
+    if (csvRows.length === 0) { setMsg("No parsed rows."); return; }
+    const zip = new JSZip();
+    const folder = zip.folder("qrs")!;
+    for (const r of csvRows) {
+      const code = r.code!;
+      const url = baseUrl + encodeURIComponent(code);
+      const png = await toPNG(url, code);
+      const base64 = png.split(",")[1];
+      folder.file(`${code}.png`, base64, { base64: true });
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tot-cards-qrs-csv-${csvRows.length}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   /* -------------- UI -------------- */
@@ -266,6 +395,80 @@ export default function AdminQR() {
         </div>
       </section>
 
+      {/* CSV Import */}
+      <section className="border rounded-xl p-4 space-y-3">
+        <h2 className="text-lg font-semibold">CSV Import</h2>
+        <div className="text-sm opacity-80">
+          Required column: <code>code</code>. Optional: <code>name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active</code>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="border rounded px-2 py-1" />
+          <button onClick={handleCsvPaste} className="border rounded px-3 py-1">Parse Pasted CSV</button>
+        </div>
+
+        <textarea
+          value={csvText}
+          onChange={(e) => setCsvText(e.target.value)}
+          placeholder={`code,name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active
+TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,https://your-site/trader/ada,true`}
+          rows={6}
+          className="w-full border rounded px-2 py-1 font-mono text-xs"
+        />
+
+        {csvErrors.length > 0 && (
+          <div className="text-sm px-3 py-2 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+            {csvErrors.slice(0, 5).map((e, i) => <div key={i}>{e}</div>)}
+            {csvErrors.length > 5 && <div>…and {csvErrors.length - 5} more</div>}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button onClick={upsertCsv} disabled={csvBusy || csvRows.length === 0} className="border rounded px-3 py-1">
+            {csvBusy ? "Upserting…" : `Upsert ${csvRows.length} row(s)`}
+          </button>
+          <button onClick={downloadZipFromCsv} disabled={csvRows.length === 0} className="border rounded px-3 py-1">
+            Download QR ZIP for parsed rows
+          </button>
+        </div>
+
+        {csvRows.length > 0 && (
+          <div className="text-xs opacity-70">
+            Showing first {Math.min(csvRows.length, 10)} of {csvRows.length} parsed rows:
+          </div>
+        )}
+        {csvRows.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-1 pr-3">code</th>
+                  <th className="py-1 pr-3">name</th>
+                  <th className="py-1 pr-3">suit</th>
+                  <th className="py-1 pr-3">rank</th>
+                  <th className="py-1 pr-3">era</th>
+                  <th className="py-1 pr-3">rarity</th>
+                  <th className="py-1 pr-3">is_active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {csvRows.slice(0, 10).map((r, i) => (
+                  <tr key={i} className="border-b last:border-b-0">
+                    <td className="py-1 pr-3 font-mono">{r.code}</td>
+                    <td className="py-1 pr-3">{r.name ?? "—"}</td>
+                    <td className="py-1 pr-3">{r.suit ?? "—"}</td>
+                    <td className="py-1 pr-3">{r.rank ?? "—"}</td>
+                    <td className="py-1 pr-3">{r.era ?? "—"}</td>
+                    <td className="py-1 pr-3">{r.rarity ?? "—"}</td>
+                    <td className="py-1 pr-3">{String(r.is_active ?? "")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {/* Edit redirect */}
       <section className="border rounded-xl p-4 space-y-3">
         <h2 className="text-lg font-semibold">Edit Card Redirect</h2>
@@ -295,12 +498,7 @@ export default function AdminQR() {
             <div className="flex gap-2">
               <button onClick={saveRedirect} className="border rounded px-3 py-1">Save Redirect</button>
               {editTarget && (
-                <a
-                  href={editTarget}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="border rounded px-3 py-1"
-                >
+                <a href={editTarget} target="_blank" rel="noreferrer" className="border rounded px-3 py-1">
                   Open Current Target
                 </a>
               )}
