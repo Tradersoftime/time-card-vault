@@ -1,87 +1,77 @@
+// src/pages/CardRedirect.tsx
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function CardRedirect() {
-  const { code } = useParams();
+  const { code = "" } = useParams();
   const navigate = useNavigate();
   const [msg, setMsg] = useState("Checking card…");
 
   useEffect(() => {
-    let mounted = true;
     (async () => {
-      if (!code) return;
-
-      // Require login
+      // Ensure signed in
       const { data: u } = await supabase.auth.getUser();
-      const target = `${window.location.pathname}${window.location.search}`;
+      const targetAfter = `/r/${encodeURIComponent(code)}`;
       if (!u?.user) {
-        navigate(`/auth/login?next=${encodeURIComponent(target)}`, { replace: true });
+        navigate(`/auth/login?next=${encodeURIComponent(targetAfter)}`, { replace: true });
         return;
       }
 
-      // Look up the card to get current_target (for post-claim redirect)
-      const { data: card, error: cardErr } = await supabase
-        .from("cards")
-        .select("id,current_target,status")
-        .eq("code", code)
-        .maybeSingle();
-
-      if (!mounted) return;
-
-      if (cardErr || !card) {
-        setMsg("Card not found.");
-        return;
-      }
-      if (card.status !== "active") {
-        setMsg("This card is not active yet.");
-        return;
-      }
-
-      setMsg("Claiming this card for your collection…");
-
-      // Auto-claim
-      const { data, error } = await supabase.rpc("claim_card", { p_code: code });
-      if (!mounted) return;
+      // Try to claim first (robust RPC handles active + case-insensitive)
+      const { data, error } = await supabase.rpc("claim_card", {
+        p_code: code,
+        p_source: "scan",
+      });
 
       if (error) {
         setMsg(error.message);
         return;
       }
 
-      // ok or already owned by this user => success
-      const success = data?.ok || data?.already_owned;
-      if (success) {
-        // If admin set a destination, go there after claim
-        const dest = card.current_target?.trim();
-        if (dest) {
-          window.location.href = dest;
-          return;
+      if (!data?.ok) {
+        switch (data?.error) {
+          case "not_found":
+            setMsg("❌ Card not found. Check the code and try again.");
+            return;
+          case "owned_by_other":
+            setMsg("⚠️ This card has already been claimed by another user.");
+            return;
+          case "blocked":
+            setMsg("🚫 Your account is blocked from claiming cards. Please contact support.");
+            return;
+          case "not_signed_in":
+            // should not happen because we just checked, but handle anyway
+            navigate(`/auth/login?next=${encodeURIComponent(targetAfter)}`, { replace: true });
+            return;
+          default:
+            setMsg("Something went wrong trying to claim this card.");
+            return;
         }
-        // Otherwise go to collection with a “just claimed” flag
+      }
+
+      // Success: try to fetch a destination to bounce to; otherwise go to My Cards
+      const { data: rows } = await supabase
+        .from("cards")
+        .select("current_target")
+        .ilike("code", code)         // case-insensitive
+        .limit(1);
+
+      const dest = rows?.[0]?.current_target || null;
+
+      if (dest) {
+        // Claimed and has a target -> go there
+        window.location.href = dest;
+      } else {
+        // Claimed, no target -> show collection
         navigate("/me/cards?claimed=1", { replace: true });
-        return;
       }
-
-      if (data?.error === "claimed_by_other") {
-        setMsg("⚠️ This card has already been claimed by another user.");
-        return;
-      }
-
-      setMsg("Something went wrong. Please try again.");
     })();
-
-    return () => { mounted = false; };
   }, [code, navigate]);
 
   return (
-    <div className="p-8 text-center opacity-80">
+    <div className="p-6 text-center opacity-90">
       {msg}
-      <div className="mt-4">
-        <button onClick={() => navigate("/", { replace: true })} className="border rounded px-3 py-1">
-          Go Home
-        </button>
-      </div>
     </div>
   );
 }
