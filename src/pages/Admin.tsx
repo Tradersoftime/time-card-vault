@@ -63,6 +63,14 @@ type ScanRow = {
   outcome: "claimed" | "already_owner" | "owned_by_other" | "not_found" | "blocked" | "error";
 };
 
+type RecentRow = {
+  id: string;
+  user_id: string;
+  email: string | null;
+  credited_amount: number | null;
+  credited_at: string | null;
+};
+
 /* ---------- Page ---------- */
 
 export default function Admin() {
@@ -88,6 +96,10 @@ export default function Admin() {
   // Receipt banner
   const [lastReceiptUrl, setLastReceiptUrl] = useState<string | null>(null);
 
+  // Recent credited
+  const [recent, setRecent] = useState<RecentRow[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+
   /* ---- Admin check ---- */
   useEffect(() => {
     let mounted = true;
@@ -112,6 +124,7 @@ export default function Admin() {
     loadPending();
     loadBlocked();
     loadScans();
+    loadRecent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
@@ -174,6 +187,14 @@ export default function Admin() {
     setLoadingScans(false);
   }
 
+  async function loadRecent() {
+    setLoadingRecent(true);
+    const { data, error } = await supabase.rpc("admin_recent_credited", { p_limit: 25 });
+    if (error) setToolMsg(error.message);
+    setRecent((data as RecentRow[]) ?? []);
+    setLoadingRecent(false);
+  }
+
   /* ---- Selection helpers (pending) ---- */
   function toggle(id: string) {
     setSelected(s => ({ ...s, [id]: !s[id] }));
@@ -206,6 +227,7 @@ export default function Admin() {
     if (data?.ok) {
       setToolMsg(`✅ Credited ${data.updated ?? ids.length} redemption(s).`);
       await loadPending();
+      await loadRecent();
     } else {
       setToolMsg("Could not credit.");
     }
@@ -248,6 +270,7 @@ export default function Admin() {
     }
 
     await loadPending();
+    await loadRecent();
   }
 
   async function markRejected(id: string) {
@@ -301,7 +324,7 @@ export default function Admin() {
         <h1 className="text-2xl font-semibold">Admin</h1>
         <div className="flex gap-2">
           <Link to="/admin/qr" className="border rounded px-3 py-1">QR Generator</Link>
-          <button onClick={() => { loadPending(); loadScans(); }} className="border rounded px-3 py-1">
+          <button onClick={() => { loadPending(); loadScans(); loadRecent(); }} className="border rounded px-3 py-1">
             Refresh
           </button>
         </div>
@@ -409,7 +432,7 @@ export default function Admin() {
                       </div>
 
                       <div className="flex gap-2 mt-3">
-                        {/* 👇 View receipt button (opens in new tab) */}
+                        {/* View receipt for this redemption */}
                         <Link
                           to={`/receipt/${r.id}`}
                           target="_blank"
@@ -435,11 +458,57 @@ export default function Admin() {
         )}
       </section>
 
+      {/* ---------- Recent Credited ---------- */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Recent Credited</h2>
+          <button onClick={loadRecent} className="border rounded px-3 py-1 text-sm">Refresh</button>
+        </div>
+
+        {loadingRecent ? (
+          <div>Loading…</div>
+        ) : recent.length === 0 ? (
+          <div className="opacity-70 text-sm">No credited redemptions yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">Credited At</th>
+                  <th className="py-2 pr-3">User</th>
+                  <th className="py-2 pr-3">Amount</th>
+                  <th className="py-2 pr-3">Receipt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map(r => (
+                  <tr key={r.id} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{r.credited_at ? new Date(r.credited_at).toLocaleString() : "—"}</td>
+                    <td className="py-2 pr-3">{r.email ?? r.user_id}</td>
+                    <td className="py-2 pr-3">{r.credited_amount ?? "—"}</td>
+                    <td className="py-2 pr-3">
+                      <a
+                        className="underline"
+                        href={`/receipt/${r.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View receipt
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {/* ---------- Scan Log ---------- */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
-        <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
+          <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
