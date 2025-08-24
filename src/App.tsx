@@ -1,3 +1,4 @@
+import AdminLogs from "./pages/AdminLogs";
 import Receipt from "./pages/Receipt";
 import AdminQR from "./pages/AdminQR";
 import { Toaster } from "@/components/ui/toaster";
@@ -46,6 +47,7 @@ const App = () => (
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/receipt/:id" element={<Receipt />} />
                 <Route path="/admin/logs" element={<AdminLogs/>} />
+                <Route path="/admin/logs" element={<AdminLogs />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
