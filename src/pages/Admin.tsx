@@ -350,343 +350,418 @@ export default function Admin() {
   if (error) return <div className="p-6 text-destructive">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Admin</h1>
-        <div className="flex gap-2">
-          <Link to="/admin/qr" className="border rounded px-3 py-1">QR Generator</Link>
-          <button onClick={() => { loadPending(); loadScans(); loadRecent(); }} className="border rounded px-3 py-1">
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {toolMsg && (
-        <div className="text-sm px-3 py-2 rounded bg-muted text-muted-foreground border">
-          {toolMsg}
-        </div>
-      )}
-
-      {lastReceiptUrl && (
-        <div className="text-sm px-3 py-2 rounded bg-accent text-accent-foreground border flex items-center gap-3">
-          <span>Receipt ready:</span>
-          <a href={lastReceiptUrl} target="_blank" rel="noreferrer" className="underline">Open receipt</a>
-          <button
-            onClick={() => navigator.clipboard.writeText(lastReceiptUrl)}
-            className="border rounded px-2 py-0.5 text-xs hover:bg-muted"
-          >
-            Copy link
-          </button>
-          <button
-            onClick={() => setLastReceiptUrl(null)}
-            className="border rounded px-2 py-0.5 text-xs hover:bg-muted"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* ---------- Pending Redemptions (grouped by user) ---------- */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Pending Redemptions</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={approveSelectedSuggested} className="border rounded px-3 py-1">
-              Approve Selected (suggested totals)
-            </button>
-            <button onClick={clearRedSelection} className="border rounded px-3 py-1">Clear Selection</button>
+    <div className="hero-gradient min-h-screen">
+      <div className="p-6 space-y-8">
+        {/* Header */}
+        <div className="glass-panel rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold gradient-text">Admin Dashboard</h1>
+            <div className="flex gap-3">
+              <Link to="/admin/qr" className="bg-primary text-primary-foreground hover:glow-primary rounded-lg px-4 py-2 font-medium transition-all duration-300 interactive">
+                QR Generator
+              </Link>
+              <button 
+                onClick={() => { loadPending(); loadScans(); loadRecent(); }} 
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-4 py-2 font-medium transition-all duration-300 interactive"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
 
-        {loadingPending ? (
-          <div>Loading pending…</div>
-        ) : pending.length === 0 ? (
-          <div className="opacity-70">No pending redemptions.</div>
-        ) : (
-          Object.entries(pendingGroups).map(([userId, reds]) => {
-            const selectedCount = reds.filter(r => selectedReds[r.id]).length;
-            const email = reds[0]?.email ?? null;
+        {toolMsg && (
+          <div className="glass-panel rounded-xl p-4 border-l-4 border-l-primary glow-primary">
+            <div className="text-sm text-foreground font-medium">{toolMsg}</div>
+          </div>
+        )}
 
-            return (
-              <div key={userId} className="border rounded-xl p-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
-                  <div>
-                    <div className="font-medium">User: {email ?? userId}</div>
-                    <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => selectAllUserReds(userId)} className="border rounded px-3 py-1 text-sm">
-                      Select All ({reds.length})
-                    </button>
-                    {selectedCount > 0 && (
-                      <div className="text-xs opacity-80">Selected: {selectedCount}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {reds.map((r) => {
-                    const { count, total } = selectedSummary(r);
-                    return (
-                      <div key={r.id} className="border rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={!!selectedReds[r.id]}
-                              onChange={() => toggleRed(r.id)}
-                            />
-                            <span className="font-medium">
-                              Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
-                              {" · "}
-                              <span className="opacity-80">{r.email ?? r.user_id}</span>
-                            </span>
-                          </label>
-                          <div className="text-xs opacity-70">
-                            {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •
-                            {" "}Submitted {new Date(r.submitted_at).toLocaleString()}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-xs mb-2">
-                          <button onClick={() => selectAllCards(r.id, r.cards)} className="border rounded px-2 py-0.5">
-                            Select All Cards
-                          </button>
-                          <button onClick={() => selectNoneCards(r.id)} className="border rounded px-2 py-0.5">
-                            Select None
-                          </button>
-                          <div className="opacity-80">
-                            Selected: <b>{count}</b> • Selected TIME: <b>{total}</b>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {r.cards?.map((c) => {
-                            const checked = !!cardSel[r.id]?.[c.card_id || ""];
-                            return (
-                              <label key={c.card_id} className={`border rounded-lg overflow-hidden block ${checked ? "ring-2 ring-emerald-500" : ""}`}>
-                                <input
-                                  type="checkbox"
-                                  className="hidden"
-                                  checked={checked}
-                                  onChange={() => c.card_id && toggleCard(r.id, c.card_id)}
-                                />
-                                {c.image_url && (
-                                  <img
-                                    src={c.image_url}
-                                    alt={c.name ?? "Card"}
-                                    className="w-full aspect-[3/4] object-cover"
-                                  />
-                                )}
-                                <div className="p-2 text-sm">
-                                  <div className="font-medium truncate">{c.name ?? "—"}</div>
-                                  <div className="opacity-70">
-                                    {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
-                                  </div>
-                                  <div className="text-xs opacity-60">
-                                    Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME: {c.time_value ?? 0}
-                                  </div>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-
-                        <div className="flex gap-2 mt-3">
-                          <Link
-                            to={`/receipt/${r.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="border rounded px-3 py-1"
-                          >
-                            View receipt
-                          </Link>
-                          <button onClick={() => finalizeRedemption(r)} className="border rounded px-3 py-1">
-                            Credit selected & reject rest
-                          </button>
-                          <button onClick={() => rejectAll(r)} className="border rounded px-3 py-1">
-                            Reject all
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+        {lastReceiptUrl && (
+          <div className="card-premium rounded-xl p-4 border-l-4 border-l-primary glow-primary">
+            <div className="flex items-center gap-4">
+              <div className="text-lg font-semibold text-primary">✅ Receipt Ready</div>
+              <div className="flex items-center gap-3">
+                <a href={lastReceiptUrl} target="_blank" rel="noreferrer" 
+                   className="bg-primary text-primary-foreground hover:glow-primary rounded-lg px-4 py-2 font-medium transition-all duration-300 interactive">
+                  Open Receipt
+                </a>
+                <button
+                  onClick={() => navigator.clipboard.writeText(lastReceiptUrl)}
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-300 interactive"
+                >
+                  Copy Link
+                </button>
+                <button
+                  onClick={() => setLastReceiptUrl(null)}
+                  className="bg-muted text-muted-foreground hover:bg-muted/80 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-300 interactive"
+                >
+                  Dismiss
+                </button>
               </div>
-            );
-          })
-        )}
-      </section>
-
-      {/* ---------- Recent Credited (sortable) ---------- */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Recent Credited</h2>
-          <button onClick={loadRecent} className="border rounded px-3 py-1 text-sm">Refresh</button>
-        </div>
-
-        {loadingRecent ? (
-          <div>Loading…</div>
-        ) : recentSorted.length === 0 ? (
-          <div className="opacity-70 text-sm">No credited redemptions yet.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2 pr-3 cursor-pointer"
-                      onClick={() => { setRecentSortKey("credited_at"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                    When {recentSortKey === "credited_at" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="py-2 pr-3 cursor-pointer"
-                      onClick={() => { setRecentSortKey("email"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                    User {recentSortKey === "email" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="py-2 pr-3 cursor-pointer"
-                      onClick={() => { setRecentSortKey("amount"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                    Amount {recentSortKey === "amount" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="py-2 pr-3">Receipt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentSorted.map(r => (
-                  <tr key={r.id} className="border-b last:border-b-0">
-                    <td className="py-2 pr-3">{r.credited_at ? new Date(r.credited_at).toLocaleString() : "—"}</td>
-                    <td className="py-2 pr-3">{r.email ?? r.user_id}</td>
-                    <td className="py-2 pr-3">{r.credited_amount ?? "—"}</td>
-                    <td className="py-2 pr-3">
-                      <a className="underline" href={`/receipt/${r.id}`} target="_blank" rel="noreferrer">
-                        View receipt
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            </div>
           </div>
         )}
-      </section>
 
-      {/* ---------- Scan Log (sortable) ---------- */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
-          <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
-        </div>
+        {/* ---------- Pending Redemptions (grouped by user) ---------- */}
+        <section className="space-y-6">
+          <div className="glass-panel rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold gradient-text">Pending Redemptions</h2>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={approveSelectedSuggested} 
+                  className="bg-primary text-primary-foreground hover:glow-primary rounded-lg px-4 py-2 font-medium transition-all duration-300 interactive"
+                >
+                  Approve Selected
+                </button>
+                <button 
+                  onClick={clearRedSelection} 
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-4 py-2 font-medium transition-all duration-300 interactive"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          </div>
 
-        <div className="flex flex-wrap gap-2 items-center">
-          <input
-            value={scanQuery}
-            onChange={(e) => setScanQuery(e.target.value)}
-            placeholder="Search by email or code…"
-            className="border rounded px-2 py-1"
-          />
-          <select
-            value={scanOutcome}
-            onChange={(e) => setScanOutcome(e.target.value as any)}
-            className="border rounded px-2 py-1"
-          >
-            <option value="all">All outcomes</option>
-            <option value="claimed">claimed</option>
-            <option value="already_owner">already_owner</option>
-            <option value="owned_by_other">owned_by_other</option>
-            <option value="not_found">not_found</option>
-            <option value="blocked">blocked</option>
-            <option value="error">error</option>
-          </select>
-        </div>
+          {loadingPending ? (
+            <div>Loading pending…</div>
+          ) : pending.length === 0 ? (
+            <div className="opacity-70">No pending redemptions.</div>
+          ) : (
+            Object.entries(pendingGroups).map(([userId, reds]) => {
+              const selectedCount = reds.filter(r => selectedReds[r.id]).length;
+              const email = reds[0]?.email ?? null;
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="py-2 pr-3 cursor-pointer"
-                    onClick={() => { setScanSortKey("created_at"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                  When {scanSortKey === "created_at" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
-                </th>
-                <th className="py-2 pr-3 cursor-pointer"
-                    onClick={() => { setScanSortKey("email"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                  Email {scanSortKey === "email" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
-                </th>
-                <th className="py-2 pr-3">Code</th>
-                <th className="py-2 pr-3">Outcome</th>
-                <th className="py-2 pr-3">Card ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredScans.map((s, idx) => (
-                <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0">
-                  <td className="py-2 pr-3">{new Date(s.created_at).toLocaleString()}</td>
-                  <td className="py-2 pr-3">{s.email ?? "—"}</td>
-                  <td className="py-2 pr-3 font-mono">{s.code}</td>
-                  <td className="py-2 pr-3">{s.outcome}</td>
-                  <td className="py-2 pr-3 font-mono">{s.card_id ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ---------- Blocked users ---------- */}
-      <section className="border rounded-xl p-3">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold">Blocked users</h2>
-          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
-            Refresh list
-          </button>
-        </div>
-
-        <div className="mb-3">
-          <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
-        </div>
-
-        {loadingBlocked ? (
-          <div className="opacity-70 text-sm">Loading blocked users…</div>
-        ) : blocked.length === 0 ? (
-          <div className="opacity-70 text-sm">No one is blocked.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2 pr-3">Email</th>
-                  <th className="py-2 pr-3">Reason</th>
-                  <th className="py-2 pr-3">Blocked at</th>
-                  <th className="py-2 pr-3">Blocked by</th>
-                  <th className="py-2 pr-0"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {blocked.map((b) => (
-                  <tr key={b.user_id} className="border-b last:border-b-0">
-                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
-                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
-                    <td className="py-2 pr-3">{new Date(b.blocked_at).toLocaleString()}</td>
-                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
-                    <td className="py-2 pr-0">
-                      {b.email && (
-                        <button
-                          onClick={async () => {
-                            const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: b.email! });
-                            if (error) setToolMsg(error.message);
-                            else if (data?.ok) { setToolMsg(`✅ Unblocked ${b.email}`); await loadBlocked(); }
-                          }}
-                          className="border rounded px-2 py-1 text-xs"
-                        >
-                          Unblock
-                        </button>
+              return (
+                <div key={userId} className="card-premium rounded-xl p-6 glow-cyan">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                    <div>
+                      <div className="font-medium">User: {email ?? userId}</div>
+                      <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => selectAllUserReds(userId)} 
+                        className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-3 py-1 text-sm font-medium transition-all duration-300 interactive"
+                      >
+                        Select All ({reds.length})
+                      </button>
+                      {selectedCount > 0 && (
+                        <div className="text-xs opacity-80">Selected: {selectedCount}</div>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {reds.map((r) => {
+                      const { count, total } = selectedSummary(r);
+                      return (
+                        <div key={r.id} className="glass-panel rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={!!selectedReds[r.id]}
+                                onChange={() => toggleRed(r.id)}
+                              />
+                              <span className="font-medium">
+                                Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
+                                {" · "}
+                                <span className="opacity-80">{r.email ?? r.user_id}</span>
+                              </span>
+                            </label>
+                            <div className="text-xs opacity-70">
+                              {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •
+                              {" "}Submitted {new Date(r.submitted_at).toLocaleString()}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs mb-2">
+                            <button 
+                              onClick={() => selectAllCards(r.id, r.cards)} 
+                              className="bg-muted text-muted-foreground hover:bg-muted/80 rounded px-2 py-0.5 transition-colors"
+                            >
+                              Select All Cards
+                            </button>
+                            <button 
+                              onClick={() => selectNoneCards(r.id)} 
+                              className="bg-muted text-muted-foreground hover:bg-muted/80 rounded px-2 py-0.5 transition-colors"
+                            >
+                              Select None
+                            </button>
+                            <div className="opacity-80">
+                              Selected: <b>{count}</b> • Selected TIME: <b>{total}</b>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {r.cards?.map((c) => {
+                              const checked = !!cardSel[r.id]?.[c.card_id || ""];
+                              return (
+                                <label key={c.card_id} className={`card-premium rounded-lg overflow-hidden block interactive ${checked ? "glow-primary ring-2 ring-primary" : ""}`}>
+                                  <input
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={checked}
+                                    onChange={() => c.card_id && toggleCard(r.id, c.card_id)}
+                                  />
+                                  {c.image_url && (
+                                    <img
+                                      src={c.image_url}
+                                      alt={c.name ?? "Card"}
+                                      className="w-full aspect-[3/4] object-cover"
+                                    />
+                                  )}
+                                  <div className="p-2 text-sm">
+                                    <div className="font-medium truncate">{c.name ?? "—"}</div>
+                                    <div className="opacity-70">
+                                      {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
+                                    </div>
+                                    <div className="text-xs opacity-60">
+                                      Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME: {c.time_value ?? 0}
+                                    </div>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+
+                          <div className="flex gap-2 mt-3">
+                            <Link
+                              to={`/receipt/${r.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="bg-muted text-muted-foreground hover:bg-muted/80 rounded-lg px-3 py-1 transition-colors"
+                            >
+                              View receipt
+                            </Link>
+                            <button 
+                              onClick={() => finalizeRedemption(r)} 
+                              className="bg-primary text-primary-foreground hover:glow-primary rounded-lg px-3 py-1 transition-all duration-300 interactive"
+                            >
+                              Credit selected & reject rest
+                            </button>
+                            <button 
+                              onClick={() => rejectAll(r)} 
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/80 rounded-lg px-3 py-1 transition-colors"
+                            >
+                              Reject all
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </section>
+
+        {/* ---------- Recent Credited (sortable) ---------- */}
+        <section className="space-y-4">
+          <div className="glass-panel rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold gradient-text">Recent Credited</h2>
+              <button 
+                onClick={loadRecent} 
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-3 py-1 font-medium transition-all duration-300 interactive"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
-        )}
-      </section>
+
+          {loadingRecent ? (
+            <div>Loading…</div>
+          ) : recentSorted.length === 0 ? (
+            <div className="opacity-70 text-sm">No credited redemptions yet.</div>
+          ) : (
+            <div className="card-premium rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b bg-muted/20">
+                      <th className="py-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                          onClick={() => { setRecentSortKey("credited_at"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                        When {recentSortKey === "credited_at" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
+                      </th>
+                      <th className="py-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                          onClick={() => { setRecentSortKey("email"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                        User {recentSortKey === "email" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
+                      </th>
+                      <th className="py-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                          onClick={() => { setRecentSortKey("amount"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                        Amount {recentSortKey === "amount" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
+                      </th>
+                      <th className="py-3 px-4">Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentSorted.map(r => (
+                      <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/10 transition-colors">
+                        <td className="py-3 px-4">{r.credited_at ? new Date(r.credited_at).toLocaleString() : "—"}</td>
+                        <td className="py-3 px-4">{r.email ?? r.user_id}</td>
+                        <td className="py-3 px-4 font-semibold text-primary">{r.credited_amount ?? "—"}</td>
+                        <td className="py-3 px-4">
+                          <a className="text-primary hover:text-primary/80 underline transition-colors" href={`/receipt/${r.id}`} target="_blank" rel="noreferrer">
+                            View receipt
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ---------- Scan Log (sortable) ---------- */}
+        <section className="space-y-4">
+          <div className="glass-panel rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold gradient-text">Scan Log</h2>
+              <button 
+                onClick={loadScans} 
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-3 py-1 font-medium transition-all duration-300 interactive"
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 items-center mt-4">
+              <input
+                value={scanQuery}
+                onChange={(e) => setScanQuery(e.target.value)}
+                placeholder="Search by email or code…"
+                className="glass-panel border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground"
+              />
+              <select
+                value={scanOutcome}
+                onChange={(e) => setScanOutcome(e.target.value as any)}
+                className="glass-panel border border-border rounded-lg px-3 py-2 text-foreground"
+              >
+                <option value="all">All outcomes</option>
+                <option value="claimed">claimed</option>
+                <option value="already_owner">already_owner</option>
+                <option value="owned_by_other">owned_by_other</option>
+                <option value="not_found">not_found</option>
+                <option value="blocked">blocked</option>
+                <option value="error">error</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="card-premium rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b bg-muted/20">
+                    <th className="py-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                        onClick={() => { setScanSortKey("created_at"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                      When {scanSortKey === "created_at" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
+                    </th>
+                    <th className="py-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                        onClick={() => { setScanSortKey("email"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                      Email {scanSortKey === "email" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
+                    </th>
+                    <th className="py-3 px-4">Code</th>
+                    <th className="py-3 px-4">Outcome</th>
+                    <th className="py-3 px-4">Card ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredScans.map((s, idx) => (
+                    <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0 hover:bg-muted/10 transition-colors">
+                      <td className="py-3 px-4">{new Date(s.created_at).toLocaleString()}</td>
+                      <td className="py-3 px-4">{s.email ?? "—"}</td>
+                      <td className="py-3 px-4 font-mono text-xs">{s.code}</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                          s.outcome === 'claimed' ? 'bg-primary/20 text-primary' :
+                          s.outcome === 'already_owner' ? 'bg-secondary/20 text-secondary-foreground' :
+                          s.outcome === 'not_found' ? 'bg-muted/20 text-muted-foreground' :
+                          'bg-destructive/20 text-destructive'
+                        }`}>
+                          {s.outcome}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs">{s.card_id ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* ---------- Blocked users ---------- */}
+        <section className="space-y-4">
+          <div className="glass-panel rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold gradient-text">Blocked Users</h2>
+              <button 
+                onClick={loadBlocked} 
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-3 py-1 font-medium transition-all duration-300 interactive"
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
+            </div>
+          </div>
+
+          {loadingBlocked ? (
+            <div className="opacity-70 text-sm">Loading blocked users…</div>
+          ) : blocked.length === 0 ? (
+            <div className="opacity-70 text-sm">No one is blocked.</div>
+          ) : (
+            <div className="card-premium rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b bg-muted/20">
+                      <th className="py-3 px-4">Email</th>
+                      <th className="py-3 px-4">Reason</th>
+                      <th className="py-3 px-4">Blocked at</th>
+                      <th className="py-3 px-4">Blocked by</th>
+                      <th className="py-3 px-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {blocked.map((b) => (
+                      <tr key={b.user_id} className="border-b last:border-b-0 hover:bg-muted/10 transition-colors">
+                        <td className="py-3 px-4">{b.email ?? "—"}</td>
+                        <td className="py-3 px-4">{b.reason ?? "—"}</td>
+                        <td className="py-3 px-4">{new Date(b.blocked_at).toLocaleString()}</td>
+                        <td className="py-3 px-4">{b.blocked_by_email ?? "—"}</td>
+                        <td className="py-3 px-4">
+                          {b.email && (
+                            <button
+                              onClick={async () => {
+                                const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: b.email! });
+                                if (error) setToolMsg(error.message);
+                                else if (data?.ok) { setToolMsg(`✅ Unblocked ${b.email}`); await loadBlocked(); }
+                              }}
+                              className="bg-primary text-primary-foreground hover:glow-primary rounded-lg px-3 py-1 text-xs font-medium transition-all duration-300 interactive"
+                            >
+                              Unblock
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -742,25 +817,33 @@ function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; on
   }
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center gap-2">
-      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
+    <div className="flex flex-col md:flex-row md:items-center gap-3">
+      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock User</div>
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="user@email.com"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="glass-panel border border-border rounded-lg px-3 py-2 w-full md:w-64 text-foreground placeholder:text-muted-foreground"
       />
       <input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (optional)"
-        className="border rounded px-2 py-1 w-full md:w-64"
+        className="glass-panel border border-border rounded-lg px-3 py-2 w-full md:w-64 text-foreground placeholder:text-muted-foreground"
       />
       <div className="flex gap-2">
-        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        <button 
+          onClick={doBlock} 
+          disabled={busy} 
+          className="bg-destructive text-destructive-foreground hover:bg-destructive/80 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+        >
           {busy ? "Blocking…" : "Block"}
         </button>
-        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+        <button 
+          onClick={doUnblock} 
+          disabled={busy} 
+          className="bg-primary text-primary-foreground hover:glow-primary rounded-lg px-3 py-2 text-sm font-medium transition-all duration-300 interactive disabled:opacity-50"
+        >
           {busy ? "Unblocking…" : "Unblock"}
         </button>
       </div>

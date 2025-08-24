@@ -136,37 +136,55 @@ export default function MyCards() {
   if (error) return <div className="p-6 text-destructive">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-8">
-      {/* Summary */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Collection TIME" value={totalTimeAll} sub={`${totalCards} card${totalCards===1?"":"s"}`} />
-        <Stat label="Credited TIME" value={totalTimeCredited} sub={`${credited.length} card${credited.length===1?"":"s"}`} />
-        <Stat label="Ready to claim TIME" value={totalTimeReady} sub={`${ready.length} card${ready.length===1?"":"s"}`} />
-        <Stat label="Pending TIME" value={totalTimePending} sub={`${pending.length} card${pending.length===1?"":"s"}`} />
-      </section>
-
-      {msg && (
-        <div className="text-sm px-3 py-2 rounded bg-muted text-muted-foreground border">
-          {msg}
+    <div className="hero-gradient min-h-screen">
+      <div className="p-6 space-y-8">
+        {/* Header */}
+        <div className="glass-panel rounded-xl p-6 glow-primary">
+          <h1 className="text-4xl font-bold gradient-text mb-2">My Collection</h1>
+          <p className="text-muted-foreground">Manage and track your trading cards</p>
         </div>
-      )}
 
-      {/* Unsubmitted (Ready for TIME) */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Unsubmitted (Ready for TIME)</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={selectAllReady} className="border rounded px-3 py-1">
-              Select All
-            </button>
-            <button onClick={clearSelection} className="border rounded px-3 py-1">
-              Clear
-            </button>
-            <button onClick={submitSelected} className="border rounded px-3 py-1">
-              Submit selected for TIME
-            </button>
+        {/* Summary */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Stat label="Collection TIME" value={totalTimeAll} sub={`${totalCards} card${totalCards===1?"":"s"}`} />
+          <Stat label="Credited TIME" value={totalTimeCredited} sub={`${credited.length} card${credited.length===1?"":"s"}`} />
+          <Stat label="Ready to claim TIME" value={totalTimeReady} sub={`${ready.length} card${ready.length===1?"":"s"}`} />
+          <Stat label="Pending TIME" value={totalTimePending} sub={`${pending.length} card${pending.length===1?"":"s"}`} />
+        </section>
+
+        {msg && (
+          <div className="glass-panel rounded-xl p-4 border-l-4 border-l-primary glow-primary">
+            <div className="text-sm text-foreground font-medium">{msg}</div>
           </div>
-        </div>
+        )}
+
+        {/* Unsubmitted (Ready for TIME) */}
+        <section className="space-y-4">
+          <div className="glass-panel rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold gradient-text">Ready for TIME</h2>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={selectAllReady} 
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-4 py-2 font-medium transition-all duration-300 interactive"
+                >
+                  Select All
+                </button>
+                <button 
+                  onClick={clearSelection} 
+                  className="bg-muted text-muted-foreground hover:bg-muted/80 rounded-lg px-4 py-2 font-medium transition-all duration-300 interactive"
+                >
+                  Clear
+                </button>
+                <button 
+                  onClick={submitSelected} 
+                  className="bg-primary text-primary-foreground hover:glow-primary rounded-lg px-4 py-2 font-medium transition-all duration-300 interactive"
+                >
+                  Submit for TIME
+                </button>
+              </div>
+            </div>
+          </div>
 
         {ready.length === 0 ? (
           <div className="opacity-70">No unsubmitted cards.</div>
@@ -177,7 +195,7 @@ export default function MyCards() {
               return (
                 <label
                   key={r.card_id}
-                  className={`border rounded-xl overflow-hidden block cursor-pointer ${checked ? "ring-2 ring-emerald-500" : ""}`}
+                  className={`card-premium rounded-xl overflow-hidden block cursor-pointer interactive ${checked ? "glow-primary ring-2 ring-primary" : ""}`}
                 >
                   <input
                     type="checkbox"
@@ -211,15 +229,17 @@ export default function MyCards() {
         )}
       </section>
 
-      {/* Submitted (Pending TIME) */}
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Submitted (Pending TIME)</h2>
+        {/* Submitted (Pending TIME) */}
+        <section className="space-y-4">
+          <div className="glass-panel rounded-xl p-4">
+            <h2 className="text-2xl font-bold gradient-text">Pending TIME</h2>
+          </div>
         {pending.length === 0 ? (
           <div className="opacity-70">No pending submissions.</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {pending.map((r) => (
-              <div key={r.card_id} className="border rounded-xl overflow-hidden">
+              <div key={r.card_id} className="card-premium rounded-xl overflow-hidden interactive hover:glow-cyan">
                 {r.image_url && (
                   <img
                     src={r.image_url}
@@ -248,15 +268,17 @@ export default function MyCards() {
         )}
       </section>
 
-      {/* Credited (Collection) */}
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Credited (Collection)</h2>
+        {/* Credited (Collection) */}
+        <section className="space-y-4">
+          <div className="glass-panel rounded-xl p-4">
+            <h2 className="text-2xl font-bold gradient-text">Credited Collection</h2>
+          </div>
         {credited.length === 0 ? (
           <div className="opacity-70">No credited cards yet.</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {credited.map((r) => (
-              <div key={r.card_id} className="border rounded-xl overflow-hidden">
+              <div key={r.card_id} className="card-premium rounded-xl overflow-hidden interactive hover:glow-primary">
                 {r.image_url && (
                   <img
                     src={r.image_url}
@@ -284,6 +306,7 @@ export default function MyCards() {
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }
@@ -291,10 +314,10 @@ export default function MyCards() {
 /* ---- Tiny stat component ---- */
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
-    <div className="border rounded-xl p-3">
-      <div className="text-xs opacity-70">{label}</div>
-      <div className="text-2xl font-semibold">{value}</div>
-      {sub && <div className="text-xs opacity-60">{sub}</div>}
+    <div className="card-premium rounded-xl p-4 interactive hover:glow-cyan">
+      <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-3xl font-bold text-primary mt-2">{value}</div>
+      {sub && <div className="text-sm text-muted-foreground mt-1">{sub}</div>}
     </div>
   );
 }
