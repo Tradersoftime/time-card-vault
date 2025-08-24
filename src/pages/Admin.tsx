@@ -211,29 +211,47 @@ export default function Admin() {
   }
 
   /* ---- Per-item approve / reject ---- */
-  async function markCredited(id: string) {
-    const amtStr = window.prompt("TIME amount to credit?", "0");
-    if (amtStr === null) return;
-    const amount = Number(amtStr);
-    if (!Number.isFinite(amount)) { alert("Please enter a valid number."); return; }
-    const ref = window.prompt("External reference / note (optional)") || null;
+async function markCredited(id: string) {
+  const amtStr = window.prompt("TIME amount to credit?", "0");
+  if (amtStr === null) return;
+  const amount = Number(amtStr);
+  if (!Number.isFinite(amount)) { alert("Please enter a valid number."); return; }
+  const ref = window.prompt("External reference / note (optional)") || null;
 
-    const { data: u } = await supabase.auth.getUser();
-    if (!u?.user) { alert("Not signed in."); return; }
+  const { data: u } = await supabase.auth.getUser();
+  if (!u?.user) { alert("Not signed in."); return; }
 
-    const { error } = await supabase
-      .from("redemptions")
-      .update({
-        status: "credited",
-        credited_amount: amount,
-        external_ref: ref,
-        credited_at: new Date().toISOString(),
-        credited_by: u.user.id,
-      })
-      .eq("id", id);
-    if (error) alert(error.message);
-    await loadPending();
+  const { error } = await supabase
+    .from("redemptions")
+    .update({
+      status: "credited",
+      credited_amount: amount,
+      external_ref: ref,
+      credited_at: new Date().toISOString(),
+      credited_by: u.user.id,
+    })
+    .eq("id", id);
+
+  if (error) {
+    alert(error.message);
+    return;
   }
+
+  // 👇 Show + copy the receipt link
+  const receiptUrl = `${window.location.origin}/receipt/${id}`;
+  try {
+    await navigator.clipboard.writeText(receiptUrl);
+    // If you have setToolMsg in this component, use it. Otherwise keep alert.
+    // setToolMsg(`✅ Credited. Receipt link copied: ${receiptUrl}`);
+    alert(`Credited.\nReceipt link copied to clipboard:\n${receiptUrl}`);
+  } catch {
+    // setToolMsg(`✅ Credited. Receipt: ${receiptUrl}`);
+    alert(`Credited.\nReceipt:\n${receiptUrl}`);
+  }
+
+  await loadPending();
+}
+
 
   async function markRejected(id: string) {
     const reason = window.prompt("Reason (optional)") || null;
