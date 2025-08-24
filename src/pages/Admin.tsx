@@ -146,7 +146,7 @@ function DataTable<TData>({
 
   const rows = table.getRowModel().rows;
 
-  // Virtualization (spacer rows; keeps header aligned)
+  // Virtualization (spacer rows keep header/cells aligned)
   const parentRef = React.useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -266,37 +266,35 @@ function DataTable<TData>({
             ))}
           </thead>
 
-          <tbody>
-            {paddingTop > 0 && (
-              <tr>
-                <td colSpan={visibleLeafCols.length} style={{ height: paddingTop }} />
-              </tr>
-            )}
+        <tbody>
+          {/* top spacer */}
+          {paddingTop > 0 && (
+            <tr>
+              <td colSpan={visibleLeafCols.length} style={{ height: paddingTop }} />
+            </tr>
+          )}
 
-            {useMemo(
-              () =>
-                vItems.map((vi) => {
-                  const row = rows[vi.index];
-                  return (
-                    <tr key={row.id} className="border-b hover:bg-muted/50">
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="py-2 px-2 align-middle truncate">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                }),
-              // eslint-disable-next-line react-hooks/exhaustive-deps
-              [vItems, rows]
-            )}
-
-            {paddingBottom > 0 && (
-              <tr>
-                <td colSpan={visibleLeafCols.length} style={{ height: paddingBottom }} />
+          {/* visible rows */}
+          {vItems.map((vi) => {
+            const row = rows[vi.index];
+            return (
+              <tr key={row.id} className="border-b hover:bg-muted/50">
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id} className="py-2 px-2 align-middle truncate">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
               </tr>
-            )}
-          </tbody>
+            );
+          })}
+
+          {/* bottom spacer */}
+          {paddingBottom > 0 && (
+            <tr>
+              <td colSpan={visibleLeafCols.length} style={{ height: paddingBottom }} />
+            </tr>
+          )}
+        </tbody>
         </table>
 
         {rows.length === 0 && (
@@ -679,7 +677,7 @@ export default function Admin() {
   const recentForTable = useMemo<CreditedRowUI[]>(() => {
     return (recent as any[]).map((r) => ({
       ...r,
-      card_code: (r as any).card_code ?? "—",   // fill when your RPC returns codes
+      card_code: (r as any).card_code ?? "—",   // fill once RPC returns codes
       credited_by: (r as any).credited_by ?? "—",
     })) as CreditedRowUI[];
   }, [recent]);
@@ -777,10 +775,277 @@ export default function Admin() {
                             </span>
                           </label>
                           <div className="text-xs opacity-70">
-                            {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •
-                            {" "}Submitted {new Date(r.submitted_at).toLocaleString()}
+                            {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •{" "}
+                            Submitted {new Date(r.submitted_at).toLocaleString()}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-xs mb-2">
-                          <button onClick={() => selectAllCards(r.id, r.cards)} className="border
+                          <button onClick={() => selectAllCards(r.id, r.cards)} className="border rounded px-2 py-0.5">
+                            Select All Cards
+                          </button>
+                          <button onClick={() => selectNoneCards(r.id)} className="border rounded px-2 py-0.5">
+                            Select None
+                          </button>
+                          <div className="opacity-80">
+                            Selected: <b>{count}</b> • Selected TIME: <b>{total}</b>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {r.cards?.map((c) => {
+                            const checked = !!m[c.card_id || ""];
+                            return (
+                              <label
+                                key={c.card_id}
+                                className={`border rounded-lg overflow-hidden block ${
+                                  checked ? "ring-2 ring-emerald-500" : ""
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="hidden"
+                                  checked={checked}
+                                  onChange={() => c.card_id && toggleCard(r.id, c.card_id)}
+                                />
+                                {c.image_url && (
+                                  <img
+                                    src={c.image_url}
+                                    alt={c.name ?? "Card"}
+                                    className="w-full aspect-[3/4] object-cover"
+                                  />
+                                )}
+                                <div className="p-2 text-sm">
+                                  <div className="font-medium truncate">{c.name ?? "—"}</div>
+                                  <div className="opacity-70">
+                                    {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
+                                  </div>
+                                  <div className="text-xs opacity-60">
+                                    Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME: {c.time_value ?? 0}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex gap-2 mt-3">
+                          <Link
+                            to={`/receipt/${r.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="border rounded px-3 py-1"
+                          >
+                            View receipt
+                          </Link>
+                          <button onClick={() => finalizeRedemption(r)} className="border rounded px-3 py-1">
+                            Credit selected (leave others pending)
+                          </button>
+                          <button onClick={() => rejectAll(r)} className="border rounded px-3 py-1">
+                            Reject all
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </section>
+
+      {/* ---------- Recent Credited (virtual table) ---------- */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Recent Credited</h2>
+          <button onClick={loadRecent} className="border rounded px-3 py-1 text-sm">Refresh</button>
+        </div>
+        {loadingRecent ? (
+          <div>Loading…</div>
+        ) : (
+          <DataTable
+            title="Credited Log"
+            data={recentForTable}
+            columns={CREDITED_COLS}
+            totalCount={recent.length}
+            csvFilename="credited-log.csv"
+            heightPx={560}
+          />
+        )}
+      </section>
+
+      {/* ---------- Scan Log (virtual table) ---------- */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
+          <div className="flex items-center gap-2">
+            <label className="text-sm opacity-80">Outcome:</label>
+            <select
+              value={scanOutcome}
+              onChange={(e) => setScanOutcome(e.target.value as any)}
+              className="border rounded px-2 py-1 text-sm"
+            >
+              <option value="all">All outcomes</option>
+              <option value="claimed">claimed</option>
+              <option value="already_owner">already_owner</option>
+              <option value="owned_by_other">owned_by_other</option>
+              <option value="not_found">not_found</option>
+              <option value="blocked">blocked</option>
+              <option value="error">error</option>
+            </select>
+            <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
+          </div>
+        </div>
+
+        {loadingScans ? (
+          <div>Loading…</div>
+        ) : (
+          <DataTable
+            title="Scan Log"
+            data={scansForTable as ScanRowUI[]}
+            columns={SCAN_COLS}
+            totalCount={scans.length}
+            csvFilename="scan-log.csv"
+            heightPx={560}
+          />
+        )}
+      </section>
+
+      {/* ---------- Blocked users ---------- */}
+      <section className="border rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold">Blocked users</h2>
+          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
+            Refresh list
+          </button>
+        </div>
+
+        <div className="mb-3">
+          <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
+        </div>
+
+        {loadingBlocked ? (
+          <div className="opacity-70 text-sm">Loading blocked users…</div>
+        ) : blocked.length === 0 ? (
+          <div className="opacity-70 text-sm">No one is blocked.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Reason</th>
+                  <th className="py-2 pr-3">Blocked at</th>
+                  <th className="py-2 pr-3">Blocked by</th>
+                  <th className="py-2 pr-0"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {blocked.map((b) => (
+                  <tr key={b.user_id} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
+                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
+                    <td className="py-2 pr-3">{dateCell(b.blocked_at)}</td>
+                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
+                    <td className="py-2 pr-0">
+                      {b.email && (
+                        <button
+                          onClick={async () => {
+                            const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: b.email! });
+                            if (error) setToolMsg(error.message);
+                            else if (data?.ok) { setToolMsg(`✅ Unblocked ${b.email}`); await loadBlocked(); }
+                          }}
+                          className="border rounded px-2 py-1 text-xs"
+                        >
+                          Unblock
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* ---------------- Admin helper: Block / Unblock ---------------- */
+
+function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; onChanged: () => void }) {
+  const [email, setEmail] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function doBlock() {
+    onMsg(null);
+    const e = email.trim();
+    if (!e) { onMsg("Enter an email."); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_block_user_by_email", {
+      p_email: e,
+      p_reason: reason.trim() || null,
+    });
+    setBusy(false);
+    if (error) { onMsg(error.message); return; }
+    if (data?.ok) {
+      onMsg(`✅ Blocked ${e}.`);
+      onChanged();
+    } else if (data?.error === "not_found") {
+      onMsg(`❌ No auth user found with email: ${e}`);
+    } else if (data?.error === "forbidden") {
+      onMsg("❌ You are not authorized as admin.");
+    } else {
+      onMsg("Could not block user.");
+    }
+  }
+
+  async function doUnblock() {
+    onMsg(null);
+    const e = email.trim();
+    if (!e) { onMsg("Enter an email."); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: e });
+    setBusy(false);
+    if (error) { onMsg(error.message); return; }
+    if (data?.ok) {
+      onMsg(`✅ Unblocked ${e}.`);
+      onChanged();
+    } else if (data?.error === "not_found") {
+      onMsg(`❌ No auth user found with email: ${e}`);
+    } else if (data?.error === "forbidden") {
+      onMsg("❌ You are not authorized as admin.");
+    } else {
+      onMsg("Could not unblock user.");
+    }
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row md:items-center gap-2">
+      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="user@email.com"
+        className="border rounded px-2 py-1 w-full md:w-64"
+      />
+      <input
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Reason (optional)"
+        className="border rounded px-2 py-1 w-full md:w-64"
+      />
+      <div className="flex gap-2">
+        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+          {busy ? "Blocking…" : "Block"}
+        </button>
+        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+          {busy ? "Unblocking…" : "Unblock"}
+        </button>
+      </div>
+    </div>
+  );
+}
