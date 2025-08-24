@@ -657,7 +657,7 @@ export default function Admin() {
                       onClick={() => { setCredSortKey("card_code"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
                   <Th label="Email" active={credSortKey==="user_email"} dir={credSortDir}
                       onClick={() => { setCredSortKey("user_email"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
-                  <Th label="UserId" active={credSortKey==="user_id"} dir={credSortDir}
+                  <Th label="UserId" active={credSortKey==="redemption_id"} dir={credSortDir}
                       onClick={() => { setCredSortKey("redemption_id"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
                   <Th label="Credited Count" active={credSortKey==="credited_count"} dir={credSortDir}
                       onClick={() => { setCredSortKey("credited_count"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
