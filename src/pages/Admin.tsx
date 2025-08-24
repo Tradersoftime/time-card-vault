@@ -51,6 +51,7 @@ type ScanRow = {
     | "error";
 };
 
+/** Raw rows from admin_recent_credited (one row per credited card) */
 type CreditedRow = {
   redemption_id: string;
   credited_at: string | null;
@@ -59,7 +60,7 @@ type CreditedRow = {
   card_id: string | null;
   card_code: string | null;
   amount_time: number | null;
-  credited_count: number;
+  credited_count: number; // total cards in the redemption (same number repeated per row)
 };
 
 /* ---------- Page ---------- */
@@ -92,14 +93,14 @@ export default function Admin() {
   // Receipt banner
   const [lastReceiptUrl, setLastReceiptUrl] = useState<string | null>(null);
 
-  // Credited log + sort
+  // Credited log (rows per card) + filter/sort
   const [creditedRows, setCreditedRows] = useState<CreditedRow[]>([]);
   const [loadingCredited, setLoadingCredited] = useState(false);
+  const [credQuery, setCredQuery] = useState("");
   const [credSortKey, setCredSortKey] = useState<
-    "credited_at" | "user_email" | "card_code" | "amount_time" | "credited_count" | "redemption_id"
+    "credited_at" | "user_email" | "credited_count" | "total_time" | "redemption_id"
   >("credited_at");
   const [credSortDir, setCredSortDir] = useState<"asc" | "desc">("desc");
-  const [credQuery, setCredQuery] = useState("");
 
   /* ---- Admin check ---- */
   useEffect(() => {
@@ -175,7 +176,7 @@ export default function Admin() {
 
   async function loadCredited() {
     setLoadingCredited(true);
-    const { data, error } = await supabase.rpc("admin_recent_credited", { p_limit: 200 });
+    const { data, error } = await supabase.rpc("admin_recent_credited", { p_limit: 500 });
     if (error) setToolMsg(error.message);
     setCreditedRows((data as CreditedRow[]) ?? []);
     setLoadingCredited(false);
@@ -386,35 +387,75 @@ export default function Admin() {
     });
   }, [scans, scanQuery, scanOutcome, scanSortKey, scanSortDir]);
 
-  /* ---- Credited filtering + sorting ---- */
-  const creditedFilteredSorted = useMemo(() => {
+  /* ---- Credited Log: filter (text) and group by redemption ---- */
+  const creditedGrouped = useMemo(() => {
+    // 1) text filter at row level first (so we can filter by any card_code/email/id)
     const q = credQuery.trim().toLowerCase();
-    const rows = creditedRows.filter((r) => {
-      if (!q) return true;
-      return (
-        (r.user_email ?? "").toLowerCase().includes(q) ||
-        (r.card_code ?? "").toLowerCase().includes(q) ||
-        r.user_id.toLowerCase().includes(q) ||
-        r.redemption_id.toLowerCase().includes(q)
-      );
-    });
+    const base = !q
+      ? creditedRows
+      : creditedRows.filter((r) => {
+          return (
+            (r.user_email ?? "").toLowerCase().includes(q) ||
+            (r.card_code ?? "").toLowerCase().includes(q) ||
+            r.user_id.toLowerCase().includes(q) ||
+            r.redemption_id.toLowerCase().includes(q)
+          );
+        });
 
+    // 2) group
+    const map = new Map<
+      string,
+      {
+        redemption_id: string;
+        credited_at: string | null;
+        user_email: string | null;
+        credited_count: number;
+        total_time: number;
+        codes: string[];
+      }
+    >();
+
+    for (const r of base) {
+      const g =
+        map.get(r.redemption_id) ??
+        {
+          redemption_id: r.redemption_id,
+          credited_at: r.credited_at,
+          user_email: r.user_email,
+          credited_count: 0,
+          total_time: 0,
+          codes: [],
+        };
+      if (r.card_code) g.codes.push(r.card_code);
+      g.total_time += Number(r.amount_time ?? 0);
+      // prefer the latest credited_at
+      if (!g.credited_at || (r.credited_at && new Date(r.credited_at) > new Date(g.credited_at))) {
+        g.credited_at = r.credited_at;
+      }
+      map.set(r.redemption_id, g);
+    }
+
+    // set credited_count from codes length (per redemption)
+    const grouped = Array.from(map.values()).map((g) => ({
+      ...g,
+      credited_count: g.codes.length,
+    }));
+
+    // 3) sort by selected key
     const dir = credSortDir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
+    return grouped.sort((a, b) => {
       switch (credSortKey) {
         case "credited_at":
           return (
-            ((new Date(a.credited_at ?? 0).getTime() -
-              new Date(b.credited_at ?? 0).getTime()) as number) * dir
+            (new Date(a.credited_at ?? 0).getTime() - new Date(b.credited_at ?? 0).getTime()) *
+            dir
           );
         case "user_email":
           return ((a.user_email ?? "") > (b.user_email ?? "") ? 1 : -1) * dir;
-        case "card_code":
-          return ((a.card_code ?? "") > (b.card_code ?? "") ? 1 : -1) * dir;
-        case "amount_time":
-          return ((a.amount_time ?? 0) - (b.amount_time ?? 0)) * dir;
         case "credited_count":
           return (a.credited_count - b.credited_count) * dir;
+        case "total_time":
+          return (a.total_time - b.total_time) * dir;
         case "redemption_id":
           return (a.redemption_id > b.redemption_id ? 1 : -1) * dir;
         default:
@@ -623,17 +664,17 @@ export default function Admin() {
         )}
       </section>
 
-      {/* ---------- Credited Log (uses admin_recent_credited) ---------- */}
+      {/* ---------- Credited Log (grouped by redemption, shows all codes) ---------- */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">
-            Credited Log — {creditedRows.length}
+            Credited Log — {creditedGrouped.length}
           </h2>
           <div className="flex items-center gap-2">
             <input
               value={credQuery}
               onChange={(e) => setCredQuery(e.target.value)}
-              placeholder="Search(code, email, userId, redemption)…"
+              placeholder="Search (code, email, userId, redemption)…"
               className="border rounded px-2 py-1"
             />
             <button onClick={loadCredited} className="border rounded px-3 py-1 text-sm">
@@ -644,41 +685,85 @@ export default function Admin() {
 
         {loadingCredited ? (
           <div>Loading…</div>
-        ) : creditedFilteredSorted.length === 0 ? (
-          <div className="opacity-70 text-sm">No credited cards yet.</div>
+        ) : creditedGrouped.length === 0 ? (
+          <div className="opacity-70 text-sm">No credited redemptions yet.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b">
+            <table className="w-full text-sm table-fixed">
+              <thead className="border-b bg-background sticky top-0">
                 <tr className="text-left">
-                  <Th label="When" active={credSortKey==="credited_at"} dir={credSortDir}
-                      onClick={() => { setCredSortKey("credited_at"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
-                  <Th label="Code" active={credSortKey==="card_code"} dir={credSortDir}
-                      onClick={() => { setCredSortKey("card_code"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
-                  <Th label="Email" active={credSortKey==="user_email"} dir={credSortDir}
-                      onClick={() => { setCredSortKey("user_email"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
-                  <Th label="UserId" active={credSortKey==="redemption_id"} dir={credSortDir}
-                      onClick={() => { setCredSortKey("redemption_id"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
-                  <Th label="Credited Count" active={credSortKey==="credited_count"} dir={credSortDir}
-                      onClick={() => { setCredSortKey("credited_count"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
-                  <Th label="Amount TIME" active={credSortKey==="amount_time"} dir={credSortDir}
-                      onClick={() => { setCredSortKey("amount_time"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
-                  <Th label="Redemption" active={credSortKey==="redemption_id"} dir={credSortDir}
-                      onClick={() => { setCredSortKey("redemption_id"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
+                  <Th
+                    label="When"
+                    active={credSortKey === "credited_at"}
+                    dir={credSortDir}
+                    onClick={() => {
+                      setCredSortKey("credited_at");
+                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                    }}
+                  />
+                  <Th
+                    label="User"
+                    active={credSortKey === "user_email"}
+                    dir={credSortDir}
+                    onClick={() => {
+                      setCredSortKey("user_email");
+                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                    }}
+                  />
+                  <th className="py-2 pr-3 w-1/2">Codes</th>
+                  <Th
+                    label="# Credited"
+                    active={credSortKey === "credited_count"}
+                    dir={credSortDir}
+                    onClick={() => {
+                      setCredSortKey("credited_count");
+                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                    }}
+                  />
+                  <Th
+                    label="TIME Total"
+                    active={credSortKey === "total_time"}
+                    dir={credSortDir}
+                    onClick={() => {
+                      setCredSortKey("total_time");
+                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                    }}
+                  />
+                  <Th
+                    label="Redemption"
+                    active={credSortKey === "redemption_id"}
+                    dir={credSortDir}
+                    onClick={() => {
+                      setCredSortKey("redemption_id");
+                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                    }}
+                  />
                 </tr>
               </thead>
               <tbody>
-                {creditedFilteredSorted.map((r) => (
-                  <tr key={`${r.redemption_id}-${r.card_id ?? r.card_code ?? ""}`} className="border-b last:border-b-0">
-                    <td className="py-2 pr-3">{r.credited_at ? new Date(r.credited_at).toLocaleString() : "—"}</td>
-                    <td className="py-2 pr-3 font-mono">{r.card_code ?? "—"}</td>
-                    <td className="py-2 pr-3">{r.user_email ?? "—"}</td>
-                    <td className="py-2 pr-3 font-mono">{r.user_id}</td>
-                    <td className="py-2 pr-3">{r.credited_count}</td>
-                    <td className="py-2 pr-3">{r.amount_time ?? 0}</td>
+                {creditedGrouped.map((g) => (
+                  <tr key={g.redemption_id} className="border-b last:border-b-0 align-top">
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {g.credited_at ? new Date(g.credited_at).toLocaleString() : "—"}
+                    </td>
+                    <td className="py-2 pr-3">{g.user_email ?? "—"}</td>
+                    <td className="py-2 pr-3">
+                      <div className="flex flex-wrap gap-1">
+                        {g.codes.slice(0, 10).map((code) => (
+                          <span key={code} className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
+                            {code}
+                          </span>
+                        ))}
+                        {g.codes.length > 10 && (
+                          <span className="text-xs opacity-70">+{g.codes.length - 10} more</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3">{g.credited_count}</td>
+                    <td className="py-2 pr-3">{g.total_time}</td>
                     <td className="py-2 pr-3 font-mono">
-                      <Link to={`/receipt/${r.redemption_id}`} className="underline" target="_blank" rel="noreferrer">
-                        {r.redemption_id.slice(0,8)}…
+                      <Link to={`/receipt/${g.redemption_id}`} className="underline" target="_blank" rel="noreferrer">
+                        {g.redemption_id.slice(0, 8)}…
                       </Link>
                     </td>
                   </tr>
@@ -719,32 +804,12 @@ export default function Admin() {
             <option value="error">error</option>
           </select>
 
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              className="border rounded px-2 py-0.5"
-              onClick={() => {
-                setScanSortKey("created_at");
-                setScanSortDir((d) => (d === "asc" ? "desc" : "asc"));
-              }}
-            >
-              Sort by When {scanSortKey === "created_at" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
-            </button>
-            <button
-              className="border rounded px-2 py-0.5"
-              onClick={() => {
-                setScanSortKey("email");
-                setScanSortDir((d) => (d === "asc" ? "desc" : "asc"));
-              }}
-            >
-              Sort by Email {scanSortKey === "email" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
-            </button>
-          </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
+          <table className="w-full text-sm table-fixed">
+            <thead className="border-b bg-background sticky top-0">
+              <tr className="text-left">
                 <th className="py-2 pr-3">When</th>
                 <th className="py-2 pr-3">Email</th>
                 <th className="py-2 pr-3">Code</th>
@@ -755,7 +820,7 @@ export default function Admin() {
             <tbody>
               {filteredScans.map((s, idx) => (
                 <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0">
-                  <td className="py-2 pr-3">{new Date(s.created_at).toLocaleString()}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">{new Date(s.created_at).toLocaleString()}</td>
                   <td className="py-2 pr-3">{s.email ?? "—"}</td>
                   <td className="py-2 pr-3 font-mono">{s.code}</td>
                   <td className="py-2 pr-3">{s.outcome}</td>
@@ -786,9 +851,9 @@ export default function Admin() {
           <div className="opacity-70 text-sm">No one is blocked.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
+            <table className="w-full text-sm table-fixed">
+              <thead className="border-b bg-background sticky top-0">
+                <tr className="text-left">
                   <th className="py-2 pr-3">Email</th>
                   <th className="py-2 pr-3">Reason</th>
                   <th className="py-2 pr-3">Blocked at</th>
@@ -801,7 +866,7 @@ export default function Admin() {
                   <tr key={b.user_id} className="border-b last:border-b-0">
                     <td className="py-2 pr-3">{b.email ?? "—"}</td>
                     <td className="py-2 pr-3">{b.reason ?? "—"}</td>
-                    <td className="py-2 pr-3">{new Date(b.blocked_at).toLocaleString()}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">{new Date(b.blocked_at).toLocaleString()}</td>
                     <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
                     <td className="py-2 pr-0">
                       {b.email && (
