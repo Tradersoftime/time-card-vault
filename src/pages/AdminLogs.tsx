@@ -1,443 +1,494 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Search, RefreshCw, Filter } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import * as React from "react";
+import {
+  ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  SortingState,
+  useReactTable,
+  VisibilityState,
+} from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
-interface LogEntry {
-  id: string;
-  created_at: string;
-  event_type: string;
-  data: any;
-  processed: boolean;
+/* ===========================
+   Small helpers (inline)
+=========================== */
+type SortDir = "asc" | "desc";
+
+function useDebouncedValue<T>(value: T, delay = 300) {
+  const [debounced, setDebounced] = React.useState(value);
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+function exportToCsv(opts: { filename: string; headers: string[]; rows: (string|number|boolean|null|undefined)[][] }) {
+  const { filename, headers, rows } = opts;
+  const escape = (v:any) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const csv = [headers.map(escape).join(","), ...rows.map(r=>r.map(escape).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename.endsWith(".csv")?filename:`${filename}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+function clsx(...xs: (string | false | null | undefined)[]) {
+  return xs.filter(Boolean).join(" ");
 }
 
-interface ScanEvent {
+/* ===========================
+   Types
+=========================== */
+type ScanLogRow = {
   id: string;
-  created_at: string;
-  code: string;
-  outcome: string;
-  source: string;
-  card_id?: string;
-  user_id: string;
-}
-
-interface RedemptionLog {
+  cardId: string;
+  cardCode: string;
+  userId: string;
+  userEmail: string;
+  scannedAt: string; // ISO
+  source: "QR" | "manual" | "bulk";
+};
+type CreditedLogRow = {
   id: string;
-  submitted_at: string;
-  status: string;
-  user_id: string;
-  credited_amount?: number;
-  credited_at?: string;
-  admin_notes?: string;
+  cardId: string;
+  cardCode: string; // REQUIRED visible “code” column
+  userId: string;
+  userEmail: string;
+  creditedAt: string; // ISO
+  creditedBy: string; // email or id
+  amountTIME: number;
+};
+
+/* ===========================
+   Mock data (inline)
+=========================== */
+// deterministic-ish random
+let seed = 42;
+function rnd() { seed ^= seed<<13; seed ^= seed>>17; seed ^= seed<<5; return Math.abs(seed)/0x7fffffff; }
+function pick<T>(arr: T[]) { return arr[Math.floor(rnd()*arr.length)]; }
+function id(prefix: string) { return `${prefix}_${Math.floor(rnd()*1e9).toString(36)}`; }
+function isoWithinDays(days:number) {
+  const now = Date.now();
+  const delta = Math.floor(rnd()*days*24*60*60*1000);
+  return new Date(now - delta).toISOString();
 }
+const ERAS = ["Genesis", "Classic", "Modern", "Futures"];
+const RARITIES = ["Common", "Uncommon", "Rare", "Epic", "Legendary"];
+const SOURCES = ["QR", "manual", "bulk"] as const;
 
-export default function AdminLogs() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [webhookLogs, setWebhookLogs] = useState<LogEntry[]>([]);
-  const [scanEvents, setScanEvents] = useState<ScanEvent[]>([]);
-  const [redemptionLogs, setRedemptionLogs] = useState<RedemptionLog[]>([]);
-  
-  const [activeTab, setActiveTab] = useState<'webhook' | 'scan' | 'redemption'>('webhook');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
+const USERS = Array.from({length:120}).map((_,i)=>({ id: id("u"), email: `user${i+1}@example.com` }));
+const CARDS = Array.from({length:2000}).map(()=>({
+  id: id("card"),
+  code: `T${Math.floor(rnd()*1e8).toString(36).toUpperCase()}`,
+  era: pick(ERAS),
+  title: `Trader #${Math.floor(rnd()*9000)+1000}`,
+  rarity: pick(RARITIES),
+}));
 
-  useEffect(() => {
-    if (user) {
-      checkAdminStatus();
+const SCANS: ScanLogRow[] = Array.from({length:1600}).map(()=> {
+  const u = pick(USERS); const c = pick(CARDS);
+  return {
+    id: id("scan"),
+    cardId: c.id,
+    cardCode: c.code,
+    userId: u.id,
+    userEmail: u.email,
+    scannedAt: isoWithinDays(120),
+    source: pick(SOURCES),
+  };
+});
+
+const CREDITED: CreditedLogRow[] = Array.from({length:1100}).map(()=> {
+  const u = pick(USERS); const c = pick(CARDS);
+  const amt = [1,2,3,5,8][Math.floor(rnd()*5)];
+  return {
+    id: id("cred"),
+    cardId: c.id,
+    cardCode: c.code,
+    userId: u.id,
+    userEmail: u.email,
+    creditedAt: isoWithinDays(120),
+    creditedBy: pick(USERS).email,
+    amountTIME: amt,
+  };
+});
+
+/* ===========================
+   Generic Virtualized Table
+=========================== */
+type DataTableProps<TData> = {
+  title: string;
+  data: TData[];
+  columns: ColumnDef<TData, any>[];
+  totalCount: number;
+  heightPx?: number;
+  csvFilename: string;
+};
+function DataTable<TData>({
+  title, data, columns, totalCount, heightPx = 560, csvFilename
+}: DataTableProps<TData>) {
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [global, setGlobal] = React.useState("");
+  const debounced = useDebouncedValue(global, 300);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = React.useState({});
+
+  const globalFilterFn = React.useCallback((row:any, _colId:string, filterValue:string) => {
+    if (!filterValue) return true;
+    const q = String(filterValue).toLowerCase();
+    const cells = row.getVisibleCells?.() || [];
+    for (const c of cells) {
+      const v = c.getValue?.();
+      if (v == null) continue;
+      const s = typeof v === "string" ? v : typeof v === "number" ? v.toString() : JSON.stringify(v);
+      if (s.toLowerCase().includes(q)) return true;
     }
-  }, [user]);
+    return false;
+  }, []);
 
-  const checkAdminStatus = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('admins')
-        .select('user_id')
-        .eq('user_id', user?.id)
-        .single();
+  // selection column
+  const selectCol: ColumnDef<TData, any> = React.useMemo(()=>({
+    id: "_select",
+    enableSorting: false,
+    enableHiding: false,
+    header: ({ table }) => (
+      <input
+        type="checkbox"
+        aria-label="Select all"
+        checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() ? undefined : false)}
+        onChange={(e)=>table.toggleAllPageRowsSelected(e.currentTarget.checked)}
+      />
+    ),
+    cell: ({ row }) => (
+      <input
+        type="checkbox"
+        aria-label="Select row"
+        checked={row.getIsSelected()}
+        onChange={(e)=>row.toggleSelected(e.currentTarget.checked)}
+      />
+    ),
+    size: 40,
+  }),[]);
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
+  const table = useReactTable({
+    data,
+    columns: React.useMemo(()=> [selectCol, ...columns], [columns, selectCol]),
+    state: { sorting, globalFilter: debounced, columnVisibility, rowSelection },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobal,
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn,
+  });
 
-      const adminStatus = !!data;
-      setIsAdmin(adminStatus);
+  const rows = table.getRowModel().rows;
+  const parentRef = React.useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: ()=> parentRef.current,
+    estimateSize: ()=> 56,
+    overscan: 8,
+  });
+  const vItems = rowVirtualizer.getVirtualItems();
+  const visibleCols = table.getVisibleLeafColumns().filter(c=>c.id !== "_select");
+  const filteredCount = rows.length;
 
-      if (adminStatus) {
-        await loadLogs();
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to verify admin status",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadLogs = async () => {
-    try {
-      await Promise.all([
-        loadWebhookLogs(),
-        loadScanEvents(),
-        loadRedemptionLogs()
-      ]);
-    } catch (error) {
-      console.error('Error loading logs:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load logs",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const loadWebhookLogs = async () => {
-    const { data, error } = await supabase
-      .from('webhook_events')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (error) throw error;
-    setWebhookLogs(data || []);
-  };
-
-  const loadScanEvents = async () => {
-    const { data, error } = await supabase
-      .from('scan_events')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (error) throw error;
-    setScanEvents(data || []);
-  };
-
-  const loadRedemptionLogs = async () => {
-    const { data, error } = await supabase
-      .from('redemptions')
-      .select('*')
-      .order('submitted_at', { ascending: false })
-      .limit(100);
-
-    if (error) throw error;
-    setRedemptionLogs(data || []);
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await loadLogs();
-      toast({
-        title: "Success",
-        description: "Logs refreshed successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to refresh logs",
-        variant: "destructive",
-      });
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
-
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
-      'success': 'default',
-      'pending': 'secondary',
-      'failed': 'destructive',
-      'error': 'destructive',
-      'approved': 'default',
-      'rejected': 'destructive',
-    };
-    
-    return (
-      <Badge variant={variants[status] || 'secondary'}>
-        {status}
-      </Badge>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+  function handleExportCSV() {
+    exportToCsv({
+      filename: csvFilename,
+      headers: visibleCols.map(c => c.id || c.accessorKey?.toString() || "col"),
+      rows: rows.map(r => visibleCols.map(c => r.getValue(c.id ?? (c.accessorKey as string)))),
+    });
   }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
-        <Card className="glass-panel">
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground mb-4">Please log in to access admin logs.</p>
-            <Button onClick={() => navigate('/login')} variant="hero">
-              Go to Login
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isAdmin === false) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
-        <Card className="glass-panel">
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground mb-4">Access denied. Admin privileges required.</p>
-            <Button onClick={() => navigate('/')} variant="hero">
-              Go Home
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const filteredWebhookLogs = webhookLogs.filter(log =>
-    log.event_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    JSON.stringify(log.data).toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredScanEvents = scanEvents.filter(event =>
-    event.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    event.outcome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    event.source.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredRedemptionLogs = redemptionLogs.filter(log =>
-    log.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.user_id.includes(searchTerm.toLowerCase())
-  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="glass-panel rounded-xl p-6 glow-effect">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => navigate('/admin')}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <h1 className="text-3xl font-bold gradient-primary bg-clip-text text-transparent">
-                Admin Logs
-              </h1>
-            </div>
-            <Button 
-              onClick={handleRefresh} 
-              disabled={refreshing}
-              variant="hero"
-              size="sm"
-            >
-              {refreshing ? (
-                <LoadingSpinner size="sm" className="mr-2" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Refresh
-            </Button>
-          </div>
-
-          {/* Search and Filter */}
-          <div className="flex gap-4 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Search logs..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          {/* Tab Navigation */}
-          <div className="flex gap-2">
-            <Button
-              variant={activeTab === 'webhook' ? 'hero' : 'ghost'}
-              onClick={() => setActiveTab('webhook')}
-              size="sm"
-            >
-              Webhook Logs ({filteredWebhookLogs.length})
-            </Button>
-            <Button
-              variant={activeTab === 'scan' ? 'hero' : 'ghost'}
-              onClick={() => setActiveTab('scan')}
-              size="sm"
-            >
-              Scan Events ({filteredScanEvents.length})
-            </Button>
-            <Button
-              variant={activeTab === 'redemption' ? 'hero' : 'ghost'}
-              onClick={() => setActiveTab('redemption')}
-              size="sm"
-            >
-              Redemption Logs ({filteredRedemptionLogs.length})
-            </Button>
-          </div>
+    <div className="w-full border rounded-xl">
+      {/* panel header */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between p-3 border-b">
+        <div className="font-semibold">
+          {title} — {totalCount.toLocaleString()}
+          <span className="text-xs opacity-70 ml-2">(filtered: {filteredCount.toLocaleString()})</span>
         </div>
-
-        {/* Webhook Logs */}
-        {activeTab === 'webhook' && (
-          <div className="space-y-4">
-            {filteredWebhookLogs.length === 0 ? (
-              <Card className="glass-panel">
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">No webhook logs found.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredWebhookLogs.map((log) => (
-                <Card key={log.id} className="glass-panel">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{log.event_type}</CardTitle>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(log.processed ? 'processed' : 'pending')}
-                        <span className="text-sm text-muted-foreground">
-                          {formatDate(log.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <pre className="text-sm bg-muted/30 p-3 rounded overflow-auto">
-                      {JSON.stringify(log.data, null, 2)}
-                    </pre>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Scan Events */}
-        {activeTab === 'scan' && (
-          <div className="space-y-4">
-            {filteredScanEvents.length === 0 ? (
-              <Card className="glass-panel">
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">No scan events found.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredScanEvents.map((event) => (
-                <Card key={event.id} className="glass-panel">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Code: {event.code}</CardTitle>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(event.outcome)}
-                        <Badge variant="secondary">{event.source}</Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {formatDate(event.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">User ID:</span>
-                        <p className="text-muted-foreground font-mono">{event.user_id}</p>
-                      </div>
-                      {event.card_id && (
-                        <div>
-                          <span className="font-medium">Card ID:</span>
-                          <p className="text-muted-foreground font-mono">{event.card_id}</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Redemption Logs */}
-        {activeTab === 'redemption' && (
-          <div className="space-y-4">
-            {filteredRedemptionLogs.length === 0 ? (
-              <Card className="glass-panel">
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">No redemption logs found.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredRedemptionLogs.map((log) => (
-                <Card key={log.id} className="glass-panel">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Redemption</CardTitle>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(log.status)}
-                        <span className="text-sm text-muted-foreground">
-                          {formatDate(log.submitted_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">User ID:</span>
-                        <p className="text-muted-foreground font-mono">{log.user_id}</p>
-                      </div>
-                      {log.credited_amount && (
-                        <div>
-                          <span className="font-medium">Credited Amount:</span>
-                          <p className="text-muted-foreground">${log.credited_amount}</p>
-                        </div>
-                      )}
-                      {log.credited_at && (
-                        <div>
-                          <span className="font-medium">Credited At:</span>
-                          <p className="text-muted-foreground">{formatDate(log.credited_at)}</p>
-                        </div>
-                      )}
-                      {log.admin_notes && (
-                        <div className="col-span-2">
-                          <span className="font-medium">Admin Notes:</span>
-                          <p className="text-muted-foreground mt-1">{log.admin_notes}</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        )}
+        <div className="flex gap-2 items-center">
+          <input
+            value={global}
+            onChange={(e)=>setGlobal(e.target.value)}
+            placeholder="Search visible columns…"
+            className="h-9 w-[220px] border rounded px-2"
+          />
+          {/* Column visibility menu (simple <details>) */}
+          <details className="relative">
+            <summary className="h-9 px-3 border rounded cursor-pointer list-none select-none">Columns</summary>
+            <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-zinc-900 border rounded p-1 shadow">
+              {table.getAllLeafColumns().filter(c=>c.id!=="_select").map(col => (
+                <label key={col.id} className="flex items-center gap-2 px-2 py-1 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={col.getIsVisible()}
+                    onChange={(e)=>col.toggleVisibility(e.currentTarget.checked)}
+                  />
+                  <span className="capitalize">{col.id}</span>
+                </label>
+              ))}
+            </div>
+          </details>
+          <button className="h-9 px-3 border rounded" onClick={handleExportCSV}>Export CSV</button>
+          <button className="h-9 px-3 border rounded opacity-60 cursor-not-allowed" title="placeholder">
+            Bulk actions (…)
+          </button>
+        </div>
       </div>
+
+      {/* table container with sticky header + internal scroll */}
+      <div ref={parentRef} className="relative overflow-auto" style={{ height: `${heightPx}px` }}>
+        <table className="w-full text-sm border-separate border-spacing-0">
+          <thead className="sticky top-0 z-10 bg-background">
+            {table.getHeaderGroups().map(hg => (
+              <tr key={hg.id} className="border-b">
+                {hg.headers.map(h => {
+                  const canSort = h.column.getCanSort();
+                  const sortDir = h.column.getIsSorted() as false | "asc" | "desc";
+                  return (
+                    <th
+                      key={h.id}
+                      className={clsx("text-left font-medium py-2 px-2 border-b bg-background",
+                        canSort && "cursor-pointer select-none")}
+                      onClick={canSort ? h.column.getToggleSortingHandler() : undefined}
+                      aria-sort={sortDir === "asc" ? "ascending" : sortDir === "desc" ? "descending" : "none"}
+                      style={{ width: h.getSize() }}
+                    >
+                      {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                      {canSort && <span className="ml-1 opacity-70">{sortDir === "asc" ? "▲" : sortDir === "desc" ? "▼" : "↕"}</span>}
+                    </th>
+                  );
+                })}
+              </tr>
+            ))}
+          </thead>
+
+          <tbody>
+            <tr><td colSpan={table.getAllLeafColumns().length} className="p-0">
+              <div className="relative" style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
+                {vItems.map(vi => {
+                  const row = rows[vi.index];
+                  return (
+                    <div
+                      key={row.id}
+                      className="absolute left-0 right-0"
+                      style={{ height: vi.size, transform: `translateY(${vi.start}px)` }}
+                    >
+                      <table className="w-full text-sm border-separate border-spacing-0">
+                        <tbody>
+                          <tr className="border-b hover:bg-muted/50">
+                            {row.getVisibleCells().map(cell => (
+                              <td key={cell.id} className="py-2 px-2">
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
+              {filteredCount === 0 && (
+                <div className="p-6 text-center text-sm opacity-70">No results.</div>
+              )}
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="p-2 text-xs opacity-70 border-t">
+        Selected rows: {Object.keys(rowSelection).length}
+      </div>
+    </div>
+  );
+}
+
+/* ===========================
+   Column defs + Panels
+=========================== */
+function dateCell(iso: string) {
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+const SCAN_COLS: ColumnDef<ScanLogRow>[] = [
+  { id: "scannedAt", accessorKey: "scannedAt", header: "scannedAt",
+    cell: ({ row }) => <span className="font-medium">{dateCell(row.original.scannedAt)}</span>,
+    sortingFn: "alphanumeric" },
+  { id: "cardCode", accessorKey: "cardCode", header: "cardCode" },
+  { id: "userEmail", accessorKey: "userEmail", header: "userEmail" },
+  { id: "userId", accessorKey: "userId", header: "userId" },
+  { id: "source", accessorKey: "source", header: "source" },
+];
+
+const CREDITED_COLS: ColumnDef<CreditedLogRow>[] = [
+  { id: "creditedAt", accessorKey: "creditedAt", header: "creditedAt",
+    cell: ({ row }) => <span className="font-medium">{dateCell(row.original.creditedAt)}</span>,
+    sortingFn: "alphanumeric" },
+  // REQUIRED: “code” column shown, searchable, sortable
+  { id: "cardCode", accessorKey: "cardCode", header: "cardCode" },
+  { id: "userEmail", accessorKey: "userEmail", header: "userEmail" },
+  { id: "userId", accessorKey: "userId", header: "userId" },
+  { id: "creditedBy", accessorKey: "creditedBy", header: "creditedBy" },
+  { id: "amountTIME", accessorKey: "amountTIME", header: "amountTIME",
+    cell: ({ getValue }) => <span className="tabular-nums">{getValue<number>()}</span>,
+    sortingFn: "basic" },
+];
+
+/* ===========================
+   Single-page Admin Logs
+=========================== */
+export default function AdminLogs() {
+  // Optional global filters (simple selects to avoid extra UI deps)
+  const [era, setEra] = React.useState<string>("all");
+  const [rarity, setRarity] = React.useState<string>("all");
+
+  // panel searches (debounced)
+  const [scanSearch, setScanSearch] = React.useState("");
+  const [credSearch, setCredSearch] = React.useState("");
+  const scanQ = useDebouncedValue(scanSearch, 300);
+  const credQ = useDebouncedValue(credSearch, 300);
+
+  // derived filtered datasets (client-side)
+  const scanRows = React.useMemo(()=> {
+    const eraSet = era==="all" ? null : new Set(CARDS.filter(c=>c.era===era).map(c=>c.id));
+    const rarSet = rarity==="all" ? null : new Set(CARDS.filter(c=>c.rarity===rarity).map(c=>c.id));
+    let rows = SCANS.filter(r => (!eraSet || eraSet.has(r.cardId)) && (!rarSet || rarSet.has(r.cardId)));
+    if (scanQ) {
+      const q = scanQ.toLowerCase();
+      rows = rows.filter(r =>
+        r.cardCode.toLowerCase().includes(q) ||
+        r.userEmail.toLowerCase().includes(q) ||
+        r.userId.toLowerCase().includes(q) ||
+        r.source.toLowerCase().includes(q) ||
+        r.scannedAt.toLowerCase().includes(q)
+      );
+    }
+    return rows;
+  }, [era, rarity, scanQ]);
+
+  const credRows = React.useMemo(()=> {
+    const eraSet = era==="all" ? null : new Set(CARDS.filter(c=>c.era===era).map(c=>c.id));
+    const rarSet = rarity==="all" ? null : new Set(CARDS.filter(c=>c.rarity===rarity).map(c=>c.id));
+    let rows = CREDITED.filter(r => (!eraSet || eraSet.has(r.cardId)) && (!rarSet || rarSet.has(r.cardId)));
+    if (credQ) {
+      const q = credQ.toLowerCase();
+      rows = rows.filter(r =>
+        r.cardCode.toLowerCase().includes(q) ||
+        r.userEmail.toLowerCase().includes(q) ||
+        r.userId.toLowerCase().includes(q) ||
+        r.creditedBy.toLowerCase().includes(q) ||
+        String(r.amountTIME).includes(q) ||
+        r.creditedAt.toLowerCase().includes(q)
+      );
+    }
+    return rows;
+  }, [era, rarity, credQ]);
+
+  // totals (from underlying datasets)
+  const stats = React.useMemo(()=> ({
+    totalCards: CARDS.length,
+    scannedTotal: SCANS.length,
+    creditedTotal: CREDITED.length,
+  }), []);
+
+  return (
+    <div className="container mx-auto p-4 space-y-6">
+      {/* Header / Controls */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Admin — Cards & Logs</h1>
+        <button className="border rounded px-3 py-1" onClick={()=> { /* mock page; nothing to refetch */ }}>
+          Refresh
+        </button>
+      </div>
+
+      {/* Global filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <select value={era} onChange={(e)=>setEra(e.target.value)} className="border rounded h-9 px-2">
+          <option value="all">All Eras</option>
+          {ERAS.map(e => <option key={e} value={e}>{e}</option>)}
+        </select>
+        <select value={rarity} onChange={(e)=>setRarity(e.target.value)} className="border rounded h-9 px-2">
+          <option value="all">All Rarities</option>
+          {RARITIES.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <button className="ml-auto border rounded h-9 px-3" onClick={()=>{ setEra("all"); setRarity("all"); }}>
+          Clear filters
+        </button>
+      </div>
+
+      {/* Quick stats */}
+      <div className="grid md:grid-cols-3 gap-3">
+        <Stat label="Total Cards" value={stats.totalCards} />
+        <Stat label="Scanned Total" value={stats.scannedTotal} />
+        <Stat label="Credited Total" value={stats.creditedTotal} />
+      </div>
+
+      {/* Scan Log panel */}
+      <div className="border rounded-xl">
+        <div className="flex items-center justify-between p-3 border-b">
+          <div className="font-semibold">Scan Log — {SCANS.length.toLocaleString()}</div>
+          <input
+            className="h-9 w-[260px] border rounded px-2"
+            placeholder="Search scan log…"
+            value={scanSearch}
+            onChange={(e)=>setScanSearch(e.target.value)}
+          />
+        </div>
+        <div className="p-3">
+          <DataTable
+            title="Scan Log"
+            data={scanRows}
+            columns={SCAN_COLS}
+            totalCount={SCANS.length}
+            heightPx={560}
+            csvFilename="scan-log.csv"
+          />
+        </div>
+      </div>
+
+      {/* Credited Log panel */}
+      <div className="border rounded-xl">
+        <div className="flex items-center justify-between p-3 border-b">
+          <div className="font-semibold">Credited Log — {CREDITED.length.toLocaleString()}</div>
+          <input
+            className="h-9 w-[260px] border rounded px-2"
+            placeholder="Search credited log…"
+            value={credSearch}
+            onChange={(e)=>setCredSearch(e.target.value)}
+          />
+        </div>
+        <div className="p-3">
+          <DataTable
+            title="Credited Log"
+            data={credRows}
+            columns={CREDITED_COLS}
+            totalCount={CREDITED.length}
+            heightPx={560}
+            csvFilename="credited-log.csv"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="border rounded-xl p-4">
+      <div className="text-xs opacity-70">{label}</div>
+      <div className="text-2xl font-semibold tabular-nums">{value.toLocaleString()}</div>
     </div>
   );
 }
