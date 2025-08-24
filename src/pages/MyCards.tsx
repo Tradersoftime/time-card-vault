@@ -133,7 +133,7 @@ export default function MyCards() {
   }
 
   if (loading) return <div className="p-6">Loading your collection…</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (error) return <div className="p-6 text-destructive">Error: {error}</div>;
 
   return (
     <div className="p-6 space-y-8">
@@ -146,7 +146,7 @@ export default function MyCards() {
       </section>
 
       {msg && (
-        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+        <div className="text-sm px-3 py-2 rounded bg-muted text-muted-foreground border">
           {msg}
         </div>
       )}
@@ -238,7 +238,7 @@ export default function MyCards() {
                   <div className="text-xs opacity-60">
                     Claimed {new Date(r.claimed_at).toLocaleString()}
                   </div>
-                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-secondary text-secondary-foreground border">
                     TIME: Pending
                   </span>
                 </div>
@@ -275,7 +275,7 @@ export default function MyCards() {
                   <div className="text-xs opacity-60">
                     Claimed {new Date(r.claimed_at).toLocaleString()}
                   </div>
-                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-accent text-accent-foreground border">
                     TIME: Credited
                   </span>
                 </div>
