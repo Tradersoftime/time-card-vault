@@ -325,38 +325,38 @@ export default function AdminQR() {
     <div className="p-6 space-y-8">
       <h1 className="text-2xl font-semibold">Admin — QR Tools</h1>
       {msg && (
-        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+        <div className="glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-primary text-foreground">
           {msg}
         </div>
       )}
 
       {/* Single QR */}
-      <section className="border rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Single QR</h2>
+      <section className="card-premium rounded-xl p-4 space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Single QR</h2>
         <div className="grid md:grid-cols-3 gap-3">
           <input
             value={singleCode}
             onChange={(e) => setSingleCode(e.target.value)}
             placeholder="Card code (e.g., TOT-ABCD-1234)"
-            className="border rounded px-2 py-1"
+            className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
           <input
             value={singleLabel}
             onChange={(e) => setSingleLabel(e.target.value)}
             placeholder="Label under QR (optional)"
-            className="border rounded px-2 py-1"
+            className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
-          <button onClick={buildSingle} className="border rounded px-3 py-1">
+          <button onClick={buildSingle} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">
             Build Preview
           </button>
         </div>
         {pngDataUrl && (
           <div className="space-y-2">
-            <img src={pngDataUrl} alt="QR preview" className="w-64 border rounded" />
+            <img src={pngDataUrl} alt="QR preview" className="w-64 border border-border rounded" />
             <div>
               <button
                 onClick={() => downloadDataUrl(`${singleCode || "qr"}.png`, pngDataUrl)}
-                className="border rounded px-3 py-1"
+                className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors"
               >
                 Download PNG
               </button>
@@ -366,14 +366,14 @@ export default function AdminQR() {
       </section>
 
       {/* Bulk random generate */}
-      <section className="border rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Bulk Generate Codes + ZIP</h2>
+      <section className="card-premium rounded-xl p-4 space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Bulk Generate Codes + ZIP</h2>
         <div className="grid md:grid-cols-4 gap-3">
           <input
             value={prefix}
             onChange={(e) => setPrefix(e.target.value)}
             placeholder="Prefix (e.g., TOT)"
-            className="border rounded px-2 py-1"
+            className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
           <input
             type="number"
@@ -382,29 +382,29 @@ export default function AdminQR() {
             max={1000}
             onChange={(e) => setCount(parseInt(e.target.value || "0", 10))}
             placeholder="How many?"
-            className="border rounded px-2 py-1"
+            className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
           <div className="col-span-2 flex items-center">
-            <button onClick={bulkGenerate} disabled={saving} className="border rounded px-3 py-1">
+            <button onClick={bulkGenerate} disabled={saving} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50">
               {saving ? "Saving…" : "Generate + Download ZIP"}
             </button>
           </div>
         </div>
-        <div className="text-xs opacity-70">
-          Creates codes like <code>{prefix}-4K9V-7XQ2</code>, saves them as active cards in Supabase, and downloads a ZIP of PNG QRs pointing to <code>{baseUrl}&lt;code&gt;</code>.
+        <div className="text-xs text-muted-foreground">
+          Creates codes like <code className="bg-muted px-1 rounded">{prefix}-4K9V-7XQ2</code>, saves them as active cards in Supabase, and downloads a ZIP of PNG QRs pointing to <code className="bg-muted px-1 rounded">{baseUrl}&lt;code&gt;</code>.
         </div>
       </section>
 
       {/* CSV Import */}
-      <section className="border rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold">CSV Import</h2>
-        <div className="text-sm opacity-80">
-          Required column: <code>code</code>. Optional: <code>name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active</code>
+      <section className="card-premium rounded-xl p-4 space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">CSV Import</h2>
+        <div className="text-sm text-muted-foreground">
+          Required column: <code className="bg-muted px-1 rounded">code</code>. Optional: <code className="bg-muted px-1 rounded">name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active</code>
         </div>
 
         <div className="flex flex-col md:flex-row gap-3">
-          <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="border rounded px-2 py-1" />
-          <button onClick={handleCsvPaste} className="border rounded px-3 py-1">Parse Pasted CSV</button>
+          <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="glass-panel border border-border rounded px-2 py-1 text-foreground" />
+          <button onClick={handleCsvPaste} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors">Parse Pasted CSV</button>
         </div>
 
         <textarea
@@ -413,27 +413,27 @@ export default function AdminQR() {
           placeholder={`code,name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active
 TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,https://your-site/trader/ada,true`}
           rows={6}
-          className="w-full border rounded px-2 py-1 font-mono text-xs"
+          className="w-full glass-panel border border-border rounded px-2 py-1 font-mono text-xs text-foreground placeholder:text-muted-foreground"
         />
 
         {csvErrors.length > 0 && (
-          <div className="text-sm px-3 py-2 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+          <div className="glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-destructive text-destructive-foreground">
             {csvErrors.slice(0, 5).map((e, i) => <div key={i}>{e}</div>)}
             {csvErrors.length > 5 && <div>…and {csvErrors.length - 5} more</div>}
           </div>
         )}
 
         <div className="flex gap-2">
-          <button onClick={upsertCsv} disabled={csvBusy || csvRows.length === 0} className="border rounded px-3 py-1">
+          <button onClick={upsertCsv} disabled={csvBusy || csvRows.length === 0} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50">
             {csvBusy ? "Upserting…" : `Upsert ${csvRows.length} row(s)`}
           </button>
-          <button onClick={downloadZipFromCsv} disabled={csvRows.length === 0} className="border rounded px-3 py-1">
+          <button onClick={downloadZipFromCsv} disabled={csvRows.length === 0} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors disabled:opacity-50">
             Download QR ZIP for parsed rows
           </button>
         </div>
 
         {csvRows.length > 0 && (
-          <div className="text-xs opacity-70">
+          <div className="text-xs text-muted-foreground">
             Showing first {Math.min(csvRows.length, 10)} of {csvRows.length} parsed rows:
           </div>
         )}
@@ -441,26 +441,26 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left border-b">
-                  <th className="py-1 pr-3">code</th>
-                  <th className="py-1 pr-3">name</th>
-                  <th className="py-1 pr-3">suit</th>
-                  <th className="py-1 pr-3">rank</th>
-                  <th className="py-1 pr-3">era</th>
-                  <th className="py-1 pr-3">rarity</th>
-                  <th className="py-1 pr-3">is_active</th>
+                <tr className="text-left border-b border-border">
+                  <th className="py-1 pr-3 text-foreground">code</th>
+                  <th className="py-1 pr-3 text-foreground">name</th>
+                  <th className="py-1 pr-3 text-foreground">suit</th>
+                  <th className="py-1 pr-3 text-foreground">rank</th>
+                  <th className="py-1 pr-3 text-foreground">era</th>
+                  <th className="py-1 pr-3 text-foreground">rarity</th>
+                  <th className="py-1 pr-3 text-foreground">is_active</th>
                 </tr>
               </thead>
               <tbody>
                 {csvRows.slice(0, 10).map((r, i) => (
-                  <tr key={i} className="border-b last:border-b-0">
-                    <td className="py-1 pr-3 font-mono">{r.code}</td>
-                    <td className="py-1 pr-3">{r.name ?? "—"}</td>
-                    <td className="py-1 pr-3">{r.suit ?? "—"}</td>
-                    <td className="py-1 pr-3">{r.rank ?? "—"}</td>
-                    <td className="py-1 pr-3">{r.era ?? "—"}</td>
-                    <td className="py-1 pr-3">{r.rarity ?? "—"}</td>
-                    <td className="py-1 pr-3">{String(r.is_active ?? "")}</td>
+                  <tr key={i} className="border-b border-border last:border-b-0">
+                    <td className="py-1 pr-3 font-mono text-foreground">{r.code}</td>
+                    <td className="py-1 pr-3 text-foreground">{r.name ?? "—"}</td>
+                    <td className="py-1 pr-3 text-foreground">{r.suit ?? "—"}</td>
+                    <td className="py-1 pr-3 text-foreground">{r.rank ?? "—"}</td>
+                    <td className="py-1 pr-3 text-foreground">{r.era ?? "—"}</td>
+                    <td className="py-1 pr-3 text-foreground">{r.rarity ?? "—"}</td>
+                    <td className="py-1 pr-3 text-foreground">{String(r.is_active ?? "")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -470,21 +470,21 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
       </section>
 
       {/* Edit redirect */}
-      <section className="border rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Edit Card Redirect</h2>
+      <section className="card-premium rounded-xl p-4 space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Edit Card Redirect</h2>
         <div className="grid md:grid-cols-3 gap-3">
           <input
             value={editCode}
             onChange={(e) => setEditCode(e.target.value)}
             placeholder="Card code"
-            className="border rounded px-2 py-1"
+            className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
-          <button onClick={lookupCode} className="border rounded px-3 py-1">Lookup</button>
+          <button onClick={lookupCode} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors">Lookup</button>
         </div>
 
         {editFound && (
           <div className="space-y-2">
-            <div className="text-sm">
+            <div className="text-sm text-foreground">
               <span className="font-medium">Code:</span> {editFound.code} ·{" "}
               <span className="font-medium">Active:</span>{" "}
               {editFound.is_active ? "Yes" : "No"} {editFound.name ? `· ${editFound.name}` : ""}
@@ -493,12 +493,12 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
               value={editTarget}
               onChange={(e) => setEditTarget(e.target.value)}
               placeholder="https://destination.example/page (optional)"
-              className="border rounded px-2 py-1 w-full"
+              className="glass-panel border border-border rounded px-2 py-1 w-full text-foreground placeholder:text-muted-foreground"
             />
             <div className="flex gap-2">
-              <button onClick={saveRedirect} className="border rounded px-3 py-1">Save Redirect</button>
+              <button onClick={saveRedirect} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">Save Redirect</button>
               {editTarget && (
-                <a href={editTarget} target="_blank" rel="noreferrer" className="border rounded px-3 py-1">
+                <a href={editTarget} target="_blank" rel="noreferrer" className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors inline-block">
                   Open Current Target
                 </a>
               )}

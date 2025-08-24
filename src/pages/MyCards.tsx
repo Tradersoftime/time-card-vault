@@ -164,7 +164,7 @@ export default function MyCards() {
     <div className="p-6 space-y-8">
       {/* Just-claimed banner */}
       {new URLSearchParams(location.search).get("claimed") === "1" && (
-        <div className="mb-2 text-sm px-3 py-2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+        <div className="mb-2 glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-primary text-foreground">
           ✅ Card added to your collection.
         </div>
       )}
@@ -176,20 +176,20 @@ export default function MyCards() {
             Ready for TIME ({readyAndPending.length})
           </h2>
           <div className="flex items-center gap-2">
-            <button onClick={selectAllReady} className="border rounded px-3 py-1">
+            <button onClick={selectAllReady} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors">
               Select All Ready
             </button>
-            <button onClick={clearSelection} className="border rounded px-3 py-1">
+            <button onClick={clearSelection} className="bg-muted text-muted-foreground border border-border rounded px-3 py-1 hover:bg-muted/80 transition-colors">
               Clear
             </button>
-            <button onClick={submitSelected} className="border rounded px-3 py-1">
+            <button onClick={submitSelected} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">
               Submit selected for TIME
             </button>
           </div>
         </div>
 
         {msg && (
-          <div className="mb-3 text-sm px-3 py-2 rounded bg-slate-100 dark:bg-slate-800/60">
+          <div className="mb-3 glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-primary text-foreground">
             {msg}
           </div>
         )}
@@ -202,17 +202,17 @@ export default function MyCards() {
               const ready = !r.is_pending && !r.is_credited;
               const checked = !!selected[r.card_id];
               const badge = r.is_credited
-                ? { text: "TIME: Credited", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" }
+                ? { text: "TIME: Credited", cls: "bg-primary/20 text-primary border border-primary/30" }
                 : r.is_pending
-                ? { text: "TIME: Pending", cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" }
-                : { text: "Ready", cls: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" };
+                ? { text: "TIME: Pending", cls: "bg-secondary/20 text-secondary-foreground border border-secondary/30" }
+                : { text: "Ready", cls: "bg-accent/20 text-accent-foreground border border-accent/30" };
 
               return (
                 <label
                   key={r.card_id}
-                  className={`border rounded-xl overflow-hidden block ${
+                  className={`card-premium border border-border rounded-xl overflow-hidden block ${
                     ready ? "cursor-pointer" : "opacity-75"
-                  } ${checked ? "ring-2 ring-emerald-500" : ""}`}
+                  } ${checked ? "ring-2 ring-primary" : ""}`}
                 >
                   {ready && (
                     <input
@@ -230,21 +230,21 @@ export default function MyCards() {
                     />
                   )}
                   <div className="p-3 space-y-1">
-                    <div className="font-medium">{r.name ?? "Unnamed Trader"}</div>
-                    <div className="text-sm opacity-80">
+                    <div className="font-medium text-foreground">{r.name ?? "Unnamed Trader"}</div>
+                    <div className="text-sm text-muted-foreground">
                       {r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}
                     </div>
-                    <div className="text-xs opacity-70">
+                    <div className="text-xs text-muted-foreground">
                       Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}
                     </div>
-                    <div className="text-xs opacity-60">
+                    <div className="text-xs text-muted-foreground">
                       Claimed {new Date(r.claimed_at).toLocaleString()}
                     </div>
                     <span className={`inline-block text-xs px-2 py-0.5 rounded ${badge.cls}`}>
                       {badge.text}
                     </span>
                     {!ready && r.is_pending && (
-                      <div className="text-xs opacity-70">
+                      <div className="text-xs text-muted-foreground">
                         Submitted — awaiting credit
                       </div>
                     )}
@@ -266,7 +266,7 @@ export default function MyCards() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {credited.map((r) => (
-              <div key={r.card_id} className="border rounded-xl overflow-hidden">
+              <div key={r.card_id} className="card-premium border border-border rounded-xl overflow-hidden">
                 {r.image_url && (
                   <img
                     src={r.image_url}
@@ -275,17 +275,17 @@ export default function MyCards() {
                   />
                 )}
                 <div className="p-3 space-y-1">
-                  <div className="font-medium">{r.name ?? "Unnamed Trader"}</div>
-                  <div className="text-sm opacity-80">
+                  <div className="font-medium text-foreground">{r.name ?? "Unnamed Trader"}</div>
+                  <div className="text-sm text-muted-foreground">
                     {r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}
                   </div>
-                  <div className="text-xs opacity-70">
+                  <div className="text-xs text-muted-foreground">
                     Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}
                   </div>
-                  <div className="text-xs opacity-60">
+                  <div className="text-xs text-muted-foreground">
                     Claimed {new Date(r.claimed_at).toLocaleString()}
                   </div>
-                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">
                     TIME: Credited
                   </span>
                 </div>

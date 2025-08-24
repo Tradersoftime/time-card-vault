@@ -214,12 +214,12 @@ export default function Scan() {
   /* ---------- UI ---------- */
   function StatusPill({ s }: { s: LogItem["status"] }) {
     const map: Record<LogItem["status"], string> = {
-      claimed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
-      already_owner: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
-      owned_by_other: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-      not_found: "bg-zinc-200 text-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-200",
-      blocked: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
-      error: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
+      claimed: "bg-primary/20 text-primary border border-primary/30",
+      already_owner: "bg-secondary/20 text-secondary-foreground border border-secondary/30",
+      owned_by_other: "bg-muted/20 text-muted-foreground border border-muted/30",
+      not_found: "bg-accent/20 text-accent-foreground border border-accent/30",
+      blocked: "bg-destructive/20 text-destructive border border-destructive/30",
+      error: "bg-destructive/20 text-destructive border border-destructive/30",
     };
     const label: Record<LogItem["status"], string> = {
       claimed: "Claimed",
@@ -239,7 +239,7 @@ export default function Scan() {
       <div className="grid md:grid-cols-2 gap-5">
         {/* Camera */}
         <div className="space-y-3">
-          <div className="border rounded-xl overflow-hidden">
+          <div className="card-premium border border-border rounded-xl overflow-hidden">
             <Scanner
               onScan={onScan}
               onError={onError}
@@ -248,10 +248,10 @@ export default function Scan() {
           </div>
 
           {!cameraReady && (
-            <div className="text-sm opacity-80">Initializing camera… If asked, please allow camera access.</div>
+            <div className="text-sm text-muted-foreground">Initializing camera… If asked, please allow camera access.</div>
           )}
           {error && (
-            <div className="text-sm px-3 py-2 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+            <div className="glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-destructive text-destructive-foreground">
               {error}
             </div>
           )}
@@ -267,39 +267,39 @@ export default function Scan() {
         {/* Log */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="font-medium">Scan Log</div>
+            <div className="font-medium text-foreground">Scan Log</div>
             <div className="flex gap-2">
-              <button onClick={() => navigate("/me/cards")} className="border rounded px-3 py-1 text-sm">
+              <button onClick={() => navigate("/me/cards")} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 text-sm hover:bg-primary/90 transition-colors">
                 Open My Collection
               </button>
-              <button onClick={() => setLog([])} className="border rounded px-3 py-1 text-sm">
+              <button onClick={() => setLog([])} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 text-sm hover:bg-secondary/80 transition-colors">
                 Clear Log
               </button>
             </div>
           </div>
 
           {log.length === 0 ? (
-            <div className="opacity-70 text-sm">No scans yet. Point the camera at a card QR, or paste a code.</div>
+            <div className="text-muted-foreground text-sm">No scans yet. Point the camera at a card QR, or paste a code.</div>
           ) : (
             <ul className="space-y-2">
               {log.map((row) => (
-                <li key={row.id} className="border rounded-lg p-2 flex gap-3 items-center">
-                  <div className="w-12 h-16 bg-zinc-200/40 dark:bg-zinc-800/40 rounded overflow-hidden flex-shrink-0">
+                <li key={row.id} className="card-premium border border-border rounded-lg p-2 flex gap-3 items-center">
+                  <div className="w-12 h-16 bg-muted/40 rounded overflow-hidden flex-shrink-0">
                     {row.card?.image_url && (
                       <img src={row.card.image_url} alt={row.card?.name ?? "Card"} className="w-full h-full object-cover" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="font-medium truncate">{row.card?.name ?? row.code}</div>
+                      <div className="font-medium truncate text-foreground">{row.card?.name ?? row.code}</div>
                       <StatusPill s={row.status} />
                     </div>
                     {row.card && (
-                      <div className="text-xs opacity-70 truncate">
+                      <div className="text-xs text-muted-foreground truncate">
                         {(row.card.era ?? "—")} • {(row.card.suit ?? "—")} {(row.card.rank ?? "—")}
                       </div>
                     )}
-                    <div className="text-xs opacity-60">{row.message} · {new Date(row.ts).toLocaleTimeString()}</div>
+                    <div className="text-xs text-muted-foreground">{row.message} · {new Date(row.ts).toLocaleTimeString()}</div>
                   </div>
                 </li>
               ))}
@@ -308,9 +308,9 @@ export default function Scan() {
         </div>
       </div>
 
-      <div className="border rounded-xl p-3">
-        <div className="font-medium mb-2">Tips</div>
-        <ul className="list-disc list-inside text-sm opacity-80 space-y-1">
+      <div className="card-premium border border-border rounded-xl p-3">
+        <div className="font-medium mb-2 text-foreground">Tips</div>
+        <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
           {tips.map((t, i) => <li key={i}>{t}</li>)}
         </ul>
       </div>
@@ -322,16 +322,16 @@ export default function Scan() {
 function ManualEntry({ onSubmit }: { onSubmit: (text: string) => void }) {
   const [text, setText] = useState("");
   return (
-    <div className="border rounded-xl p-3 space-y-2">
-      <div className="font-medium">Manual Code Entry</div>
+    <div className="card-premium border border-border rounded-xl p-3 space-y-2">
+      <div className="font-medium text-foreground">Manual Code Entry</div>
       <input
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Paste code or full URL (e.g., TEST-CODE-ONE or https://app/r/TEST-CODE-ONE)"
-        className="border rounded px-2 py-1 w-full"
+        className="glass-panel border border-border rounded px-2 py-1 w-full text-foreground placeholder:text-muted-foreground"
       />
-      <button onClick={() => onSubmit(text)} className="border rounded px-3 py-1">Add</button>
-      <div className="text-xs opacity-70">Accepts both full URLs and raw codes.</div>
+      <button onClick={() => onSubmit(text)} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">Add</button>
+      <div className="text-xs text-muted-foreground">Accepts both full URLs and raw codes.</div>
     </div>
   );
 }
