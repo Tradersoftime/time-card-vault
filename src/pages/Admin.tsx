@@ -62,25 +62,32 @@ export default function Admin() {
   // Pending redemptions (grouped by user)
   const [pending, setPending] = useState<PendingRedemption[]>([]);
   const [loadingPending, setLoadingPending] = useState(true);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [selectedReds, setSelectedReds] = useState<Record<string, boolean>>({});
   const [toolMsg, setToolMsg] = useState<string | null>(null);
+
+  // Per-redemption per-card selection
+  const [cardSel, setCardSel] = useState<Record<string, Record<string, boolean>>>({}); // { redemptionId: { cardId: true } }
 
   // Blocked users
   const [blocked, setBlocked] = useState<BlockedRow[]>([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
 
-  // Scan log
+  // Scan log + sort
   const [scans, setScans] = useState<ScanRow[]>([]);
   const [loadingScans, setLoadingScans] = useState(false);
   const [scanQuery, setScanQuery] = useState("");
   const [scanOutcome, setScanOutcome] = useState<ScanRow["outcome"] | "all">("all");
+  const [scanSortKey, setScanSortKey] = useState<"created_at" | "email">("created_at");
+  const [scanSortDir, setScanSortDir] = useState<"asc" | "desc">("desc");
 
   // Receipt banner
   const [lastReceiptUrl, setLastReceiptUrl] = useState<string | null>(null);
 
-  // Recent credited
+  // Recent credited + sort
   const [recent, setRecent] = useState<RecentRow[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
+  const [recentSortKey, setRecentSortKey] = useState<"credited_at" | "email" | "amount">("credited_at");
+  const [recentSortDir, setRecentSortDir] = useState<"asc" | "desc">("desc");
 
   /* ---- Admin check ---- */
   useEffect(() => {
@@ -113,11 +120,21 @@ export default function Admin() {
   /* ---- Loaders ---- */
   async function loadPending() {
     setLoadingPending(true);
-    setSelected({});
+    setSelectedReds({});
+    setCardSel({});
     setError(null);
     const { data, error } = await supabase.rpc("admin_pending_redemptions");
     if (error) setError(error.message);
-    setPending((data as PendingRedemption[]) ?? []);
+    const rows = (data as PendingRedemption[]) ?? [];
+    // default: select all cards per redemption
+    const initSel: Record<string, Record<string, boolean>> = {};
+    rows.forEach(r => {
+      const m: Record<string, boolean> = {};
+      r.cards?.forEach(c => { if (c.card_id) m[c.card_id] = true; });
+      initSel[r.id] = m;
+    });
+    setCardSel(initSel);
+    setPending(rows);
     setLoadingPending(false);
   }
 
@@ -145,22 +162,50 @@ export default function Admin() {
     setLoadingRecent(false);
   }
 
-  /* ---- Selection helpers (pending) ---- */
-  function toggle(id: string) {
-    setSelected(s => ({ ...s, [id]: !s[id] }));
+  /* ---- Selection helpers (redemptions) ---- */
+  function toggleRed(id: string) {
+    setSelectedReds(s => ({ ...s, [id]: !s[id] }));
   }
-  function selectAllUser(userId: string) {
-    const next = { ...selected };
+  function selectAllUserReds(userId: string) {
+    const next = { ...selectedReds };
     pending.filter(r => r.user_id === userId).forEach(r => { next[r.id] = true; });
-    setSelected(next);
+    setSelectedReds(next);
   }
-  function clearSelection() {
-    setSelected({});
+  function clearRedSelection() {
+    setSelectedReds({});
   }
 
-  /* ---- Bulk approve with suggested totals ---- */
+  /* ---- Per-card selection helpers ---- */
+  function toggleCard(redId: string, cardId: string) {
+    setCardSel(map => ({
+      ...map,
+      [redId]: { ...(map[redId] || {}), [cardId]: !(map[redId]?.[cardId]) }
+    }));
+  }
+  function selectAllCards(redId: string, cards: PendingCard[]) {
+    const next: Record<string, boolean> = {};
+    cards.forEach(c => { if (c.card_id) next[c.card_id] = true; });
+    setCardSel(map => ({ ...map, [redId]: next }));
+  }
+  function selectNoneCards(redId: string) {
+    setCardSel(map => ({ ...map, [redId]: {} }));
+  }
+
+  function selectedSummary(red: PendingRedemption) {
+    const m = cardSel[red.id] || {};
+    let count = 0, total = 0;
+    for (const c of red.cards || []) {
+      if (c.card_id && m[c.card_id]) {
+        count++;
+        total += c.time_value ?? 0;
+      }
+    }
+    return { count, total };
+  }
+
+  /* ---- Bulk approve (use each row's suggested total) ---- */
   async function approveSelectedSuggested() {
-    const items = pending.filter(r => selected[r.id]);
+    const items = pending.filter(r => selectedReds[r.id]);
     if (items.length === 0) { setToolMsg("Select at least one redemption."); return; }
 
     const grandTotal = items.reduce((sum, it) => sum + (it.total_time_value || 0), 0);
@@ -173,7 +218,6 @@ export default function Admin() {
 
     const ref = window.prompt("External reference / note for all (optional)") || null;
 
-    // Update each redemption with its own total_time_value
     for (const it of items) {
       const { data: u } = await supabase.auth.getUser();
       if (!u?.user) { setToolMsg("Not signed in."); return; }
@@ -195,36 +239,30 @@ export default function Admin() {
     await loadRecent();
   }
 
-  /* ---- Per-item approve / reject ---- */
-  async function markCreditedSuggested(item: PendingRedemption) {
-    // Pre-fill with suggested total, but allow override
-    const defaultAmt = String(item.total_time_value ?? 0);
-    const amtStr = window.prompt(`TIME amount to credit? (suggested: ${defaultAmt})`, defaultAmt);
-    if (amtStr === null) return;
-    const amount = Number(amtStr);
-    if (!Number.isFinite(amount)) { alert("Please enter a valid number."); return; }
-    const ref = window.prompt("External reference / note (optional)") || null;
-
-    const { data: u } = await supabase.auth.getUser();
-    if (!u?.user) { alert("Not signed in."); return; }
-
-    const { error } = await supabase
-      .from("redemptions")
-      .update({
-        status: "credited",
-        credited_amount: amount,
-        external_ref: ref,
-        credited_at: new Date().toISOString(),
-        credited_by: u.user.id,
-      })
-      .eq("id", item.id);
-
-    if (error) {
-      alert(error.message);
+  /* ---- Finalize a single redemption: credit selected cards, reject others ---- */
+  async function finalizeRedemption(red: PendingRedemption) {
+    const { count, total } = selectedSummary(red);
+    if (count === 0) {
+      setToolMsg("Select at least one card to credit (or Reject).");
       return;
     }
+    const ref = window.prompt(
+      `Credit ${count} card(s) for TIME ${total}. Add an external reference / note (optional):`
+    ) || null;
 
-    const receiptUrl = `${window.location.origin}/receipt/${item.id}`;
+    const selectedIds = Object.entries(cardSel[red.id] || {})
+      .filter(([, v]) => v)
+      .map(([cardId]) => cardId);
+
+    const { data, error } = await supabase.rpc("admin_finalize_redemption", {
+      p_redemption_id: red.id,
+      p_selected_card_ids: selectedIds,
+      p_ref: ref,
+      p_amount_override: null
+    });
+
+    if (error) { setToolMsg(error.message); return; }
+    const receiptUrl = `${window.location.origin}/receipt/${red.id}`;
     setLastReceiptUrl(receiptUrl);
     try {
       await navigator.clipboard.writeText(receiptUrl);
@@ -237,8 +275,9 @@ export default function Admin() {
     await loadRecent();
   }
 
-  async function markRejected(id: string) {
+  async function rejectAll(red: PendingRedemption) {
     const reason = window.prompt("Reason (optional)") || null;
+    // set all to rejected, and header to rejected
     const { error } = await supabase
       .from("redemptions")
       .update({
@@ -248,8 +287,15 @@ export default function Admin() {
         credited_at: null,
         credited_by: null,
       })
-      .eq("id", id);
-    if (error) alert(error.message);
+      .eq("id", red.id);
+    if (error) { setToolMsg(error.message); return; }
+
+    // Mark all cards as rejected
+    await supabase
+      .from("redemption_cards")
+      .update({ decision: "rejected", decided_at: new Date().toISOString() })
+      .eq("redemption_id", red.id);
+
     await loadPending();
   }
 
@@ -264,10 +310,10 @@ export default function Admin() {
     return map;
   }, [pending]);
 
-  /* ---- Filtered scans ---- */
+  /* ---- Scan filtering + sorting ---- */
   const filteredScans = useMemo(() => {
     const q = scanQuery.trim().toLowerCase();
-    return scans.filter(s => {
+    const rows = scans.filter(s => {
       const matchQ =
         !q ||
         (s.email ?? "").toLowerCase().includes(q) ||
@@ -275,7 +321,29 @@ export default function Admin() {
       const matchOutcome = (scanOutcome === "all") || s.outcome === scanOutcome;
       return matchQ && matchOutcome;
     });
-  }, [scans, scanQuery, scanOutcome]);
+    const dir = scanSortDir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      if (scanSortKey === "created_at") {
+        return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+      } else {
+        return ((a.email ?? "") > (b.email ?? "") ? 1 : -1) * dir;
+      }
+    });
+  }, [scans, scanQuery, scanOutcome, scanSortKey, scanSortDir]);
+
+  /* ---- Recent credited sorting ---- */
+  const recentSorted = useMemo(() => {
+    const dir = recentSortDir === "asc" ? 1 : -1;
+    return [...recent].sort((a, b) => {
+      if (recentSortKey === "credited_at") {
+        return (new Date(a.credited_at ?? 0).getTime() - new Date(b.credited_at ?? 0).getTime()) * dir;
+      } else if (recentSortKey === "email") {
+        return ((a.email ?? "") > (b.email ?? "") ? 1 : -1) * dir;
+      } else {
+        return ((a.credited_amount ?? 0) - (b.credited_amount ?? 0)) * dir;
+      }
+    });
+  }, [recent, recentSortKey, recentSortDir]);
 
   if (isAdmin === null) return <div className="p-6">Loading…</div>;
   if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
@@ -327,7 +395,7 @@ export default function Admin() {
             <button onClick={approveSelectedSuggested} className="border rounded px-3 py-1">
               Approve Selected (suggested totals)
             </button>
-            <button onClick={clearSelection} className="border rounded px-3 py-1">Clear Selection</button>
+            <button onClick={clearRedSelection} className="border rounded px-3 py-1">Clear Selection</button>
           </div>
         </div>
 
@@ -337,7 +405,7 @@ export default function Admin() {
           <div className="opacity-70">No pending redemptions.</div>
         ) : (
           Object.entries(pendingGroups).map(([userId, reds]) => {
-            const selectedCount = reds.filter(r => selected[r.id]).length;
+            const selectedCount = reds.filter(r => selectedReds[r.id]).length;
             const email = reds[0]?.email ?? null;
 
             return (
@@ -348,7 +416,7 @@ export default function Admin() {
                     <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => selectAllUser(userId)} className="border rounded px-3 py-1 text-sm">
+                    <button onClick={() => selectAllUserReds(userId)} className="border rounded px-3 py-1 text-sm">
                       Select All ({reds.length})
                     </button>
                     {selectedCount > 0 && (
@@ -358,68 +426,92 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-3">
-                  {reds.map((r) => (
-                    <div key={r.id} className="border rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={!!selected[r.id]}
-                            onChange={() => toggle(r.id)}
-                          />
-                          <span className="font-medium">
-                            Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
-                            {" · "}
-                            <span className="opacity-80">{r.email ?? r.user_id}</span>
-                          </span>
-                        </label>
-                        <div className="text-xs opacity-70">
-                          {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •
-                          {" "}Submitted {new Date(r.submitted_at).toLocaleString()}
+                  {reds.map((r) => {
+                    const { count, total } = selectedSummary(r);
+                    return (
+                      <div key={r.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={!!selectedReds[r.id]}
+                              onChange={() => toggleRed(r.id)}
+                            />
+                            <span className="font-medium">
+                              Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
+                              {" · "}
+                              <span className="opacity-80">{r.email ?? r.user_id}</span>
+                            </span>
+                          </label>
+                          <div className="text-xs opacity-70">
+                            {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •
+                            {" "}Submitted {new Date(r.submitted_at).toLocaleString()}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs mb-2">
+                          <button onClick={() => selectAllCards(r.id, r.cards)} className="border rounded px-2 py-0.5">
+                            Select All Cards
+                          </button>
+                          <button onClick={() => selectNoneCards(r.id)} className="border rounded px-2 py-0.5">
+                            Select None
+                          </button>
+                          <div className="opacity-80">
+                            Selected: <b>{count}</b> • Selected TIME: <b>{total}</b>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {r.cards?.map((c) => {
+                            const checked = !!cardSel[r.id]?.[c.card_id || ""];
+                            return (
+                              <label key={c.card_id} className={`border rounded-lg overflow-hidden block ${checked ? "ring-2 ring-emerald-500" : ""}`}>
+                                <input
+                                  type="checkbox"
+                                  className="hidden"
+                                  checked={checked}
+                                  onChange={() => c.card_id && toggleCard(r.id, c.card_id)}
+                                />
+                                {c.image_url && (
+                                  <img
+                                    src={c.image_url}
+                                    alt={c.name ?? "Card"}
+                                    className="w-full aspect-[3/4] object-cover"
+                                  />
+                                )}
+                                <div className="p-2 text-sm">
+                                  <div className="font-medium truncate">{c.name ?? "—"}</div>
+                                  <div className="opacity-70">
+                                    {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
+                                  </div>
+                                  <div className="text-xs opacity-60">
+                                    Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME: {c.time_value ?? 0}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex gap-2 mt-3">
+                          <Link
+                            to={`/receipt/${r.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="border rounded px-3 py-1"
+                          >
+                            View receipt
+                          </Link>
+                          <button onClick={() => finalizeRedemption(r)} className="border rounded px-3 py-1">
+                            Credit selected & reject rest
+                          </button>
+                          <button onClick={() => rejectAll(r)} className="border rounded px-3 py-1">
+                            Reject all
+                          </button>
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {r.cards?.map((c) => (
-                          <div key={c.card_id} className="border rounded-lg overflow-hidden">
-                            {c.image_url && (
-                              <img
-                                src={c.image_url}
-                                alt={c.name ?? "Card"}
-                                className="w-full aspect-[3/4] object-cover"
-                              />
-                            )}
-                            <div className="p-2 text-sm">
-                              <div className="font-medium truncate">{c.name ?? "—"}</div>
-                              <div className="opacity-70">
-                                {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
-                              </div>
-                              <div className="text-xs opacity-60">
-                                Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME: {c.time_value ?? 0}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex gap-2 mt-3">
-                        <Link
-                          to={`/receipt/${r.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="border rounded px-3 py-1"
-                        >
-                          View receipt
-                        </Link>
-                        <button onClick={() => markCreditedSuggested(r)} className="border rounded px-3 py-1">
-                          Approve (suggested)
-                        </button>
-                        <button onClick={() => markRejected(r.id)} className="border rounded px-3 py-1">
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -427,7 +519,7 @@ export default function Admin() {
         )}
       </section>
 
-      {/* ---------- Recent Credited ---------- */}
+      {/* ---------- Recent Credited (sortable) ---------- */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Recent Credited</h2>
@@ -436,21 +528,30 @@ export default function Admin() {
 
         {loadingRecent ? (
           <div>Loading…</div>
-        ) : recent.length === 0 ? (
+        ) : recentSorted.length === 0 ? (
           <div className="opacity-70 text-sm">No credited redemptions yet.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left border-b">
-                  <th className="py-2 pr-3">Credited At</th>
-                  <th className="py-2 pr-3">User</th>
-                  <th className="py-2 pr-3">Amount</th>
+                  <th className="py-2 pr-3 cursor-pointer"
+                      onClick={() => { setRecentSortKey("credited_at"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                    When {recentSortKey === "credited_at" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-2 pr-3 cursor-pointer"
+                      onClick={() => { setRecentSortKey("email"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                    User {recentSortKey === "email" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-2 pr-3 cursor-pointer"
+                      onClick={() => { setRecentSortKey("amount"); setRecentSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                    Amount {recentSortKey === "amount" ? (recentSortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
                   <th className="py-2 pr-3">Receipt</th>
                 </tr>
               </thead>
               <tbody>
-                {recent.map(r => (
+                {recentSorted.map(r => (
                   <tr key={r.id} className="border-b last:border-b-0">
                     <td className="py-2 pr-3">{r.credited_at ? new Date(r.credited_at).toLocaleString() : "—"}</td>
                     <td className="py-2 pr-3">{r.email ?? r.user_id}</td>
@@ -468,7 +569,7 @@ export default function Admin() {
         )}
       </section>
 
-      {/* ---------- Scan Log ---------- */}
+      {/* ---------- Scan Log (sortable) ---------- */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
@@ -497,36 +598,36 @@ export default function Admin() {
           </select>
         </div>
 
-        {loadingScans ? (
-          <div>Loading scan log…</div>
-        ) : filteredScans.length === 0 ? (
-          <div className="opacity-70 text-sm">No scans match your filter.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2 pr-3">When</th>
-                  <th className="py-2 pr-3">Email</th>
-                  <th className="py-2 pr-3">Code</th>
-                  <th className="py-2 pr-3">Outcome</th>
-                  <th className="py-2 pr-3">Card ID</th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left border-b">
+                <th className="py-2 pr-3 cursor-pointer"
+                    onClick={() => { setScanSortKey("created_at"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                  When {scanSortKey === "created_at" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th className="py-2 pr-3 cursor-pointer"
+                    onClick={() => { setScanSortKey("email"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                  Email {scanSortKey === "email" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th className="py-2 pr-3">Code</th>
+                <th className="py-2 pr-3">Outcome</th>
+                <th className="py-2 pr-3">Card ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredScans.map((s, idx) => (
+                <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0">
+                  <td className="py-2 pr-3">{new Date(s.created_at).toLocaleString()}</td>
+                  <td className="py-2 pr-3">{s.email ?? "—"}</td>
+                  <td className="py-2 pr-3 font-mono">{s.code}</td>
+                  <td className="py-2 pr-3">{s.outcome}</td>
+                  <td className="py-2 pr-3 font-mono">{s.card_id ?? "—"}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredScans.map((s, idx) => (
-                  <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0">
-                    <td className="py-2 pr-3">{new Date(s.created_at).toLocaleString()}</td>
-                    <td className="py-2 pr-3">{s.email ?? "—"}</td>
-                    <td className="py-2 pr-3 font-mono">{s.code}</td>
-                    <td className="py-2 pr-3">{s.outcome}</td>
-                    <td className="py-2 pr-3 font-mono">{s.card_id ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* ---------- Blocked users ---------- */}
