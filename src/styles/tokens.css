@@ -1,0 +1,126 @@
+/* Design System Tokens */
+
+:root {
+  /* Color Palette - HSL Values */
+  --primary: 263 70% 50%;
+  --primary-foreground: 210 40% 98%;
+  --primary-glow: 263 100% 70%;
+  
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  
+  --muted: 210 40% 96%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  
+  --accent: 210 40% 96%;
+  --accent-foreground: 222.2 84% 4.9%;
+  
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 263 70% 50%;
+  
+  /* Premium Effects */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.3);
+  --shadow-premium: 0 20px 40px rgba(0, 0, 0, 0.1);
+  
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+  --gradient-card: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+  
+  /* Typography */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  
+  /* Radius */
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  
+  --primary: 263 70% 50%;
+  --primary-foreground: 210 40% 98%;
+  
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 263 70% 50%;
+  
+  /* Premium Effects - Dark Mode */
+  --glass-bg: rgba(0, 0, 0, 0.3);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.4);
+  --shadow-premium: 0 20px 40px rgba(0, 0, 0, 0.3);
+  
+  /* Gradients - Dark Mode */
+  --gradient-card: linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1));
+}
+
+/* Utility Classes */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-premium);
+}
+
+.gradient-primary {
+  background: var(--gradient-primary);
+}
+
+.gradient-card {
+  background: var(--gradient-card);
+}
+
+.glow-effect {
+  box-shadow: var(--shadow-glow);
+}
+
+.premium-shadow {
+  box-shadow: var(--shadow-premium);
+}
