@@ -164,9 +164,9 @@ function DataTable<TData>({
   function handleExportCSV() {
     exportToCsv({
       filename: csvFilename,
-      headers: visibleCols.map((c) => c.id || c.accessorKey?.toString() || "col"),
+      headers: visibleCols.map((c) => c.id || "col"),
       rows: rows.map((r) =>
-        visibleCols.map((c) => r.getValue(c.id ?? (c.accessorKey as string)))
+        visibleCols.map((c) => r.getValue(c.id))
       ),
     });
   }
