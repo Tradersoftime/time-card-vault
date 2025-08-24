@@ -653,7 +653,7 @@ export default function Admin() {
               <thead>
                 <tr className="text-left border-b">
                   <th className="py-2 pr-3">Email</th>
-                  <th className="py-2 pr-3">Reason</</th>
+                  <th className="py-2 pr-3">Reason</th>
                   <th className="py-2 pr-3">Blocked at</th>
                   <th className="py-2 pr-3">Blocked by</th>
                   <th className="py-2 pr-0"></th>
