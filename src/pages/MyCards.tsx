@@ -26,6 +26,7 @@ export default function MyCards() {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
 
+  // Load
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -81,6 +82,7 @@ export default function MyCards() {
   }
   function clearSelection() { setSelected({}); }
 
+  // Submit selected cards for TIME
   async function submitSelected() {
     try {
       setMsg(null);
@@ -90,6 +92,7 @@ export default function MyCards() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user) { setMsg("Not signed in."); return; }
 
+      // Create a new redemption header
       const { data: redRow, error: redErr } = await supabase
         .from("redemptions")
         .insert({ user_id: userData.user.id })
@@ -98,6 +101,7 @@ export default function MyCards() {
 
       if (redErr || !redRow?.id) { setMsg(redErr?.message || "Could not create redemption."); return; }
 
+      // Attach cards; ignore duplicates (already submitted by anyone)
       const payload = chosen.map(card_id => ({ redemption_id: redRow.id, card_id }));
       const { data: inserted, error: upsertErr } = await supabase
         .from("redemption_cards")
@@ -120,9 +124,11 @@ export default function MyCards() {
       if (added === 0) setMsg("⚠️ Already submitted or redeemed.");
       else setMsg(`✅ Submitted ${added} card${added === 1 ? "" : "s"} for TIME review${skipped > 0 ? ` (${skipped} already submitted)` : ""}!`);
 
+      // Clear only those we actually submitted
       const nextSel = { ...selected };
       (inserted || []).forEach((row: any) => { nextSel[row.card_id] = false; });
       setSelected(nextSel);
+
       await reload();
     } catch (e: any) {
       const txt = e?.message || String(e);
