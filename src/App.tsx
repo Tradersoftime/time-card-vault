@@ -44,6 +44,7 @@ const App = () => (
                 <Route path="/scan" element={<Scan />} />
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/receipt/:id" element={<Receipt />} />
+                <Route path="/admin/logs" element={<AdminLogs/>} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
