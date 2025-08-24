@@ -5,11 +5,31 @@ import QRCode from "qrcode";
 import JSZip from "jszip";
 import Papa from "papaparse";
 
+/* ---------------- Types ---------------- */
+
+type CardRow = {
+  id: string;
+  code: string;
+  name: string | null;
+  suit: string | null;
+  rank: string | null;
+  era: string | null;
+  rarity: string | null;
+  trader_value: string | null;
+  time_value: number | null;
+  image_url: string | null;
+  current_target?: string | null; // dynamic redirect (preferred)
+  redirect_url?: string | null;   // legacy redirect (if your table uses this)
+  status: string | null;
+  created_at: string;
+};
+
 type CardMinimal = {
   code: string;
   name?: string | null;
   is_active?: boolean | null;
   current_target?: string | null;
+  redirect_url?: string | null;
 };
 
 type CardUpsert = {
@@ -26,6 +46,127 @@ type CardUpsert = {
 };
 
 type CsvRow = Partial<CardUpsert> & { code?: string | null };
+
+/* ---------------- RecentCardsPanel ---------------- */
+
+function RecentCardsPanel() {
+  const [rows, setRows] = useState<CardRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("cards")
+      .select(
+        "id,code,name,suit,rank,era,rarity,trader_value,time_value,image_url,current_target,redirect_url,status,created_at"
+      )
+      .order("created_at", { ascending: false })
+      .limit(25);
+
+    if (!error) setRows((data as CardRow[]) ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  return (
+    <section className="mt-6">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-lg font-semibold">Recent cards (latest 25)</h3>
+        <button onClick={load} className="border rounded px-3 py-1 text-sm">
+          Refresh
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="opacity-70 text-sm">Loading…</div>
+      ) : rows.length === 0 ? (
+        <div className="opacity-70 text-sm">No cards yet.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b">
+              <tr className="text-left">
+                <th className="py-2 pr-3">Created</th>
+                <th className="py-2 pr-3">Code</th>
+                <th className="py-2 pr-3">Trader</th>
+                <th className="py-2 pr-3">Era</th>
+                <th className="py-2 pr-3">Suit</th>
+                <th className="py-2 pr-3">Rank</th>
+                <th className="py-2 pr-3">Rarity</th>
+                <th className="py-2 pr-3">Value</th>
+                <th className="py-2 pr-3">TIME</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Redirect</th>
+                <th className="py-2 pr-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const redirect = r.current_target ?? r.redirect_url ?? null;
+                return (
+                  <tr key={r.id} className="border-b last:border-b-0 align-top">
+                    <td className="py-2 pr-3">{new Date(r.created_at).toLocaleString()}</td>
+                    <td className="py-2 pr-3 font-mono">{r.code}</td>
+                    <td className="py-2 pr-3">{r.name ?? "—"}</td>
+                    <td className="py-2 pr-3">{r.era ?? "—"}</td>
+                    <td className="py-2 pr-3">{r.suit ?? "—"}</td>
+                    <td className="py-2 pr-3">{r.rank ?? "—"}</td>
+                    <td className="py-2 pr-3">{r.rarity ?? "—"}</td>
+                    <td className="py-2 pr-3">{r.trader_value ?? "—"}</td>
+                    <td className="py-2 pr-3">{r.time_value ?? 0}</td>
+                    <td className="py-2 pr-3">{r.status ?? "—"}</td>
+                    <td className="py-2 pr-3 max-w-[280px] truncate">
+                      {redirect ? (
+                        <a className="underline" href={redirect} target="_blank" rel="noreferrer">
+                          {redirect}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <div className="flex gap-2">
+                        <a
+                          className="border rounded px-2 py-0.5 text-xs"
+                          href={`/r/${encodeURIComponent(r.code)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open /r/{r.code}
+                        </a>
+                        {r.image_url && (
+                          <a
+                            className="border rounded px-2 py-0.5 text-xs"
+                            href={r.image_url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Image
+                          </a>
+                        )}
+                        <button
+                          className="border rounded px-2 py-0.5 text-xs"
+                          onClick={() => navigator.clipboard.writeText(r.code)}
+                        >
+                          Copy code
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------------- Page: AdminQR ---------------- */
 
 export default function AdminQR() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -45,6 +186,8 @@ export default function AdminQR() {
   const [editCode, setEditCode] = useState("");
   const [editTarget, setEditTarget] = useState("");
   const [editFound, setEditFound] = useState<CardMinimal | null>(null);
+  // which column to update for redirect (auto-detected on lookup)
+  const [redirectField, setRedirectField] = useState<"current_target" | "redirect_url">("current_target");
 
   // CSV Import
   const [csvText, setCsvText] = useState("");
@@ -57,7 +200,10 @@ export default function AdminQR() {
   useEffect(() => {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
-      if (!u?.user) { setIsAdmin(false); return; }
+      if (!u?.user) {
+        setIsAdmin(false);
+        return;
+      }
       const { data } = await supabase
         .from("admins")
         .select("user_id")
@@ -84,14 +230,19 @@ export default function AdminQR() {
     return undefined;
   }
 
-  function randomCode(prefix: string) {
-    const block = () => Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(2, 6);
-    return `${prefix}-${block()}-${block()}`;
+  function randomCode(pref: string) {
+    const block = () =>
+      Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(2, 6);
+    return `${pref}-${block()}-${block()}`;
   }
 
   async function toPNG(data: string, label?: string) {
     const qrCanvas = document.createElement("canvas");
-    await QRCode.toCanvas(qrCanvas, data, { errorCorrectionLevel: "M", margin: 2, width: 512 });
+    await QRCode.toCanvas(qrCanvas, data, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 512,
+    });
 
     if (!label) return qrCanvas.toDataURL("image/png");
 
@@ -129,7 +280,10 @@ export default function AdminQR() {
   async function buildSingle() {
     setMsg(null);
     const code = norm(singleCode);
-    if (!code) { setMsg("Enter a card code."); return; }
+    if (!code) {
+      setMsg("Enter a card code.");
+      return;
+    }
     const url = baseUrl + encodeURIComponent(code);
     const dataUrl = await toPNG(url, singleLabel || code);
     setPngDataUrl(dataUrl);
@@ -139,10 +293,16 @@ export default function AdminQR() {
 
   async function bulkGenerate() {
     setMsg(null);
-    if (!norm(prefix)) { setMsg("Enter a prefix (e.g., TOT)."); return; }
-    if (count <= 0 || count > 1000) { setMsg("Enter a count between 1 and 1000."); return; }
+    if (!norm(prefix)) {
+      setMsg("Enter a prefix (e.g., TOT).");
+      return;
+    }
+    if (count <= 0 || count > 1000) {
+      setMsg("Enter a count between 1 and 1000.");
+      return;
+    }
 
-    // Make codes
+    // Make unique codes
     const codes: string[] = [];
     const seen = new Set<string>();
     while (codes.length < count) {
@@ -152,14 +312,17 @@ export default function AdminQR() {
       codes.push(c);
     }
 
-    // Save to DB
+    // Save to DB as active bare cards
     setSaving(true);
-    const rows = codes.map(code => ({ code, is_active: true }));
+    const rows = codes.map((code) => ({ code, is_active: true }));
     const { error } = await supabase
       .from("cards")
       .upsert(rows, { onConflict: "code", ignoreDuplicates: true });
     setSaving(false);
-    if (error) { setMsg(error.message); return; }
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
 
     // Build ZIP of PNGs
     const zip = new JSZip();
@@ -183,32 +346,63 @@ export default function AdminQR() {
     setMsg(`✅ Generated ${codes.length} codes, saved to DB, and downloaded ZIP.`);
   }
 
-  /* -------------- Edit redirect (current_target) -------------- */
+  /* -------------- Edit redirect -------------- */
 
   async function lookupCode() {
     setMsg(null);
     const code = norm(editCode);
-    if (!code) { setMsg("Enter a code to look up."); return; }
+    if (!code) {
+      setMsg("Enter a code to look up.");
+      return;
+    }
+    // Try selecting both possible redirect columns; whichever exists will come back.
     const { data, error } = await supabase
       .from("cards")
-      .select("code, is_active, current_target, name")
+      .select("code, is_active, name, current_target, redirect_url")
       .ilike("code", code)
       .maybeSingle();
-    if (error) { setMsg(error.message); return; }
+
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+
+    if (!data) {
+      setEditFound(null);
+      setMsg("Not found.");
+      return;
+    }
+
+    // Decide which column to use when saving
+    if (data.current_target !== undefined) {
+      setRedirectField("current_target");
+      setEditTarget((data.current_target as string) || "");
+    } else {
+      setRedirectField("redirect_url");
+      setEditTarget((data.redirect_url as string) || "");
+    }
+
     setEditFound(data as CardMinimal);
-    setEditTarget((data?.current_target as string) || "");
   }
 
   async function saveRedirect() {
     setMsg(null);
     const code = norm(editCode);
     const target = norm(editTarget) || null;
-    if (!code) { setMsg("Enter a code."); return; }
-    const { error } = await supabase
-      .from("cards")
-      .update({ current_target: target })
-      .ilike("code", code);
-    if (error) { setMsg(error.message); return; }
+    if (!code) {
+      setMsg("Enter a code.");
+      return;
+    }
+
+    // Build dynamic update based on detected field
+    const updateObj: Record<string, any> = {};
+    updateObj[redirectField] = target;
+
+    const { error } = await supabase.from("cards").update(updateObj).ilike("code", code);
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
     setMsg("✅ Updated redirect.");
   }
 
@@ -217,17 +411,17 @@ export default function AdminQR() {
   function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    setCsvText("");           // clear paste box
+    setCsvText(""); // clear paste box
     setCsvErrors([]);
     Papa.parse<CsvRow>(f, {
       header: true,
       skipEmptyLines: true,
       complete: (res) => {
         if (res.errors?.length) {
-          setCsvErrors(res.errors.map(er => `Row ${er.row}: ${er.message}`));
+          setCsvErrors(res.errors.map((er) => `Row ${er.row}: ${er.message}`));
         }
         ingestCsv(res.data);
-      }
+      },
     });
     e.currentTarget.value = ""; // reset input
   }
@@ -238,10 +432,13 @@ export default function AdminQR() {
     const seen = new Set<string>();
 
     rows.forEach((r, idx) => {
-      const line = idx + 2; // header is line 1
+      const line = idx + 2; // header = line 1
       const codeRaw = norm(r.code ?? "");
-      if (!codeRaw) { errors.push(`Line ${line}: missing code`); return; }
-      const code = codeRaw; // keep case as provided; DB has case-insensitive unique
+      if (!codeRaw) {
+        errors.push(`Line ${line}: missing code`);
+        return;
+      }
+      const code = codeRaw;
 
       if (seen.has(code.toLowerCase())) {
         errors.push(`Line ${line}: duplicate code in file (${code})`);
@@ -273,32 +470,47 @@ export default function AdminQR() {
     const { ok, errors } = validateAndNormalize(data);
     setCsvRows(ok);
     setCsvErrors(errors);
-    setMsg(errors.length ? `Parsed with ${errors.length} issue(s).` : `Parsed ${ok.length} row(s).`);
+    setMsg(
+      errors.length
+        ? `Parsed with ${errors.length} issue(s).`
+        : `Parsed ${ok.length} row(s).`
+    );
   }
 
   function handleCsvPaste() {
     setCsvErrors([]);
-    Papa.parse<CsvRow>(csvText, { header: true, skipEmptyLines: true, complete: (res) => {
-      if (res.errors?.length) {
-        setCsvErrors(res.errors.map(er => `Row ${er.row}: ${er.message}`));
-      }
-      ingestCsv(res.data);
-    }});
+    Papa.parse<CsvRow>(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (res) => {
+        if (res.errors?.length) {
+          setCsvErrors(res.errors.map((er) => `Row ${er.row}: ${er.message}`));
+        }
+        ingestCsv(res.data);
+      },
+    });
   }
 
   async function upsertCsv() {
-    if (csvRows.length === 0) { setMsg("Nothing to upsert."); return; }
+    if (csvRows.length === 0) {
+      setMsg("Nothing to upsert.");
+      return;
+    }
     setCsvBusy(true);
-    const { error } = await supabase
-      .from("cards")
-      .upsert(csvRows, { onConflict: "code" });
+    const { error } = await supabase.from("cards").upsert(csvRows, { onConflict: "code" });
     setCsvBusy(false);
-    if (error) { setMsg(error.message); return; }
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
     setMsg(`✅ Upserted ${csvRows.length} card(s) to database.`);
   }
 
   async function downloadZipFromCsv() {
-    if (csvRows.length === 0) { setMsg("No parsed rows."); return; }
+    if (csvRows.length === 0) {
+      setMsg("No parsed rows.");
+      return;
+    }
     const zip = new JSZip();
     const folder = zip.folder("qrs")!;
     for (const r of csvRows) {
@@ -340,13 +552,16 @@ export default function AdminQR() {
             placeholder="Card code (e.g., TOT-ABCD-1234)"
             className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
-          <input
+        <input
             value={singleLabel}
             onChange={(e) => setSingleLabel(e.target.value)}
             placeholder="Label under QR (optional)"
             className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
-          <button onClick={buildSingle} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">
+          <button
+            onClick={buildSingle}
+            className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors"
+          >
             Build Preview
           </button>
         </div>
@@ -385,13 +600,20 @@ export default function AdminQR() {
             className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
           <div className="col-span-2 flex items-center">
-            <button onClick={bulkGenerate} disabled={saving} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50">
+            <button
+              onClick={bulkGenerate}
+              disabled={saving}
+              className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
               {saving ? "Saving…" : "Generate + Download ZIP"}
             </button>
           </div>
         </div>
         <div className="text-xs text-muted-foreground">
-          Creates codes like <code className="bg-muted px-1 rounded">{prefix}-4K9V-7XQ2</code>, saves them as active cards in Supabase, and downloads a ZIP of PNG QRs pointing to <code className="bg-muted px-1 rounded">{baseUrl}&lt;code&gt;</code>.
+          Creates codes like{" "}
+          <code className="bg-muted px-1 rounded">{prefix}-4K9V-7XQ2</code>, saves them as
+          active cards in Supabase, and downloads a ZIP of PNG QRs pointing to{" "}
+          <code className="bg-muted px-1 rounded">{baseUrl}&lt;code&gt;</code>.
         </div>
       </section>
 
@@ -399,12 +621,25 @@ export default function AdminQR() {
       <section className="card-premium rounded-xl p-4 space-y-3">
         <h2 className="text-lg font-semibold text-foreground">CSV Import</h2>
         <div className="text-sm text-muted-foreground">
-          Required column: <code className="bg-muted px-1 rounded">code</code>. Optional: <code className="bg-muted px-1 rounded">name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active</code>
+          Required column: <code className="bg-muted px-1 rounded">code</code>. Optional:{" "}
+          <code className="bg-muted px-1 rounded">
+            name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active
+          </code>
         </div>
 
         <div className="flex flex-col md:flex-row gap-3">
-          <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="glass-panel border border-border rounded px-2 py-1 text-foreground" />
-          <button onClick={handleCsvPaste} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors">Parse Pasted CSV</button>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleCsvFile}
+            className="glass-panel border border-border rounded px-2 py-1 text-foreground"
+          />
+          <button
+            onClick={handleCsvPaste}
+            className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors"
+          >
+            Parse Pasted CSV
+          </button>
         </div>
 
         <textarea
@@ -418,54 +653,64 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
 
         {csvErrors.length > 0 && (
           <div className="glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-destructive text-destructive-foreground">
-            {csvErrors.slice(0, 5).map((e, i) => <div key={i}>{e}</div>)}
+            {csvErrors.slice(0, 5).map((e, i) => (
+              <div key={i}>{e}</div>
+            ))}
             {csvErrors.length > 5 && <div>…and {csvErrors.length - 5} more</div>}
           </div>
         )}
 
         <div className="flex gap-2">
-          <button onClick={upsertCsv} disabled={csvBusy || csvRows.length === 0} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50">
+          <button
+            onClick={upsertCsv}
+            disabled={csvBusy || csvRows.length === 0}
+            className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
             {csvBusy ? "Upserting…" : `Upsert ${csvRows.length} row(s)`}
           </button>
-          <button onClick={downloadZipFromCsv} disabled={csvRows.length === 0} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors disabled:opacity-50">
+          <button
+            onClick={downloadZipFromCsv}
+            disabled={csvRows.length === 0}
+            className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors disabled:opacity-50"
+          >
             Download QR ZIP for parsed rows
           </button>
         </div>
 
         {csvRows.length > 0 && (
-          <div className="text-xs text-muted-foreground">
-            Showing first {Math.min(csvRows.length, 10)} of {csvRows.length} parsed rows:
-          </div>
-        )}
-        {csvRows.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b border-border">
-                  <th className="py-1 pr-3 text-foreground">code</th>
-                  <th className="py-1 pr-3 text-foreground">name</th>
-                  <th className="py-1 pr-3 text-foreground">suit</th>
-                  <th className="py-1 pr-3 text-foreground">rank</th>
-                  <th className="py-1 pr-3 text-foreground">era</th>
-                  <th className="py-1 pr-3 text-foreground">rarity</th>
-                  <th className="py-1 pr-3 text-foreground">is_active</th>
-                </tr>
-              </thead>
-              <tbody>
-                {csvRows.slice(0, 10).map((r, i) => (
-                  <tr key={i} className="border-b border-border last:border-b-0">
-                    <td className="py-1 pr-3 font-mono text-foreground">{r.code}</td>
-                    <td className="py-1 pr-3 text-foreground">{r.name ?? "—"}</td>
-                    <td className="py-1 pr-3 text-foreground">{r.suit ?? "—"}</td>
-                    <td className="py-1 pr-3 text-foreground">{r.rank ?? "—"}</td>
-                    <td className="py-1 pr-3 text-foreground">{r.era ?? "—"}</td>
-                    <td className="py-1 pr-3 text-foreground">{r.rarity ?? "—"}</td>
-                    <td className="py-1 pr-3 text-foreground">{String(r.is_active ?? "")}</td>
+          <>
+            <div className="text-xs text-muted-foreground">
+              Showing first {Math.min(csvRows.length, 10)} of {csvRows.length} parsed rows:
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b border-border">
+                    <th className="py-1 pr-3 text-foreground">code</th>
+                    <th className="py-1 pr-3 text-foreground">name</th>
+                    <th className="py-1 pr-3 text-foreground">suit</th>
+                    <th className="py-1 pr-3 text-foreground">rank</th>
+                    <th className="py-1 pr-3 text-foreground">era</th>
+                    <th className="py-1 pr-3 text-foreground">rarity</th>
+                    <th className="py-1 pr-3 text-foreground">is_active</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {csvRows.slice(0, 10).map((r, i) => (
+                    <tr key={i} className="border-b border-border last:border-b-0">
+                      <td className="py-1 pr-3 font-mono text-foreground">{r.code}</td>
+                      <td className="py-1 pr-3 text-foreground">{r.name ?? "—"}</td>
+                      <td className="py-1 pr-3 text-foreground">{r.suit ?? "—"}</td>
+                      <td className="py-1 pr-3 text-foreground">{r.rank ?? "—"}</td>
+                      <td className="py-1 pr-3 text-foreground">{r.era ?? "—"}</td>
+                      <td className="py-1 pr-3 text-foreground">{r.rarity ?? "—"}</td>
+                      <td className="py-1 pr-3 text-foreground">{String(r.is_active ?? "")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 
@@ -479,15 +724,20 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
             placeholder="Card code"
             className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
-          <button onClick={lookupCode} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors">Lookup</button>
+          <button
+            onClick={lookupCode}
+            className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors"
+          >
+            Lookup
+          </button>
         </div>
 
         {editFound && (
           <div className="space-y-2">
             <div className="text-sm text-foreground">
               <span className="font-medium">Code:</span> {editFound.code} ·{" "}
-              <span className="font-medium">Active:</span>{" "}
-              {editFound.is_active ? "Yes" : "No"} {editFound.name ? `· ${editFound.name}` : ""}
+              <span className="font-medium">Active:</span> {editFound.is_active ? "Yes" : "No"}{" "}
+              {editFound.name ? `· ${editFound.name}` : ""}
             </div>
             <input
               value={editTarget}
@@ -496,9 +746,19 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
               className="glass-panel border border-border rounded px-2 py-1 w-full text-foreground placeholder:text-muted-foreground"
             />
             <div className="flex gap-2">
-              <button onClick={saveRedirect} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">Save Redirect</button>
+              <button
+                onClick={saveRedirect}
+                className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors"
+              >
+                Save Redirect
+              </button>
               {editTarget && (
-                <a href={editTarget} target="_blank" rel="noreferrer" className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors inline-block">
+                <a
+                  href={editTarget}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors inline-block"
+                >
                   Open Current Target
                 </a>
               )}
@@ -506,6 +766,10 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
           </div>
         )}
       </section>
+
+      {/* Recent cards table */}
+      <RecentCardsPanel />
     </div>
   );
 }
+
