@@ -65,7 +65,6 @@ export default function Admin() {
   // Pending redemptions (grouped by user)
   const [pending, setPending] = useState<PendingRedemption[]>([]);
   const [loadingPending, setLoadingPending] = useState(true);
-
   // Per-redemption per-card selection: { [redemptionId]: { [cardId]: true } }
   const [cardSel, setCardSel] = useState<Record<string, Record<string, boolean>>>({});
 
@@ -81,11 +80,13 @@ export default function Admin() {
   const [scanSortKey, setScanSortKey] = useState<"created_at" | "email">("created_at");
   const [scanSortDir, setScanSortDir] = useState<"asc" | "desc">("desc");
 
-  // Credited cards log + sort
+  // Credited cards log + sort/filter
   const [creditedRows, setCreditedRows] = useState<CreditedCardRow[]>([]);
   const [loadingCredited, setLoadingCredited] = useState(false);
   const [credQuery, setCredQuery] = useState("");
-  const [credSortKey, setCredSortKey] = useState<"credited_at" | "card_code" | "user_email" | "credited_count" | "amount_time">("credited_at");
+  const [credSortKey, setCredSortKey] = useState<
+    "credited_at" | "card_code" | "user_email" | "credited_count" | "amount_time"
+  >("credited_at");
   const [credSortDir, setCredSortDir] = useState<"asc" | "desc">("desc");
 
   // UI messages + receipt
@@ -226,7 +227,7 @@ export default function Admin() {
       setLastReceiptUrl(receiptUrl);
       try {
         await navigator.clipboard.writeText(receiptUrl);
-        setToolMsg(`✅ Credited. Receipt copied to clipboard.`);
+        setToolMsg(`✅ Credited. Receipt link copied to clipboard.`);
       } catch {
         setToolMsg(`✅ Credited. Receipt ready.`);
       }
@@ -272,7 +273,7 @@ export default function Admin() {
       setLastReceiptUrl(receiptUrl);
       try {
         await navigator.clipboard.writeText(receiptUrl);
-        setToolMsg(`✅ Credited ${ids.length} card(s). Receipt copied to clipboard.`);
+        setToolMsg(`✅ Credited ${ids.length} card(s). Receipt link copied.`);
       } catch {
         setToolMsg(`✅ Credited ${ids.length} card(s). Receipt ready.`);
       }
@@ -308,7 +309,6 @@ export default function Admin() {
     if (e2) { setToolMsg(e2.message); return; }
 
     await loadPending();
-    await loadCredited();
   }
 
   /* ---- Group pending by user_id ---- */
@@ -393,4 +393,431 @@ export default function Admin() {
       </div>
 
       {toolMsg && (
-        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-
+        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+          {toolMsg}
+        </div>
+      )}
+
+      {lastReceiptUrl && (
+        <div className="text-sm px-3 py-2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 flex items-center gap-3">
+          <span>Receipt ready:</span>
+          <a href={lastReceiptUrl} target="_blank" rel="noreferrer" className="underline">Open</a>
+          <button
+            onClick={() => navigator.clipboard.writeText(lastReceiptUrl)}
+            className="border rounded px-2 py-0.5 text-xs"
+          >
+            Copy link
+          </button>
+          <button
+            onClick={() => setLastReceiptUrl(null)}
+            className="border rounded px-2 py-0.5 text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* ---------- Pending Redemptions (grouped by user) ---------- */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Pending Redemptions</h2>
+          <div className="text-sm opacity-70">
+            {loadingPending ? "Loading…" : `${pending.length} redemption${pending.length === 1 ? "" : "s"}`}
+          </div>
+        </div>
+
+        {loadingPending ? (
+          <div>Loading pending…</div>
+        ) : pending.length === 0 ? (
+          <div className="opacity-70">No pending redemptions.</div>
+        ) : (
+          Object.entries(pendingGroups).map(([userId, reds]) => {
+            const email = reds[0]?.email ?? null;
+
+            return (
+              <div key={userId} className="border rounded-xl p-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                  <div>
+                    <div className="font-medium">User: {email ?? userId}</div>
+                    <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {reds.map((r) => {
+                    const m = cardSel[r.id] || {};
+                    const { count, total } = selectedSummary(r);
+                    return (
+                      <div key={r.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-medium">
+                            Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>{" · "}
+                            <span className="opacity-80">{r.email ?? r.user_id}</span>
+                          </div>
+                          <div className="text-xs opacity-70">
+                            {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •{" "}
+                            Submitted {new Date(r.submitted_at).toLocaleString()}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs mb-2">
+                          <button onClick={() => selectAllCards(r.id, r.cards)} className="border rounded px-2 py-0.5">
+                            Select All
+                          </button>
+                          <button onClick={() => selectNoneCards(r.id)} className="border rounded px-2 py-0.5">
+                            Select None
+                          </button>
+                          <div className="opacity-80">
+                            Selected: <b>{count}</b> • Selected TIME: <b>{total}</b>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {r.cards?.map((c) => {
+                            const checked = !!m[c.card_id || ""];
+                            return (
+                              <label
+                                key={c.card_id}
+                                className={`border rounded-lg overflow-hidden block ${checked ? "ring-2 ring-emerald-500" : ""}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="hidden"
+                                  checked={checked}
+                                  onChange={() => c.card_id && toggleCard(r.id, c.card_id)}
+                                />
+                                {c.image_url && (
+                                  <img
+                                    src={c.image_url}
+                                    alt={c.name ?? "Card"}
+                                    className="w-full aspect-[3/4] object-cover"
+                                  />
+                                )}
+                                <div className="p-2 text-sm">
+                                  <div className="font-medium truncate">{c.name ?? "—"}</div>
+                                  <div className="opacity-70">
+                                    {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
+                                  </div>
+                                  <div className="text-xs opacity-60">
+                                    Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME: {c.time_value ?? 0}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          <button onClick={() => finalizeRedemption(r)} className="border rounded px-3 py-1">
+                            Credit selected (leave others pending)
+                          </button>
+                          <button onClick={() => creditAllInRedemption(r.id)} className="border rounded px-3 py-1">
+                            Credit all cards in this redemption
+                          </button>
+                          <button onClick={() => rejectAll(r)} className="border rounded px-3 py-1">
+                            Reject all
+                          </button>
+                          <a
+                            href={`/receipt/${r.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="border rounded px-3 py-1"
+                          >
+                            View receipt (if any)
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </section>
+
+      {/* ---------- Credited Log (per-card rows) ---------- */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Credited Log</h2>
+          <div className="flex items-center gap-2">
+            <input
+              value={credQuery}
+              onChange={(e) => setCredQuery(e.target.value)}
+              placeholder="Search (code, email, user id, redemption id)…"
+              className="border rounded px-2 py-1"
+            />
+            <button onClick={loadCredited} className="border rounded px-3 py-1 text-sm">Refresh</button>
+          </div>
+        </div>
+
+        {loadingCredited ? (
+          <div>Loading…</div>
+        ) : filteredCredited.length === 0 ? (
+          <div className="opacity-70 text-sm">No credited cards yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-background">
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3 cursor-pointer"
+                      onClick={() => { setCredSortKey("credited_at"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                    When {credSortKey === "credited_at" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-2 pr-3 cursor-pointer"
+                      onClick={() => { setCredSortKey("card_code"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                    Code {credSortKey === "card_code" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-2 pr-3 cursor-pointer"
+                      onClick={() => { setCredSortKey("user_email"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                    User {credSortKey === "user_email" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-2 pr-3">User ID</th>
+                  <th className="py-2 pr-3">Redemption</th>
+                  <th className="py-2 pr-3 cursor-pointer"
+                      onClick={() => { setCredSortKey("credited_count"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                    Cards Credited {credSortKey === "credited_count" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-2 pr-3 cursor-pointer"
+                      onClick={() => { setCredSortKey("amount_time"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
+                    TIME {credSortKey === "amount_time" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCredited.map((r, idx) => (
+                  <tr key={`${r.redemption_id}-${r.card_id}-${idx}`} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{r.credited_at ? new Date(r.credited_at).toLocaleString() : "—"}</td>
+                    <td className="py-2 pr-3 font-mono">{r.card_code ?? "—"}</td>
+                    <td className="py-2 pr-3">{r.user_email ?? "—"}</td>
+                    <td className="py-2 pr-3 font-mono text-xs">{r.user_id}</td>
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-2">
+                        <a className="underline" href={`/receipt/${r.redemption_id}`} target="_blank" rel="noreferrer">
+                          {r.redemption_id.slice(0, 8)}…
+                        </a>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(r.redemption_id)}
+                          className="border rounded px-2 py-0.5 text-xs"
+                        >
+                          Copy ID
+                        </button>
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3">{r.credited_count}</td>
+                    <td className="py-2 pr-3">{r.amount_time ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ---------- Scan Log (sortable/filterable) ---------- */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
+          <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            value={scanQuery}
+            onChange={(e) => setScanQuery(e.target.value)}
+            placeholder="Search by email or code…"
+            className="border rounded px-2 py-1"
+          />
+          <select
+            value={scanOutcome}
+            onChange={(e) => setScanOutcome(e.target.value as any)}
+            className="border rounded px-2 py-1"
+          >
+            <option value="all">All outcomes</option>
+            <option value="claimed">claimed</option>
+            <option value="already_owner">already_owner</option>
+            <option value="owned_by_other">owned_by_other</option>
+            <option value="not_found">not_found</option>
+            <option value="blocked">blocked</option>
+            <option value="error">error</option>
+          </select>
+
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              className="border rounded px-2 py-0.5"
+              onClick={() => { setScanSortKey("created_at"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}
+            >
+              Sort by When {scanSortKey === "created_at" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
+            </button>
+            <button
+              className="border rounded px-2 py-0.5"
+              onClick={() => { setScanSortKey("email"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}
+            >
+              Sort by Email {scanSortKey === "email" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-background">
+              <tr className="text-left border-b">
+                <th className="py-2 pr-3">When</th>
+                <th className="py-2 pr-3">Email</th>
+                <th className="py-2 pr-3">Code</th>
+                <th className="py-2 pr-3">Outcome</th>
+                <th className="py-2 pr-3">Card ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredScans.map((s, idx) => (
+                <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0">
+                  <td className="py-2 pr-3">{new Date(s.created_at).toLocaleString()}</td>
+                  <td className="py-2 pr-3">{s.email ?? "—"}</td>
+                  <td className="py-2 pr-3 font-mono">{s.code}</td>
+                  <td className="py-2 pr-3">{s.outcome}</td>
+                  <td className="py-2 pr-3 font-mono text-xs">{s.card_id ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ---------- Blocked users ---------- */}
+      <section className="border rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold">Blocked users</h2>
+          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
+            Refresh list
+          </button>
+        </div>
+
+        <div className="mb-3">
+          <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
+        </div>
+
+        {loadingBlocked ? (
+          <div className="opacity-70 text-sm">Loading blocked users…</div>
+        ) : blocked.length === 0 ? (
+          <div className="opacity-70 text-sm">No one is blocked.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-background">
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Reason</th>
+                  <th className="py-2 pr-3">Blocked at</th>
+                  <th className="py-2 pr-3">Blocked by</th>
+                  <th className="py-2 pr-0"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {blocked.map((b) => (
+                  <tr key={b.user_id} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
+                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
+                    <td className="py-2 pr-3">{new Date(b.blocked_at).toLocaleString()}</td>
+                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
+                    <td className="py-2 pr-0">
+                      {b.email && (
+                        <button
+                          onClick={async () => {
+                            const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: b.email! });
+                            if (error) setToolMsg(error.message);
+                            else if ((data as any)?.ok) { setToolMsg(`✅ Unblocked ${b.email}`); await loadBlocked(); }
+                          }}
+                          className="border rounded px-2 py-1 text-xs"
+                        >
+                          Unblock
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* ---------------- Admin helper: Block / Unblock ---------------- */
+
+function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; onChanged: () => void }) {
+  const [email, setEmail] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function doBlock() {
+    onMsg(null);
+    const e = email.trim();
+    if (!e) { onMsg("Enter an email."); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_block_user_by_email", {
+      p_email: e,
+      p_reason: reason.trim() || null,
+    });
+    setBusy(false);
+    if (error) { onMsg(error.message); return; }
+    if ((data as any)?.ok) {
+      onMsg(`✅ Blocked ${e}.`);
+      onChanged();
+    } else if ((data as any)?.error === "not_found") {
+      onMsg(`❌ No auth user found with email: ${e}`);
+    } else if ((data as any)?.error === "forbidden") {
+      onMsg("❌ You are not authorized as admin.");
+    } else {
+      onMsg("Could not block user.");
+    }
+  }
+
+  async function doUnblock() {
+    onMsg(null);
+    const e = email.trim();
+    if (!e) { onMsg("Enter an email."); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: e });
+    setBusy(false);
+    if (error) { onMsg(error.message); return; }
+    if ((data as any)?.ok) {
+      onMsg(`✅ Unblocked ${e}.`);
+      onChanged();
+    } else if ((data as any)?.error === "not_found") {
+      onMsg(`❌ No auth user found with email: ${e}`);
+    } else if ((data as any)?.error === "forbidden") {
+      onMsg("❌ You are not authorized as admin.");
+    } else {
+      onMsg("Could not unblock user.");
+    }
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row md:items-center gap-2">
+      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="user@email.com"
+        className="border rounded px-2 py-1 w-full md:w-64"
+      />
+      <input
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Reason (optional)"
+        className="border rounded px-2 py-1 w-full md:w-64"
+      />
+      <div className="flex gap-2">
+        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+          {busy ? "Blocking…" : "Block"}
+        </button>
+        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
+          {busy ? "Unblocking…" : "Unblock"}
+        </button>
+      </div>
+    </div>
+  );
+}
