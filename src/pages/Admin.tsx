@@ -14,6 +14,7 @@ type PendingCard = {
   rank: string | null;
   rarity: string | null;
   trader_value: string | null;
+  time_value: number | null;
 };
 
 type PendingRedemption = {
@@ -21,28 +22,9 @@ type PendingRedemption = {
   user_id: string;
   email: string | null;
   submitted_at: string;
+  card_count: number;
+  total_time_value: number;
   cards: PendingCard[];
-};
-
-type RedCard = {
-  card_id: string;
-  cards: {
-    name?: string | null;
-    image_url?: string | null;
-    era?: string | null;
-    suit?: string | null;
-    rank?: string | null;
-    rarity?: string | null;
-    trader_value?: string | null;
-  } | null;
-};
-
-type RedItem = {
-  id: string;
-  user_id: string;
-  status: string;
-  submitted_at: string;
-  redemption_cards: RedCard[];
 };
 
 type BlockedRow = {
@@ -133,41 +115,9 @@ export default function Admin() {
     setLoadingPending(true);
     setSelected({});
     setError(null);
-    const { data, error } = await supabase
-      .from("redemptions")
-      .select(`
-        id,
-        user_id,
-        status,
-        submitted_at,
-        redemption_cards (
-          card_id,
-          cards ( name, image_url, era, suit, rank, rarity, trader_value )
-        )
-      `)
-      .eq("status", "pending")
-      .order("submitted_at", { ascending: true });
-
+    const { data, error } = await supabase.rpc("admin_pending_redemptions");
     if (error) setError(error.message);
-    const items = (data as RedItem[]) ?? [];
-    const mapped: PendingRedemption[] = items.map(r => ({
-      id: r.id,
-      user_id: r.user_id,
-      email: null,
-      submitted_at: r.submitted_at,
-      cards: (r.redemption_cards || []).map(rc => ({
-        card_id: rc.card_id,
-        name: rc.cards?.name ?? null,
-        image_url: rc.cards?.image_url ?? null,
-        era: rc.cards?.era ?? null,
-        suit: rc.cards?.suit ?? null,
-        rank: rc.cards?.rank ?? null,
-        rarity: rc.cards?.rarity ?? null,
-        trader_value: rc.cards?.trader_value ?? null,
-      })),
-    }));
-
-    setPending(mapped);
+    setPending((data as PendingRedemption[]) ?? []);
     setLoadingPending(false);
   }
 
@@ -208,34 +158,48 @@ export default function Admin() {
     setSelected({});
   }
 
-  /* ---- Bulk approve ---- */
-  async function approveSelected() {
-    const ids = Object.keys(selected).filter(id => selected[id]);
-    if (ids.length === 0) { setToolMsg("Select at least one redemption."); return; }
-    const amtStr = window.prompt("TIME amount PER redemption?", "0");
-    if (amtStr === null) return;
-    const amount = Number(amtStr);
-    if (!Number.isFinite(amount)) { setToolMsg("Enter a valid number."); return; }
-    const ref = window.prompt("External reference / note (optional)") || null;
+  /* ---- Bulk approve with suggested totals ---- */
+  async function approveSelectedSuggested() {
+    const items = pending.filter(r => selected[r.id]);
+    if (items.length === 0) { setToolMsg("Select at least one redemption."); return; }
 
-    const { data, error } = await supabase.rpc("admin_bulk_credit", {
-      p_ids: ids,
-      p_amount: amount,
-      p_ref: ref,
-    });
-    if (error) { setToolMsg(error.message); return; }
-    if (data?.ok) {
-      setToolMsg(`✅ Credited ${data.updated ?? ids.length} redemption(s).`);
-      await loadPending();
-      await loadRecent();
-    } else {
-      setToolMsg("Could not credit.");
+    const grandTotal = items.reduce((sum, it) => sum + (it.total_time_value || 0), 0);
+    const proceed = window.confirm(
+      `Approve ${items.length} redemption(s) with their suggested totals?\n\n` +
+      items.map(it => `${(it.email ?? it.user_id).slice(0, 40)} — ${it.card_count} card(s), TIME ${it.total_time_value}`).join("\n") +
+      `\n\nGrand total: ${grandTotal}`
+    );
+    if (!proceed) return;
+
+    const ref = window.prompt("External reference / note for all (optional)") || null;
+
+    // Update each redemption with its own total_time_value
+    for (const it of items) {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u?.user) { setToolMsg("Not signed in."); return; }
+      const { error } = await supabase
+        .from("redemptions")
+        .update({
+          status: "credited",
+          credited_amount: it.total_time_value,
+          external_ref: ref,
+          credited_at: new Date().toISOString(),
+          credited_by: u.user.id,
+        })
+        .eq("id", it.id);
+      if (error) { setToolMsg(error.message); return; }
     }
+
+    setToolMsg(`✅ Credited ${items.length} redemption(s) using suggested totals (grand total ${grandTotal}).`);
+    await loadPending();
+    await loadRecent();
   }
 
   /* ---- Per-item approve / reject ---- */
-  async function markCredited(id: string) {
-    const amtStr = window.prompt("TIME amount to credit?", "0");
+  async function markCreditedSuggested(item: PendingRedemption) {
+    // Pre-fill with suggested total, but allow override
+    const defaultAmt = String(item.total_time_value ?? 0);
+    const amtStr = window.prompt(`TIME amount to credit? (suggested: ${defaultAmt})`, defaultAmt);
     if (amtStr === null) return;
     const amount = Number(amtStr);
     if (!Number.isFinite(amount)) { alert("Please enter a valid number."); return; }
@@ -253,14 +217,14 @@ export default function Admin() {
         credited_at: new Date().toISOString(),
         credited_by: u.user.id,
       })
-      .eq("id", id);
+      .eq("id", item.id);
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    const receiptUrl = `${window.location.origin}/receipt/${id}`;
+    const receiptUrl = `${window.location.origin}/receipt/${item.id}`;
     setLastReceiptUrl(receiptUrl);
     try {
       await navigator.clipboard.writeText(receiptUrl);
@@ -360,7 +324,9 @@ export default function Admin() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Pending Redemptions</h2>
           <div className="flex items-center gap-2">
-            <button onClick={approveSelected} className="border rounded px-3 py-1">Approve Selected</button>
+            <button onClick={approveSelectedSuggested} className="border rounded px-3 py-1">
+              Approve Selected (suggested totals)
+            </button>
             <button onClick={clearSelection} className="border rounded px-3 py-1">Clear Selection</button>
           </div>
         </div>
@@ -372,11 +338,13 @@ export default function Admin() {
         ) : (
           Object.entries(pendingGroups).map(([userId, reds]) => {
             const selectedCount = reds.filter(r => selected[r.id]).length;
+            const email = reds[0]?.email ?? null;
+
             return (
               <div key={userId} className="border rounded-xl p-3">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
                   <div>
-                    <div className="font-medium">User ID: {userId}</div>
+                    <div className="font-medium">User: {email ?? userId}</div>
                     <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -401,10 +369,13 @@ export default function Admin() {
                           />
                           <span className="font-medium">
                             Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
+                            {" · "}
+                            <span className="opacity-80">{r.email ?? r.user_id}</span>
                           </span>
                         </label>
                         <div className="text-xs opacity-70">
-                          Submitted {new Date(r.submitted_at).toLocaleString()}
+                          {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •
+                          {" "}Submitted {new Date(r.submitted_at).toLocaleString()}
                         </div>
                       </div>
 
@@ -424,7 +395,7 @@ export default function Admin() {
                                 {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
                               </div>
                               <div className="text-xs opacity-60">
-                                Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
+                                Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME: {c.time_value ?? 0}
                               </div>
                             </div>
                           </div>
@@ -432,7 +403,6 @@ export default function Admin() {
                       </div>
 
                       <div className="flex gap-2 mt-3">
-                        {/* View receipt for this redemption */}
                         <Link
                           to={`/receipt/${r.id}`}
                           target="_blank"
@@ -441,9 +411,8 @@ export default function Admin() {
                         >
                           View receipt
                         </Link>
-
-                        <button onClick={() => markCredited(r.id)} className="border rounded px-3 py-1">
-                          Approve (single)
+                        <button onClick={() => markCreditedSuggested(r)} className="border rounded px-3 py-1">
+                          Approve (suggested)
                         </button>
                         <button onClick={() => markRejected(r.id)} className="border rounded px-3 py-1">
                           Reject
@@ -487,12 +456,7 @@ export default function Admin() {
                     <td className="py-2 pr-3">{r.email ?? r.user_id}</td>
                     <td className="py-2 pr-3">{r.credited_amount ?? "—"}</td>
                     <td className="py-2 pr-3">
-                      <a
-                        className="underline"
-                        href={`/receipt/${r.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a className="underline" href={`/receipt/${r.id}`} target="_blank" rel="noreferrer">
                         View receipt
                       </a>
                     </td>
@@ -661,9 +625,7 @@ function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; on
     const e = email.trim();
     if (!e) { onMsg("Enter an email."); return; }
     setBusy(true);
-    const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
-      p_email: e,
-    });
+    const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: e });
     setBusy(false);
     if (error) { onMsg(error.message); return; }
     if (data?.ok) {
