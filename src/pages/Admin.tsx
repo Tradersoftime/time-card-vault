@@ -167,11 +167,11 @@ function DataTable<TData>({
       filename: csvFilename,
       headers: visibleLeafCols
         .filter((c) => c.id !== "_select")
-        .map((c) => c.id || (c.accessorKey as string) || "col"),
+        .map((c) => c.id || "col"),
       rows: rows.map((r) =>
         visibleLeafCols
           .filter((c) => c.id !== "_select")
-          .map((c) => r.getValue(c.id ?? (c.accessorKey as string)))
+          .map((c) => r.getValue(c.id))
       ),
     });
   }
