@@ -19,7 +19,7 @@ type PendingCard = {
 type PendingRedemption = {
   id: string;
   user_id: string;
-  email: string | null; // we fetch emails via RPC below (for pending we still use old join)
+  email: string | null;
   submitted_at: string;
   cards: PendingCard[];
 };
@@ -69,21 +69,24 @@ export default function Admin() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // -------- Pending redemptions (grouped by user) --------
+  // Pending redemptions (grouped by user)
   const [pending, setPending] = useState<PendingRedemption[]>([]);
   const [loadingPending, setLoadingPending] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [toolMsg, setToolMsg] = useState<string | null>(null);
 
-  // -------- Blocked users --------
+  // Blocked users
   const [blocked, setBlocked] = useState<BlockedRow[]>([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
 
-  // -------- Scan log --------
+  // Scan log
   const [scans, setScans] = useState<ScanRow[]>([]);
   const [loadingScans, setLoadingScans] = useState(false);
   const [scanQuery, setScanQuery] = useState("");
   const [scanOutcome, setScanOutcome] = useState<ScanRow["outcome"] | "all">("all");
+
+  // Receipt banner
+  const [lastReceiptUrl, setLastReceiptUrl] = useState<string | null>(null);
 
   /* ---- Admin check ---- */
   useEffect(() => {
@@ -117,7 +120,6 @@ export default function Admin() {
     setLoadingPending(true);
     setSelected({});
     setError(null);
-    // Use the existing table join for pending redemptions (no emails here)
     const { data, error } = await supabase
       .from("redemptions")
       .select(`
@@ -135,7 +137,6 @@ export default function Admin() {
 
     if (error) setError(error.message);
     const items = (data as RedItem[]) ?? [];
-    // Map into PendingRedemption (email will be blank here; grouped by user_id works fine)
     const mapped: PendingRedemption[] = items.map(r => ({
       id: r.id,
       user_id: r.user_id,
@@ -211,47 +212,43 @@ export default function Admin() {
   }
 
   /* ---- Per-item approve / reject ---- */
-async function markCredited(id: string) {
-  const amtStr = window.prompt("TIME amount to credit?", "0");
-  if (amtStr === null) return;
-  const amount = Number(amtStr);
-  if (!Number.isFinite(amount)) { alert("Please enter a valid number."); return; }
-  const ref = window.prompt("External reference / note (optional)") || null;
+  async function markCredited(id: string) {
+    const amtStr = window.prompt("TIME amount to credit?", "0");
+    if (amtStr === null) return;
+    const amount = Number(amtStr);
+    if (!Number.isFinite(amount)) { alert("Please enter a valid number."); return; }
+    const ref = window.prompt("External reference / note (optional)") || null;
 
-  const { data: u } = await supabase.auth.getUser();
-  if (!u?.user) { alert("Not signed in."); return; }
+    const { data: u } = await supabase.auth.getUser();
+    if (!u?.user) { alert("Not signed in."); return; }
 
-  const { error } = await supabase
-    .from("redemptions")
-    .update({
-      status: "credited",
-      credited_amount: amount,
-      external_ref: ref,
-      credited_at: new Date().toISOString(),
-      credited_by: u.user.id,
-    })
-    .eq("id", id);
+    const { error } = await supabase
+      .from("redemptions")
+      .update({
+        status: "credited",
+        credited_amount: amount,
+        external_ref: ref,
+        credited_at: new Date().toISOString(),
+        credited_by: u.user.id,
+      })
+      .eq("id", id);
 
-  if (error) {
-    alert(error.message);
-    return;
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const receiptUrl = `${window.location.origin}/receipt/${id}`;
+    setLastReceiptUrl(receiptUrl);
+    try {
+      await navigator.clipboard.writeText(receiptUrl);
+      alert(`Credited.\nReceipt link copied to clipboard:\n${receiptUrl}`);
+    } catch {
+      alert(`Credited.\nReceipt:\n${receiptUrl}`);
+    }
+
+    await loadPending();
   }
-
-  // 👇 Show + copy the receipt link
-  const receiptUrl = `${window.location.origin}/receipt/${id}`;
-  try {
-    await navigator.clipboard.writeText(receiptUrl);
-    // If you have setToolMsg in this component, use it. Otherwise keep alert.
-    // setToolMsg(`✅ Credited. Receipt link copied: ${receiptUrl}`);
-    alert(`Credited.\nReceipt link copied to clipboard:\n${receiptUrl}`);
-  } catch {
-    // setToolMsg(`✅ Credited. Receipt: ${receiptUrl}`);
-    alert(`Credited.\nReceipt:\n${receiptUrl}`);
-  }
-
-  await loadPending();
-}
-
 
   async function markRejected(id: string) {
     const reason = window.prompt("Reason (optional)") || null;
@@ -303,26 +300,45 @@ async function markCredited(id: string) {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Admin</h1>
         <div className="flex gap-2">
-          <Link to="/admin/qr" className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors">QR Generator</Link>
-          <button onClick={() => { loadPending(); loadScans(); }} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">
+          <Link to="/admin/qr" className="border rounded px-3 py-1">QR Generator</Link>
+          <button onClick={() => { loadPending(); loadScans(); }} className="border rounded px-3 py-1">
             Refresh
           </button>
         </div>
       </div>
 
       {toolMsg && (
-        <div className="glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-primary text-foreground">
+        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
           {toolMsg}
         </div>
       )}
 
-      {/* ---------- Pending Redemptions (group by user) ---------- */}
+      {lastReceiptUrl && (
+        <div className="text-sm px-3 py-2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 flex items-center gap-3">
+          <span>Receipt ready:</span>
+          <a href={lastReceiptUrl} target="_blank" rel="noreferrer" className="underline">Open receipt</a>
+          <button
+            onClick={() => navigator.clipboard.writeText(lastReceiptUrl)}
+            className="border rounded px-2 py-0.5 text-xs"
+          >
+            Copy link
+          </button>
+          <button
+            onClick={() => setLastReceiptUrl(null)}
+            className="border rounded px-2 py-0.5 text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* ---------- Pending Redemptions (grouped by user) ---------- */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Pending Redemptions</h2>
           <div className="flex items-center gap-2">
-            <button onClick={approveSelected} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">Approve Selected</button>
-            <button onClick={clearSelection} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors">Clear Selection</button>
+            <button onClick={approveSelected} className="border rounded px-3 py-1">Approve Selected</button>
+            <button onClick={clearSelection} className="border rounded px-3 py-1">Clear Selection</button>
           </div>
         </div>
 
@@ -334,45 +350,44 @@ async function markCredited(id: string) {
           Object.entries(pendingGroups).map(([userId, reds]) => {
             const selectedCount = reds.filter(r => selected[r.id]).length;
             return (
-              <div key={userId} className="card-premium rounded-xl p-3">
+              <div key={userId} className="border rounded-xl p-3">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
                   <div>
-                    <div className="font-medium text-foreground">User ID: {userId}</div>
-                    <div className="text-xs text-muted-foreground">Redemptions: {reds.length}</div>
+                    <div className="font-medium">User ID: {userId}</div>
+                    <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => selectAllUser(userId)} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 text-sm hover:bg-secondary/80 transition-colors">
+                    <button onClick={() => selectAllUser(userId)} className="border rounded px-3 py-1 text-sm">
                       Select All ({reds.length})
                     </button>
                     {selectedCount > 0 && (
-                      <div className="text-xs text-muted-foreground">Selected: {selectedCount}</div>
+                      <div className="text-xs opacity-80">Selected: {selectedCount}</div>
                     )}
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   {reds.map((r) => (
-                    <div key={r.id} className="glass-panel border border-border rounded-lg p-3">
+                    <div key={r.id} className="border rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center gap-2 text-foreground">
+                        <label className="flex items-center gap-2">
                           <input
                             type="checkbox"
                             checked={!!selected[r.id]}
                             onChange={() => toggle(r.id)}
-                            className="accent-primary"
                           />
                           <span className="font-medium">
-                            Redemption <span className="text-muted-foreground">{r.id.slice(0, 8)}…</span>
+                            Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
                           </span>
                         </label>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs opacity-70">
                           Submitted {new Date(r.submitted_at).toLocaleString()}
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {r.cards?.map((c) => (
-                          <div key={c.card_id} className="card-premium border border-border rounded-lg overflow-hidden">
+                          <div key={c.card_id} className="border rounded-lg overflow-hidden">
                             {c.image_url && (
                               <img
                                 src={c.image_url}
@@ -381,11 +396,11 @@ async function markCredited(id: string) {
                               />
                             )}
                             <div className="p-2 text-sm">
-                              <div className="font-medium truncate text-foreground">{c.name ?? "—"}</div>
-                              <div className="text-muted-foreground">
+                              <div className="font-medium truncate">{c.name ?? "—"}</div>
+                              <div className="opacity-70">
                                 {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
                               </div>
-                              <div className="text-xs text-muted-foreground">
+                              <div className="text-xs opacity-60">
                                 Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
                               </div>
                             </div>
@@ -394,10 +409,20 @@ async function markCredited(id: string) {
                       </div>
 
                       <div className="flex gap-2 mt-3">
-                        <button onClick={() => markCredited(r.id)} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">
+                        {/* 👇 View receipt button (opens in new tab) */}
+                        <Link
+                          to={`/receipt/${r.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="border rounded px-3 py-1"
+                        >
+                          View receipt
+                        </Link>
+
+                        <button onClick={() => markCredited(r.id)} className="border rounded px-3 py-1">
                           Approve (single)
                         </button>
-                        <button onClick={() => markRejected(r.id)} className="bg-destructive text-destructive-foreground border border-border rounded px-3 py-1 hover:bg-destructive/90 transition-colors">
+                        <button onClick={() => markRejected(r.id)} className="border rounded px-3 py-1">
                           Reject
                         </button>
                       </div>
@@ -414,7 +439,7 @@ async function markCredited(id: string) {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
-          <button onClick={loadScans} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 text-sm hover:bg-secondary/80 transition-colors">Refresh</button>
+        <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
@@ -422,12 +447,12 @@ async function markCredited(id: string) {
             value={scanQuery}
             onChange={(e) => setScanQuery(e.target.value)}
             placeholder="Search by email or code…"
-            className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
+            className="border rounded px-2 py-1"
           />
           <select
             value={scanOutcome}
             onChange={(e) => setScanOutcome(e.target.value as any)}
-            className="glass-panel border border-border rounded px-2 py-1 text-foreground"
+            className="border rounded px-2 py-1"
           >
             <option value="all">All outcomes</option>
             <option value="claimed">claimed</option>
@@ -472,10 +497,10 @@ async function markCredited(id: string) {
       </section>
 
       {/* ---------- Blocked users ---------- */}
-      <section className="card-premium rounded-xl p-3">
+      <section className="border rounded-xl p-3">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold text-foreground">Blocked users</h2>
-          <button onClick={loadBlocked} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 text-sm hover:bg-secondary/80 transition-colors">
+          <h2 className="text-lg font-semibold">Blocked users</h2>
+          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
             Refresh list
           </button>
         </div>
@@ -485,28 +510,28 @@ async function markCredited(id: string) {
         </div>
 
         {loadingBlocked ? (
-          <div className="text-muted-foreground text-sm">Loading blocked users…</div>
+          <div className="opacity-70 text-sm">Loading blocked users…</div>
         ) : blocked.length === 0 ? (
-          <div className="text-muted-foreground text-sm">No one is blocked.</div>
+          <div className="opacity-70 text-sm">No one is blocked.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left border-b border-border">
-                  <th className="py-2 pr-3 text-foreground">Email</th>
-                  <th className="py-2 pr-3 text-foreground">Reason</th>
-                  <th className="py-2 pr-3 text-foreground">Blocked at</th>
-                  <th className="py-2 pr-3 text-foreground">Blocked by</th>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Reason</th>
+                  <th className="py-2 pr-3">Blocked at</th>
+                  <th className="py-2 pr-3">Blocked by</th>
                   <th className="py-2 pr-0"></th>
                 </tr>
               </thead>
               <tbody>
                 {blocked.map((b) => (
-                  <tr key={b.user_id} className="border-b border-border last:border-b-0">
-                    <td className="py-2 pr-3 text-foreground">{b.email ?? "—"}</td>
-                    <td className="py-2 pr-3 text-foreground">{b.reason ?? "—"}</td>
-                    <td className="py-2 pr-3 text-foreground">{new Date(b.blocked_at).toLocaleString()}</td>
-                    <td className="py-2 pr-3 text-foreground">{b.blocked_by_email ?? "—"}</td>
+                  <tr key={b.user_id} className="border-b last:border-b-0">
+                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
+                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
+                    <td className="py-2 pr-3">{new Date(b.blocked_at).toLocaleString()}</td>
+                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
                     <td className="py-2 pr-0">
                       {b.email && (
                         <button
@@ -515,7 +540,7 @@ async function markCredited(id: string) {
                             if (error) setToolMsg(error.message);
                             else if (data?.ok) { setToolMsg(`✅ Unblocked ${b.email}`); await loadBlocked(); }
                           }}
-                          className="bg-destructive text-destructive-foreground border border-border rounded px-2 py-1 text-xs hover:bg-destructive/90 transition-colors"
+                          className="border rounded px-2 py-1 text-xs"
                         >
                           Unblock
                         </button>
@@ -586,24 +611,24 @@ function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; on
 
   return (
     <div className="flex flex-col md:flex-row md:items-center gap-2">
-      <div className="text-sm font-medium whitespace-nowrap text-foreground">Block / Unblock</div>
+      <div className="text-sm font-medium whitespace-nowrap">Block / Unblock</div>
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="user@email.com"
-        className="glass-panel border border-border rounded px-2 py-1 w-full md:w-64 text-foreground placeholder:text-muted-foreground"
+        className="border rounded px-2 py-1 w-full md:w-64"
       />
       <input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (optional)"
-        className="glass-panel border border-border rounded px-2 py-1 w-full md:w-64 text-foreground placeholder:text-muted-foreground"
+        className="border rounded px-2 py-1 w-full md:w-64"
       />
       <div className="flex gap-2">
-        <button onClick={doBlock} disabled={busy} className="bg-destructive text-destructive-foreground border border-border rounded px-3 py-1 text-sm hover:bg-destructive/90 transition-colors disabled:opacity-50">
+        <button onClick={doBlock} disabled={busy} className="border rounded px-3 py-1 text-sm">
           {busy ? "Blocking…" : "Block"}
         </button>
-        <button onClick={doUnblock} disabled={busy} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
+        <button onClick={doUnblock} disabled={busy} className="border rounded px-3 py-1 text-sm">
           {busy ? "Unblocking…" : "Unblock"}
         </button>
       </div>
