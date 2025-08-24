@@ -17,6 +17,7 @@ import ClaimCard from "./pages/ClaimCard";
 import MyCards from "./pages/MyCards";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
+import AdminLogs from "./pages/AdminLogs";
 import ResetPassword from "./pages/ResetPassword";
 import Scan from "./pages/Scan";
 import NotFound from "./pages/NotFound";
