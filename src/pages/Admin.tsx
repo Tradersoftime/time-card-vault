@@ -42,15 +42,21 @@ type ScanRow = {
   email: string | null;
   code: string;
   card_id: string | null;
-  outcome: "claimed" | "already_owner" | "owned_by_other" | "not_found" | "blocked" | "error";
+  outcome:
+    | "claimed"
+    | "already_owner"
+    | "owned_by_other"
+    | "not_found"
+    | "blocked"
+    | "error";
 };
 
-type CreditedCardRow = {
+type CreditedRow = {
   redemption_id: string;
   credited_at: string | null;
   user_id: string;
   user_email: string | null;
-  card_id: string;
+  card_id: string | null;
   card_code: string | null;
   amount_time: number | null;
   credited_count: number;
@@ -65,14 +71,17 @@ export default function Admin() {
   // Pending redemptions (grouped by user)
   const [pending, setPending] = useState<PendingRedemption[]>([]);
   const [loadingPending, setLoadingPending] = useState(true);
-  // Per-redemption per-card selection: { [redemptionId]: { [cardId]: true } }
+  const [selectedReds, setSelectedReds] = useState<Record<string, boolean>>({});
+  const [toolMsg, setToolMsg] = useState<string | null>(null);
+
+  // Per-redemption per-card selection
   const [cardSel, setCardSel] = useState<Record<string, Record<string, boolean>>>({});
 
   // Blocked users
   const [blocked, setBlocked] = useState<BlockedRow[]>([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
 
-  // Scan log + sort/filter
+  // Scan log + sort
   const [scans, setScans] = useState<ScanRow[]>([]);
   const [loadingScans, setLoadingScans] = useState(false);
   const [scanQuery, setScanQuery] = useState("");
@@ -80,18 +89,17 @@ export default function Admin() {
   const [scanSortKey, setScanSortKey] = useState<"created_at" | "email">("created_at");
   const [scanSortDir, setScanSortDir] = useState<"asc" | "desc">("desc");
 
-  // Credited cards log + sort/filter
-  const [creditedRows, setCreditedRows] = useState<CreditedCardRow[]>([]);
+  // Receipt banner
+  const [lastReceiptUrl, setLastReceiptUrl] = useState<string | null>(null);
+
+  // Credited log + sort
+  const [creditedRows, setCreditedRows] = useState<CreditedRow[]>([]);
   const [loadingCredited, setLoadingCredited] = useState(false);
-  const [credQuery, setCredQuery] = useState("");
   const [credSortKey, setCredSortKey] = useState<
-    "credited_at" | "card_code" | "user_email" | "credited_count" | "amount_time"
+    "credited_at" | "user_email" | "card_code" | "amount_time" | "credited_count" | "redemption_id"
   >("credited_at");
   const [credSortDir, setCredSortDir] = useState<"asc" | "desc">("desc");
-
-  // UI messages + receipt
-  const [toolMsg, setToolMsg] = useState<string | null>(null);
-  const [lastReceiptUrl, setLastReceiptUrl] = useState<string | null>(null);
+  const [credQuery, setCredQuery] = useState("");
 
   /* ---- Admin check ---- */
   useEffect(() => {
@@ -99,7 +107,10 @@ export default function Admin() {
     (async () => {
       setError(null);
       const { data: u } = await supabase.auth.getUser();
-      if (!u?.user) { if (mounted) setIsAdmin(false); return; }
+      if (!u?.user) {
+        if (mounted) setIsAdmin(false);
+        return;
+      }
       const { data, error } = await supabase
         .from("admins")
         .select("user_id")
@@ -109,7 +120,9 @@ export default function Admin() {
       if (error) setError(error.message);
       setIsAdmin(!!data);
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -124,18 +137,19 @@ export default function Admin() {
   /* ---- Loaders ---- */
   async function loadPending() {
     setLoadingPending(true);
+    setSelectedReds({});
+    setCardSel({});
     setError(null);
-    setToolMsg(null);
-
     const { data, error } = await supabase.rpc("admin_pending_redemptions");
     if (error) setError(error.message);
-
     const rows = (data as PendingRedemption[]) ?? [];
-    // Initialize selection (default select all for convenience)
+    // default select all cards per redemption
     const initSel: Record<string, Record<string, boolean>> = {};
-    rows.forEach(r => {
+    rows.forEach((r) => {
       const m: Record<string, boolean> = {};
-      r.cards?.forEach(c => { if (c.card_id) m[c.card_id] = true; });
+      r.cards?.forEach((c) => {
+        if (c.card_id) m[c.card_id] = true;
+      });
       initSel[r.id] = m;
     });
     setCardSel(initSel);
@@ -163,29 +177,47 @@ export default function Admin() {
     setLoadingCredited(true);
     const { data, error } = await supabase.rpc("admin_recent_credited", { p_limit: 200 });
     if (error) setToolMsg(error.message);
-    setCreditedRows((data as CreditedCardRow[]) ?? []);
+    setCreditedRows((data as CreditedRow[]) ?? []);
     setLoadingCredited(false);
+  }
+
+  /* ---- Selection helpers (redemptions) ---- */
+  function toggleRed(id: string) {
+    setSelectedReds((s) => ({ ...s, [id]: !s[id] }));
+  }
+  function selectAllUserReds(userId: string) {
+    const next = { ...selectedReds };
+    pending.filter((r) => r.user_id === userId).forEach((r) => {
+      next[r.id] = true;
+    });
+    setSelectedReds(next);
+  }
+  function clearRedSelection() {
+    setSelectedReds({});
   }
 
   /* ---- Per-card selection helpers ---- */
   function toggleCard(redId: string, cardId: string) {
-    setCardSel(map => ({
+    setCardSel((map) => ({
       ...map,
-      [redId]: { ...(map[redId] || {}), [cardId]: !(map[redId]?.[cardId]) }
+      [redId]: { ...(map[redId] || {}), [cardId]: !(map[redId]?.[cardId]) },
     }));
   }
   function selectAllCards(redId: string, cards: PendingCard[]) {
     const next: Record<string, boolean> = {};
-    cards.forEach(c => { if (c.card_id) next[c.card_id] = true; });
-    setCardSel(map => ({ ...map, [redId]: next }));
+    cards.forEach((c) => {
+      if (c.card_id) next[c.card_id] = true;
+    });
+    setCardSel((map) => ({ ...map, [redId]: next }));
   }
   function selectNoneCards(redId: string) {
-    setCardSel(map => ({ ...map, [redId]: {} }));
+    setCardSel((map) => ({ ...map, [redId]: {} }));
   }
 
   function selectedSummary(red: PendingRedemption) {
     const m = cardSel[red.id] || {};
-    let count = 0, total = 0;
+    let count = 0,
+      total = 0;
     for (const c of red.cards || []) {
       if (c.card_id && m[c.card_id]) {
         count++;
@@ -195,31 +227,83 @@ export default function Admin() {
     return { count, total };
   }
 
-  /* ---- Credit selected cards within ONE redemption ---- */
-  async function finalizeRedemption(red: PendingRedemption) {
-    setToolMsg(null);
-    const m = cardSel[red.id] || {};
-    const selectedIds = Object.entries(m).filter(([, v]) => v).map(([id]) => id);
-    if (selectedIds.length === 0) { setToolMsg("Select at least one card."); return; }
+  /* ---- Bulk approve selected redemptions (use suggested totals) ---- */
+  async function approveSelectedSuggested() {
+    const items = pending.filter((r) => selectedReds[r.id]);
+    if (items.length === 0) {
+      setToolMsg("Select at least one redemption.");
+      return;
+    }
 
-    // Suggested TIME for the checked cards
+    const grandTotal = items.reduce((sum, it) => sum + (it.total_time_value || 0), 0);
+    const proceed = window.confirm(
+      `Approve ${items.length} redemption(s) with their suggested totals?\n\n` +
+        items
+          .map(
+            (it) =>
+              `${(it.email ?? it.user_id).slice(0, 40)} — ${it.card_count} card(s), TIME ${it.total_time_value}`
+          )
+          .join("\n") +
+        `\n\nGrand total: ${grandTotal}`
+    );
+    if (!proceed) return;
+
+    const ref = window.prompt("External reference / note for all (optional)") || null;
+
+    for (const it of items) {
+      const allIds = (it.cards || [])
+        .map((c) => c.card_id!)
+        .filter(Boolean);
+      const { error } = await supabase.rpc("admin_credit_selected_cards", {
+        p_source_redemption_id: it.id,
+        p_selected_card_ids: allIds,
+        p_ref: ref,
+        p_amount_override: null,
+      });
+      if (error) {
+        setToolMsg(error.message);
+        return;
+      }
+    }
+
+    setToolMsg(`✅ Credited ${items.length} redemption(s) using suggested totals (grand total ${grandTotal}).`);
+    await loadPending();
+    await loadCredited();
+  }
+
+  /* ---- Finalize a single redemption: credit selected cards, leave others pending ---- */
+  async function finalizeRedemption(red: PendingRedemption) {
+    const m = cardSel[red.id] || {};
+    const selectedIds = Object.entries(m)
+      .filter(([, v]) => v)
+      .map(([id]) => id);
+    if (selectedIds.length === 0) {
+      setToolMsg("Select at least one card to credit.");
+      return;
+    }
+
+    // Compute suggested TIME for the checked cards
     let suggested = 0;
     for (const c of red.cards || []) {
       if (c.card_id && m[c.card_id]) suggested += c.time_value ?? 0;
     }
 
-    const ref = window.prompt(
-      `Credit ${selectedIds.length} card(s) for TIME ${suggested}. Add an external reference / note (optional):`
-    ) || null;
+    const ref =
+      window.prompt(
+        `Credit ${selectedIds.length} card(s) for TIME ${suggested}. Add an external reference / note (optional):`
+      ) || null;
 
     const { data, error } = await supabase.rpc("admin_credit_selected_cards", {
       p_source_redemption_id: red.id,
       p_selected_card_ids: selectedIds,
       p_ref: ref,
-      p_amount_override: null
+      p_amount_override: null,
     });
 
-    if (error) { setToolMsg(error.message); return; }
+    if (error) {
+      setToolMsg(error.message);
+      return;
+    }
 
     const newId = (data as any)?.[0]?.new_redemption_id as string | undefined;
     if (newId) {
@@ -227,9 +311,9 @@ export default function Admin() {
       setLastReceiptUrl(receiptUrl);
       try {
         await navigator.clipboard.writeText(receiptUrl);
-        setToolMsg(`✅ Credited. Receipt link copied to clipboard.`);
+        alert(`Credited.\nReceipt link copied to clipboard:\n${receiptUrl}`);
       } catch {
-        setToolMsg(`✅ Credited. Receipt ready.`);
+        alert(`Credited.\nReceipt:\n${receiptUrl}`);
       }
     } else {
       setToolMsg("Credited, but no receipt id returned.");
@@ -239,53 +323,6 @@ export default function Admin() {
     await loadCredited();
   }
 
-  /* ---- Credit ALL pending cards in ONE redemption ---- */
-  async function creditAllInRedemption(redId: string) {
-    setToolMsg(null);
-
-    // 1) Fetch pending cards in this redemption
-    const { data: rows, error: e1 } = await supabase
-      .from("redemption_cards")
-      .select("card_id")
-      .eq("redemption_id", redId)
-      .eq("decision", "pending");
-
-    if (e1) { setToolMsg(e1.message); return; }
-
-    const ids = (rows || []).map(r => (r as any).card_id).filter(Boolean);
-    if (ids.length === 0) { setToolMsg("No pending cards to credit."); return; }
-
-    const ref = window.prompt("External reference / note (optional)") || null;
-
-    // 2) Credit them via RPC
-    const { data, error } = await supabase.rpc("admin_credit_selected_cards", {
-      p_source_redemption_id: redId,
-      p_selected_card_ids: ids,
-      p_ref: ref,
-      p_amount_override: null
-    });
-
-    if (error) { setToolMsg(error.message); return; }
-
-    const newId = (data as any)?.[0]?.new_redemption_id as string | undefined;
-    if (newId) {
-      const receiptUrl = `${window.location.origin}/receipt/${newId}`;
-      setLastReceiptUrl(receiptUrl);
-      try {
-        await navigator.clipboard.writeText(receiptUrl);
-        setToolMsg(`✅ Credited ${ids.length} card(s). Receipt link copied.`);
-      } catch {
-        setToolMsg(`✅ Credited ${ids.length} card(s). Receipt ready.`);
-      }
-    } else {
-      setToolMsg(`Credited ${ids.length} card(s).`);
-    }
-
-    await loadPending();
-    await loadCredited();
-  }
-
-  /* ---- Reject all (still-pending) cards in a redemption ---- */
   async function rejectAll(red: PendingRedemption) {
     const reason = window.prompt("Reason (optional)") || null;
 
@@ -299,14 +336,20 @@ export default function Admin() {
         credited_by: null,
       })
       .eq("id", red.id);
-    if (e1) { setToolMsg(e1.message); return; }
+    if (e1) {
+      setToolMsg(e1.message);
+      return;
+    }
 
     const { error: e2 } = await supabase
       .from("redemption_cards")
       .update({ decision: "rejected", decided_at: new Date().toISOString() })
       .eq("redemption_id", red.id)
       .eq("decision", "pending");
-    if (e2) { setToolMsg(e2.message); return; }
+    if (e2) {
+      setToolMsg(e2.message);
+      return;
+    }
 
     await loadPending();
   }
@@ -325,18 +368,18 @@ export default function Admin() {
   /* ---- Scan filtering + sorting ---- */
   const filteredScans = useMemo(() => {
     const q = scanQuery.trim().toLowerCase();
-    const rows = scans.filter(s => {
+    const rows = scans.filter((s) => {
       const matchQ =
-        !q ||
-        (s.email ?? "").toLowerCase().includes(q) ||
-        s.code.toLowerCase().includes(q);
-      const matchOutcome = (scanOutcome === "all") || s.outcome === scanOutcome;
+        !q || (s.email ?? "").toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
+      const matchOutcome = scanOutcome === "all" || s.outcome === scanOutcome;
       return matchQ && matchOutcome;
     });
     const dir = scanSortDir === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
       if (scanSortKey === "created_at") {
-        return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+        return (
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+        );
       } else {
         return ((a.email ?? "") > (b.email ?? "") ? 1 : -1) * dir;
       }
@@ -344,31 +387,36 @@ export default function Admin() {
   }, [scans, scanQuery, scanOutcome, scanSortKey, scanSortDir]);
 
   /* ---- Credited filtering + sorting ---- */
-  const filteredCredited = useMemo(() => {
+  const creditedFilteredSorted = useMemo(() => {
     const q = credQuery.trim().toLowerCase();
-    const rows = creditedRows.filter(r => {
+    const rows = creditedRows.filter((r) => {
       if (!q) return true;
       return (
-        (r.card_code ?? "").toLowerCase().includes(q) ||
         (r.user_email ?? "").toLowerCase().includes(q) ||
+        (r.card_code ?? "").toLowerCase().includes(q) ||
         r.user_id.toLowerCase().includes(q) ||
         r.redemption_id.toLowerCase().includes(q)
       );
     });
+
     const dir = credSortDir === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
-      const A = a, B = b;
       switch (credSortKey) {
         case "credited_at":
-          return ((new Date(A.credited_at ?? 0).getTime()) - (new Date(B.credited_at ?? 0).getTime())) * dir;
-        case "card_code":
-          return ((A.card_code ?? "") > (B.card_code ?? "") ? 1 : -1) * dir;
+          return (
+            ((new Date(a.credited_at ?? 0).getTime() -
+              new Date(b.credited_at ?? 0).getTime()) as number) * dir
+          );
         case "user_email":
-          return ((A.user_email ?? "") > (B.user_email ?? "") ? 1 : -1) * dir;
-        case "credited_count":
-          return ((A.credited_count ?? 0) - (B.credited_count ?? 0)) * dir;
+          return ((a.user_email ?? "") > (b.user_email ?? "") ? 1 : -1) * dir;
+        case "card_code":
+          return ((a.card_code ?? "") > (b.card_code ?? "") ? 1 : -1) * dir;
         case "amount_time":
-          return ((A.amount_time ?? 0) - (B.amount_time ?? 0)) * dir;
+          return ((a.amount_time ?? 0) - (b.amount_time ?? 0)) * dir;
+        case "credited_count":
+          return (a.credited_count - b.credited_count) * dir;
+        case "redemption_id":
+          return (a.redemption_id > b.redemption_id ? 1 : -1) * dir;
         default:
           return 0;
       }
@@ -385,8 +433,17 @@ export default function Admin() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Admin</h1>
         <div className="flex gap-2">
-          <Link to="/admin/qr" className="border rounded px-3 py-1">QR Generator</Link>
-          <button onClick={() => { loadPending(); loadScans(); loadCredited(); }} className="border rounded px-3 py-1">
+          <Link to="/admin/qr" className="border rounded px-3 py-1">
+            QR Generator
+          </Link>
+          <button
+            onClick={() => {
+              loadPending();
+              loadScans();
+              loadCredited();
+            }}
+            className="border rounded px-3 py-1"
+          >
             Refresh
           </button>
         </div>
@@ -401,7 +458,9 @@ export default function Admin() {
       {lastReceiptUrl && (
         <div className="text-sm px-3 py-2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 flex items-center gap-3">
           <span>Receipt ready:</span>
-          <a href={lastReceiptUrl} target="_blank" rel="noreferrer" className="underline">Open</a>
+          <a href={lastReceiptUrl} target="_blank" rel="noreferrer" className="underline">
+            Open receipt
+          </a>
           <button
             onClick={() => navigator.clipboard.writeText(lastReceiptUrl)}
             className="border rounded px-2 py-0.5 text-xs"
@@ -421,8 +480,13 @@ export default function Admin() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Pending Redemptions</h2>
-          <div className="text-sm opacity-70">
-            {loadingPending ? "Loading…" : `${pending.length} redemption${pending.length === 1 ? "" : "s"}`}
+          <div className="flex items-center gap-2">
+            <button onClick={approveSelectedSuggested} className="border rounded px-3 py-1">
+              Approve Selected (suggested totals)
+            </button>
+            <button onClick={clearRedSelection} className="border rounded px-3 py-1">
+              Clear Selection
+            </button>
           </div>
         </div>
 
@@ -432,6 +496,7 @@ export default function Admin() {
           <div className="opacity-70">No pending redemptions.</div>
         ) : (
           Object.entries(pendingGroups).map(([userId, reds]) => {
+            const selectedCount = reds.filter((r) => selectedReds[r.id]).length;
             const email = reds[0]?.email ?? null;
 
             return (
@@ -440,6 +505,17 @@ export default function Admin() {
                   <div>
                     <div className="font-medium">User: {email ?? userId}</div>
                     <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => selectAllUserReds(userId)}
+                      className="border rounded px-3 py-1 text-sm"
+                    >
+                      Select All ({reds.length})
+                    </button>
+                    {selectedCount > 0 && (
+                      <div className="text-xs opacity-80">Selected: {selectedCount}</div>
+                    )}
                   </div>
                 </div>
 
@@ -450,19 +526,30 @@ export default function Admin() {
                     return (
                       <div key={r.id} className="border rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <div className="font-medium">
-                            Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>{" · "}
-                            <span className="opacity-80">{r.email ?? r.user_id}</span>
-                          </div>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={!!selectedReds[r.id]}
+                              onChange={() => toggleRed(r.id)}
+                            />
+                            <span className="font-medium">
+                              Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
+                              {" · "}
+                              <span className="opacity-80">{r.email ?? r.user_id}</span>
+                            </span>
+                          </label>
                           <div className="text-xs opacity-70">
-                            {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> •{" "}
-                            Submitted {new Date(r.submitted_at).toLocaleString()}
+                            {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> • Submitted{" "}
+                            {new Date(r.submitted_at).toLocaleString()}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-xs mb-2">
-                          <button onClick={() => selectAllCards(r.id, r.cards)} className="border rounded px-2 py-0.5">
-                            Select All
+                          <button
+                            onClick={() => selectAllCards(r.id, r.cards)}
+                            className="border rounded px-2 py-0.5"
+                          >
+                            Select All Cards
                           </button>
                           <button onClick={() => selectNoneCards(r.id)} className="border rounded px-2 py-0.5">
                             Select None
@@ -478,7 +565,9 @@ export default function Admin() {
                             return (
                               <label
                                 key={c.card_id}
-                                className={`border rounded-lg overflow-hidden block ${checked ? "ring-2 ring-emerald-500" : ""}`}
+                                className={`border rounded-lg overflow-hidden block ${
+                                  checked ? "ring-2 ring-emerald-500" : ""
+                                }`}
                               >
                                 <input
                                   type="checkbox"
@@ -499,7 +588,8 @@ export default function Admin() {
                                     {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
                                   </div>
                                   <div className="text-xs opacity-60">
-                                    Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME: {c.time_value ?? 0}
+                                    Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME:{" "}
+                                    {c.time_value ?? 0}
                                   </div>
                                 </div>
                               </label>
@@ -507,24 +597,21 @@ export default function Admin() {
                           })}
                         </div>
 
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          <button onClick={() => finalizeRedemption(r)} className="border rounded px-3 py-1">
-                            Credit selected (leave others pending)
-                          </button>
-                          <button onClick={() => creditAllInRedemption(r.id)} className="border rounded px-3 py-1">
-                            Credit all cards in this redemption
-                          </button>
-                          <button onClick={() => rejectAll(r)} className="border rounded px-3 py-1">
-                            Reject all
-                          </button>
-                          <a
-                            href={`/receipt/${r.id}`}
+                        <div className="flex gap-2 mt-3">
+                          <Link
+                            to={`/receipt/${r.id}`}
                             target="_blank"
                             rel="noreferrer"
                             className="border rounded px-3 py-1"
                           >
-                            View receipt (if any)
-                          </a>
+                            View receipt
+                          </Link>
+                          <button onClick={() => finalizeRedemption(r)} className="border rounded px-3 py-1">
+                            Credit selected (leave others pending)
+                          </button>
+                          <button onClick={() => rejectAll(r)} className="border rounded px-3 py-1">
+                            Reject all
+                          </button>
                         </div>
                       </div>
                     );
@@ -536,76 +623,64 @@ export default function Admin() {
         )}
       </section>
 
-      {/* ---------- Credited Log (per-card rows) ---------- */}
+      {/* ---------- Credited Log (uses admin_recent_credited) ---------- */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Credited Log</h2>
+          <h2 className="text-lg font-semibold">
+            Credited Log — {creditedRows.length}
+          </h2>
           <div className="flex items-center gap-2">
             <input
               value={credQuery}
               onChange={(e) => setCredQuery(e.target.value)}
-              placeholder="Search (code, email, user id, redemption id)…"
+              placeholder="Search(code, email, userId, redemption)…"
               className="border rounded px-2 py-1"
             />
-            <button onClick={loadCredited} className="border rounded px-3 py-1 text-sm">Refresh</button>
+            <button onClick={loadCredited} className="border rounded px-3 py-1 text-sm">
+              Refresh
+            </button>
           </div>
         </div>
 
         {loadingCredited ? (
           <div>Loading…</div>
-        ) : filteredCredited.length === 0 ? (
+        ) : creditedFilteredSorted.length === 0 ? (
           <div className="opacity-70 text-sm">No credited cards yet.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-background">
-                <tr className="text-left border-b">
-                  <th className="py-2 pr-3 cursor-pointer"
-                      onClick={() => { setCredSortKey("credited_at"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                    When {credSortKey === "credited_at" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="py-2 pr-3 cursor-pointer"
-                      onClick={() => { setCredSortKey("card_code"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                    Code {credSortKey === "card_code" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="py-2 pr-3 cursor-pointer"
-                      onClick={() => { setCredSortKey("user_email"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                    User {credSortKey === "user_email" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="py-2 pr-3">User ID</th>
-                  <th className="py-2 pr-3">Redemption</th>
-                  <th className="py-2 pr-3 cursor-pointer"
-                      onClick={() => { setCredSortKey("credited_count"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                    Cards Credited {credSortKey === "credited_count" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="py-2 pr-3 cursor-pointer"
-                      onClick={() => { setCredSortKey("amount_time"); setCredSortDir(d => d === "asc" ? "desc" : "asc"); }}>
-                    TIME {credSortKey === "amount_time" ? (credSortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
+              <thead className="border-b">
+                <tr className="text-left">
+                  <Th label="When" active={credSortKey==="credited_at"} dir={credSortDir}
+                      onClick={() => { setCredSortKey("credited_at"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
+                  <Th label="Code" active={credSortKey==="card_code"} dir={credSortDir}
+                      onClick={() => { setCredSortKey("card_code"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
+                  <Th label="Email" active={credSortKey==="user_email"} dir={credSortDir}
+                      onClick={() => { setCredSortKey("user_email"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
+                  <Th label="UserId" active={credSortKey==="user_id"} dir={credSortDir}
+                      onClick={() => { setCredSortKey("redemption_id"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
+                  <Th label="Credited Count" active={credSortKey==="credited_count"} dir={credSortDir}
+                      onClick={() => { setCredSortKey("credited_count"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
+                  <Th label="Amount TIME" active={credSortKey==="amount_time"} dir={credSortDir}
+                      onClick={() => { setCredSortKey("amount_time"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
+                  <Th label="Redemption" active={credSortKey==="redemption_id"} dir={credSortDir}
+                      onClick={() => { setCredSortKey("redemption_id"); setCredSortDir(d=>d==="asc"?"desc":"asc"); }} />
                 </tr>
               </thead>
               <tbody>
-                {filteredCredited.map((r, idx) => (
-                  <tr key={`${r.redemption_id}-${r.card_id}-${idx}`} className="border-b last:border-b-0">
+                {creditedFilteredSorted.map((r) => (
+                  <tr key={`${r.redemption_id}-${r.card_id ?? r.card_code ?? ""}`} className="border-b last:border-b-0">
                     <td className="py-2 pr-3">{r.credited_at ? new Date(r.credited_at).toLocaleString() : "—"}</td>
                     <td className="py-2 pr-3 font-mono">{r.card_code ?? "—"}</td>
                     <td className="py-2 pr-3">{r.user_email ?? "—"}</td>
-                    <td className="py-2 pr-3 font-mono text-xs">{r.user_id}</td>
-                    <td className="py-2 pr-3">
-                      <div className="flex items-center gap-2">
-                        <a className="underline" href={`/receipt/${r.redemption_id}`} target="_blank" rel="noreferrer">
-                          {r.redemption_id.slice(0, 8)}…
-                        </a>
-                        <button
-                          onClick={() => navigator.clipboard.writeText(r.redemption_id)}
-                          className="border rounded px-2 py-0.5 text-xs"
-                        >
-                          Copy ID
-                        </button>
-                      </div>
-                    </td>
+                    <td className="py-2 pr-3 font-mono">{r.user_id}</td>
                     <td className="py-2 pr-3">{r.credited_count}</td>
                     <td className="py-2 pr-3">{r.amount_time ?? 0}</td>
+                    <td className="py-2 pr-3 font-mono">
+                      <Link to={`/receipt/${r.redemption_id}`} className="underline" target="_blank" rel="noreferrer">
+                        {r.redemption_id.slice(0,8)}…
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -614,11 +689,13 @@ export default function Admin() {
         )}
       </section>
 
-      {/* ---------- Scan Log (sortable/filterable) ---------- */}
+      {/* ---------- Scan Log (sortable) ---------- */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
-          <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">Refresh</button>
+          <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">
+            Refresh
+          </button>
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
@@ -645,13 +722,19 @@ export default function Admin() {
           <div className="flex items-center gap-2 text-xs">
             <button
               className="border rounded px-2 py-0.5"
-              onClick={() => { setScanSortKey("created_at"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}
+              onClick={() => {
+                setScanSortKey("created_at");
+                setScanSortDir((d) => (d === "asc" ? "desc" : "asc"));
+              }}
             >
               Sort by When {scanSortKey === "created_at" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
             </button>
             <button
               className="border rounded px-2 py-0.5"
-              onClick={() => { setScanSortKey("email"); setScanSortDir(d => d === "asc" ? "desc" : "asc"); }}
+              onClick={() => {
+                setScanSortKey("email");
+                setScanSortDir((d) => (d === "asc" ? "desc" : "asc"));
+              }}
             >
               Sort by Email {scanSortKey === "email" ? (scanSortDir === "asc" ? "▲" : "▼") : ""}
             </button>
@@ -660,7 +743,7 @@ export default function Admin() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-background">
+            <thead>
               <tr className="text-left border-b">
                 <th className="py-2 pr-3">When</th>
                 <th className="py-2 pr-3">Email</th>
@@ -676,7 +759,7 @@ export default function Admin() {
                   <td className="py-2 pr-3">{s.email ?? "—"}</td>
                   <td className="py-2 pr-3 font-mono">{s.code}</td>
                   <td className="py-2 pr-3">{s.outcome}</td>
-                  <td className="py-2 pr-3 font-mono text-xs">{s.card_id ?? "—"}</td>
+                  <td className="py-2 pr-3 font-mono">{s.card_id ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -704,7 +787,7 @@ export default function Admin() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-background">
+              <thead>
                 <tr className="text-left border-b">
                   <th className="py-2 pr-3">Email</th>
                   <th className="py-2 pr-3">Reason</th>
@@ -724,9 +807,14 @@ export default function Admin() {
                       {b.email && (
                         <button
                           onClick={async () => {
-                            const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: b.email! });
+                            const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
+                              p_email: b.email!,
+                            });
                             if (error) setToolMsg(error.message);
-                            else if ((data as any)?.ok) { setToolMsg(`✅ Unblocked ${b.email}`); await loadBlocked(); }
+                            else if ((data as any)?.ok) {
+                              setToolMsg(`✅ Unblocked ${b.email}`);
+                              await loadBlocked();
+                            }
                           }}
                           className="border rounded px-2 py-1 text-xs"
                         >
@@ -745,9 +833,40 @@ export default function Admin() {
   );
 }
 
+/* ---------- Helpers ---------- */
+
+function Th({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active?: boolean;
+  dir?: "asc" | "desc";
+  onClick?: () => void;
+}) {
+  return (
+    <th
+      className="py-2 pr-3 cursor-pointer select-none"
+      onClick={onClick}
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+      title={active ? (dir === "asc" ? "Sorted asc" : "Sorted desc") : "Click to sort"}
+    >
+      {label} {active ? (dir === "asc" ? "▲" : "▼") : ""}
+    </th>
+  );
+}
+
 /* ---------------- Admin helper: Block / Unblock ---------------- */
 
-function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; onChanged: () => void }) {
+function BlockTool({
+  onMsg,
+  onChanged,
+}: {
+  onMsg: (m: string | null) => void;
+  onChanged: () => void;
+}) {
   const [email, setEmail] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -755,14 +874,20 @@ function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; on
   async function doBlock() {
     onMsg(null);
     const e = email.trim();
-    if (!e) { onMsg("Enter an email."); return; }
+    if (!e) {
+      onMsg("Enter an email.");
+      return;
+    }
     setBusy(true);
     const { data, error } = await supabase.rpc("admin_block_user_by_email", {
       p_email: e,
       p_reason: reason.trim() || null,
     });
     setBusy(false);
-    if (error) { onMsg(error.message); return; }
+    if (error) {
+      onMsg(error.message);
+      return;
+    }
     if ((data as any)?.ok) {
       onMsg(`✅ Blocked ${e}.`);
       onChanged();
@@ -778,11 +903,17 @@ function BlockTool({ onMsg, onChanged }: { onMsg: (m: string | null) => void; on
   async function doUnblock() {
     onMsg(null);
     const e = email.trim();
-    if (!e) { onMsg("Enter an email."); return; }
+    if (!e) {
+      onMsg("Enter an email.");
+      return;
+    }
     setBusy(true);
     const { data, error } = await supabase.rpc("admin_unblock_user_by_email", { p_email: e });
     setBusy(false);
-    if (error) { onMsg(error.message); return; }
+    if (error) {
+      onMsg(error.message);
+      return;
+    }
     if ((data as any)?.ok) {
       onMsg(`✅ Unblocked ${e}.`);
       onChanged();
