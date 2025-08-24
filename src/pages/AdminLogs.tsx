@@ -79,7 +79,7 @@ function isoWithinDays(days:number) {
 }
 const ERAS = ["Genesis", "Classic", "Modern", "Futures"];
 const RARITIES = ["Common", "Uncommon", "Rare", "Epic", "Legendary"];
-const SOURCES = ["QR", "manual", "bulk"] as const;
+const SOURCES: ("QR" | "manual" | "bulk")[] = ["QR", "manual", "bulk"];
 
 const USERS = Array.from({length:120}).map((_,i)=>({ id: id("u"), email: `user${i+1}@example.com` }));
 const CARDS = Array.from({length:2000}).map(()=>({
@@ -204,8 +204,8 @@ function DataTable<TData>({
   function handleExportCSV() {
     exportToCsv({
       filename: csvFilename,
-      headers: visibleCols.map(c => c.id || c.accessorKey?.toString() || "col"),
-      rows: rows.map(r => visibleCols.map(c => r.getValue(c.id ?? (c.accessorKey as string)))),
+      headers: visibleCols.map(c => c.id || (c.columnDef as any).accessorKey?.toString() || "col"),
+      rows: rows.map(r => visibleCols.map(c => r.getValue(c.id ?? ((c.columnDef as any).accessorKey as string)))),
     });
   }
 
