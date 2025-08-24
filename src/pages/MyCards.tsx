@@ -1,8 +1,7 @@
 // src/pages/MyCards.tsx
-import { useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 type Row = {
   claimed_at: string;
@@ -59,16 +58,26 @@ export default function MyCards() {
     setLoading(false);
   }
 
-  const readyAndPending = useMemo(() => rows.filter(r => !r.is_credited), [rows]);
-  const eligibleToSelect = useMemo(() => rows.filter(r => !r.is_pending && !r.is_credited), [rows]);
+  // Groups
+  const ready = useMemo(() => rows.filter(r => !r.is_pending && !r.is_credited), [rows]);
+  const pending = useMemo(() => rows.filter(r => r.is_pending && !r.is_credited), [rows]);
   const credited = useMemo(() => rows.filter(r => r.is_credited), [rows]);
 
+  // Totals
+  const timeOf = (list: Row[]) => list.reduce((s, r) => s + (r.time_value ?? 0), 0);
+  const totalCards = rows.length;
+  const totalTimeAll = timeOf(rows);
+  const totalTimeCredited = timeOf(credited);
+  const totalTimeReady = timeOf(ready);
+  const totalTimePending = timeOf(pending);
+
+  // Selection helpers (only for "ready")
   function toggle(cardId: string) {
     setSelected(s => ({ ...s, [cardId]: !s[cardId] }));
   }
   function selectAllReady() {
     const next: Record<string, boolean> = {};
-    eligibleToSelect.forEach(r => { next[r.card_id] = true; });
+    ready.forEach(r => { next[r.card_id] = true; });
     setSelected(next);
   }
   function clearSelection() { setSelected({}); }
@@ -77,7 +86,7 @@ export default function MyCards() {
     try {
       setMsg(null);
       const chosen = Object.keys(selected).filter(id => selected[id]);
-      if (chosen.length === 0) { setMsg("Select at least one ready card."); return; }
+      if (chosen.length === 0) { setMsg("Select at least one card."); return; }
 
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user) { setMsg("Not signed in."); return; }
@@ -128,15 +137,27 @@ export default function MyCards() {
 
   return (
     <div className="p-6 space-y-8">
-      {/* Ready + Pending section */}
+      {/* Summary */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Stat label="Collection TIME" value={totalTimeAll} sub={`${totalCards} card${totalCards===1?"":"s"}`} />
+        <Stat label="Credited TIME" value={totalTimeCredited} sub={`${credited.length} card${credited.length===1?"":"s"}`} />
+        <Stat label="Ready to claim TIME" value={totalTimeReady} sub={`${ready.length} card${ready.length===1?"":"s"}`} />
+        <Stat label="Pending TIME" value={totalTimePending} sub={`${pending.length} card${pending.length===1?"":"s"}`} />
+      </section>
+
+      {msg && (
+        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+          {msg}
+        </div>
+      )}
+
+      {/* Unsubmitted (Ready for TIME) */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">
-            Ready for TIME ({readyAndPending.length})
-          </h2>
+          <h2 className="text-lg font-semibold">Unsubmitted (Ready for TIME)</h2>
           <div className="flex items-center gap-2">
             <button onClick={selectAllReady} className="border rounded px-3 py-1">
-              Select All Ready
+              Select All
             </button>
             <button onClick={clearSelection} className="border rounded px-3 py-1">
               Clear
@@ -147,34 +168,23 @@ export default function MyCards() {
           </div>
         </div>
 
-        {readyAndPending.length === 0 ? (
-          <div className="opacity-70">No cards to submit — go scan a card.</div>
+        {ready.length === 0 ? (
+          <div className="opacity-70">No unsubmitted cards.</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {readyAndPending.map((r) => {
-              const ready = !r.is_pending && !r.is_credited;
+            {ready.map((r) => {
               const checked = !!selected[r.card_id];
-              const badge = r.is_credited
-                ? { text: "TIME: Credited", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" }
-                : r.is_pending
-                ? { text: "TIME: Pending", cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" }
-                : { text: "Ready", cls: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" };
-
               return (
                 <label
                   key={r.card_id}
-                  className={`border rounded-xl overflow-hidden block ${
-                    ready ? "cursor-pointer" : "opacity-75"
-                  } ${checked ? "ring-2 ring-emerald-500" : ""}`}
+                  className={`border rounded-xl overflow-hidden block cursor-pointer ${checked ? "ring-2 ring-emerald-500" : ""}`}
                 >
-                  {ready && (
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={checked}
-                      onChange={() => toggle(r.card_id)}
-                    />
-                  )}
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={checked}
+                    onChange={() => toggle(r.card_id)}
+                  />
                   {r.image_url && (
                     <img
                       src={r.image_url}
@@ -193,14 +203,6 @@ export default function MyCards() {
                     <div className="text-xs opacity-60">
                       Claimed {new Date(r.claimed_at).toLocaleString()}
                     </div>
-                    <span className={`inline-block text-xs px-2 py-0.5 rounded ${badge.cls}`}>
-                      {badge.text}
-                    </span>
-                    {!ready && r.is_pending && (
-                      <div className="text-xs opacity-70">
-                        Submitted — awaiting credit
-                      </div>
-                    )}
                   </div>
                 </label>
               );
@@ -209,11 +211,46 @@ export default function MyCards() {
         )}
       </section>
 
-      {/* Credited section */}
+      {/* Submitted (Pending TIME) */}
       <section>
-        <h2 className="text-lg font-semibold mb-3">
-          Collection (Credited) ({credited.length})
-        </h2>
+        <h2 className="text-lg font-semibold mb-3">Submitted (Pending TIME)</h2>
+        {pending.length === 0 ? (
+          <div className="opacity-70">No pending submissions.</div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {pending.map((r) => (
+              <div key={r.card_id} className="border rounded-xl overflow-hidden">
+                {r.image_url && (
+                  <img
+                    src={r.image_url}
+                    alt={r.name ?? "Card"}
+                    className="w-full aspect-[3/4] object-cover"
+                  />
+                )}
+                <div className="p-3 space-y-1">
+                  <div className="font-medium">{r.name ?? "Unnamed Trader"}</div>
+                  <div className="text-sm opacity-80">
+                    {r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}
+                  </div>
+                  <div className="text-xs opacity-70">
+                    Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"} · TIME: {r.time_value ?? 0}
+                  </div>
+                  <div className="text-xs opacity-60">
+                    Claimed {new Date(r.claimed_at).toLocaleString()}
+                  </div>
+                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                    TIME: Pending
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Credited (Collection) */}
+      <section>
+        <h2 className="text-lg font-semibold mb-3">Credited (Collection)</h2>
         {credited.length === 0 ? (
           <div className="opacity-70">No credited cards yet.</div>
         ) : (
@@ -247,6 +284,17 @@ export default function MyCards() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/* ---- Tiny stat component ---- */
+function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
+  return (
+    <div className="border rounded-xl p-3">
+      <div className="text-xs opacity-70">{label}</div>
+      <div className="text-2xl font-semibold">{value}</div>
+      {sub && <div className="text-xs opacity-60">{sub}</div>}
     </div>
   );
 }
