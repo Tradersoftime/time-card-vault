@@ -464,439 +464,548 @@ export default function Admin() {
     });
   }, [creditedRows, credQuery, credSortKey, credSortDir]);
 
-  if (isAdmin === null) return <div className="p-6">Loading…</div>;
-  if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (isAdmin === null) return (
+    <div className="min-h-screen hero-gradient flex items-center justify-center p-6">
+      <div className="glass-panel p-8 rounded-2xl text-center">
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+        <div className="text-foreground">Loading admin dashboard...</div>
+      </div>
+    </div>
+  );
+  if (isAdmin === false) return (
+    <div className="min-h-screen hero-gradient flex items-center justify-center p-6">
+      <div className="glass-panel p-8 rounded-2xl text-center">
+        <div className="text-destructive text-lg font-medium">Access Denied</div>
+        <div className="text-muted-foreground mt-2">You are not authorized to access the admin dashboard.</div>
+      </div>
+    </div>
+  );
+  if (error) return (
+    <div className="min-h-screen hero-gradient flex items-center justify-center p-6">
+      <div className="glass-panel p-8 rounded-2xl text-center">
+        <div className="text-destructive text-lg font-medium">Error: {error}</div>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6 space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Admin</h1>
-        <div className="flex gap-2">
-          <Link to="/admin/qr" className="border rounded px-3 py-1">
-            QR Generator
-          </Link>
-          <Link to="/admin/cards" className="border rounded px-3 py-1">
-            Card Management
-          </Link>
-          <button
-            onClick={() => {
-              loadPending();
-              loadScans();
-              loadCredited();
-            }}
-            className="border rounded px-3 py-1"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {toolMsg && (
-        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
-          {toolMsg}
-        </div>
-      )}
-
-      {lastReceiptUrl && (
-        <div className="text-sm px-3 py-2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 flex items-center gap-3">
-          <span>Receipt ready:</span>
-          <a href={lastReceiptUrl} target="_blank" rel="noreferrer" className="underline">
-            Open receipt
-          </a>
-          <button
-            onClick={() => navigator.clipboard.writeText(lastReceiptUrl)}
-            className="border rounded px-2 py-0.5 text-xs"
-          >
-            Copy link
-          </button>
-          <button
-            onClick={() => setLastReceiptUrl(null)}
-            className="border rounded px-2 py-0.5 text-xs"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* ---------- Pending Redemptions (grouped by user) ---------- */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Pending Redemptions</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={approveSelectedSuggested} className="border rounded px-3 py-1">
-              Approve Selected (suggested totals)
-            </button>
-            <button onClick={clearRedSelection} className="border rounded px-3 py-1">
-              Clear Selection
-            </button>
+    <div className="min-h-screen hero-gradient">
+      <div className="container mx-auto p-6 space-y-8">
+        {/* Header */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
+                Admin Dashboard
+              </h1>
+              <p className="text-muted-foreground">Manage redemptions, cards, and user activity</p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link 
+                to="/admin/qr" 
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
+              >
+                QR Generator
+              </Link>
+              <Link 
+                to="/admin/cards" 
+                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium"
+              >
+                Card Management
+              </Link>
+              <button
+                onClick={() => {
+                  loadPending();
+                  loadScans();
+                  loadCredited();
+                }}
+                className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
+              >
+                Refresh All
+              </button>
+            </div>
           </div>
         </div>
 
-        {loadingPending ? (
-          <div>Loading pending…</div>
-        ) : pending.length === 0 ? (
-          <div className="opacity-70">No pending redemptions.</div>
-        ) : (
-          Object.entries(pendingGroups).map(([userId, reds]) => {
-            const selectedCount = reds.filter((r) => selectedReds[r.id]).length;
-            const email = reds[0]?.email ?? null;
-
-            return (
-              <div key={userId} className="border rounded-xl p-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
-                  <div>
-                    <div className="font-medium">User: {email ?? userId}</div>
-                    <div className="text-xs opacity-70">Redemptions: {reds.length}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => selectAllUserReds(userId)}
-                      className="border rounded px-3 py-1 text-sm"
-                    >
-                      Select All ({reds.length})
-                    </button>
-                    {selectedCount > 0 && (
-                      <div className="text-xs opacity-80">Selected: {selectedCount}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {reds.map((r) => {
-                    const m = cardSel[r.id] || {};
-                    const { count, total } = selectedSummary(r);
-                    return (
-                      <div key={r.id} className="border rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={!!selectedReds[r.id]}
-                              onChange={() => toggleRed(r.id)}
-                            />
-                            <span className="font-medium">
-                              Redemption <span className="opacity-70">{r.id.slice(0, 8)}…</span>
-                              {" · "}
-                              <span className="opacity-80">{r.email ?? r.user_id}</span>
-                            </span>
-                          </label>
-                          <div className="text-xs opacity-70">
-                            {r.card_count} card(s) • Suggested TIME: <b>{r.total_time_value}</b> • Submitted{" "}
-                            {new Date(r.submitted_at).toLocaleString()}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-xs mb-2">
-                          <button
-                            onClick={() => selectAllCards(r.id, r.cards)}
-                            className="border rounded px-2 py-0.5"
-                          >
-                            Select All Cards
-                          </button>
-                          <button onClick={() => selectNoneCards(r.id)} className="border rounded px-2 py-0.5">
-                            Select None
-                          </button>
-                          <div className="opacity-80">
-                            Selected: <b>{count}</b> • Selected TIME: <b>{total}</b>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {r.cards?.map((c) => {
-                            const checked = !!m[c.card_id || ""];
-                            return (
-                              <label
-                                key={c.card_id}
-                                className={`border rounded-lg overflow-hidden block ${
-                                  checked ? "ring-2 ring-emerald-500" : ""
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="hidden"
-                                  checked={checked}
-                                  onChange={() => c.card_id && toggleCard(r.id, c.card_id)}
-                                />
-                                {c.image_url && (
-                                  <img
-                                    src={c.image_url}
-                                    alt={c.name ?? "Card"}
-                                    className="w-full aspect-[3/4] object-cover"
-                                  />
-                                )}
-                                <div className="p-2 text-sm">
-                                  <div className="font-medium truncate">{c.name ?? "—"}</div>
-                                  <div className="opacity-70">
-                                    {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
-                                  </div>
-                                  <div className="text-xs opacity-60">
-                                    Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"} · TIME:{" "}
-                                    {c.time_value ?? 0}
-                                  </div>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-
-                        <div className="flex gap-2 mt-3">
-                          <Link
-                            to={`/receipt/${r.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="border rounded px-3 py-1"
-                          >
-                            View receipt
-                          </Link>
-                          <button onClick={() => finalizeRedemption(r)} className="border rounded px-3 py-1">
-                            Credit selected (leave others pending)
-                          </button>
-                          <button onClick={() => rejectAll(r)} className="border rounded px-3 py-1">
-                            Reject all
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })
+        {toolMsg && (
+          <div className="glass-panel p-4 rounded-lg border-l-4 border-l-primary">
+            <div className="text-primary text-sm">{toolMsg}</div>
+          </div>
         )}
-      </section>
 
-      {/* ---------- Credited Log (grouped by redemption, shows all codes) ---------- */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">
-            Credited Log — {creditedGrouped.length}
-          </h2>
-          <div className="flex items-center gap-2">
-            <input
-              value={credQuery}
-              onChange={(e) => setCredQuery(e.target.value)}
-              placeholder="Search (code, email, userId, redemption)…"
-              className="border rounded px-2 py-1"
-            />
-            <button onClick={loadCredited} className="border rounded px-3 py-1 text-sm">
-              Refresh
-            </button>
+        {lastReceiptUrl && (
+          <div className="glass-panel p-4 rounded-lg border-l-4 border-l-emerald-500">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-emerald-600 font-medium">Receipt ready:</span>
+              <a href={lastReceiptUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                Open receipt
+              </a>
+              <button
+                onClick={() => navigator.clipboard.writeText(lastReceiptUrl)}
+                className="px-3 py-1 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
+              >
+                Copy link
+              </button>
+              <button
+                onClick={() => setLastReceiptUrl(null)}
+                className="px-3 py-1 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {loadingCredited ? (
-          <div>Loading…</div>
-        ) : creditedGrouped.length === 0 ? (
-          <div className="opacity-70 text-sm">No credited redemptions yet.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm table-fixed">
-              <thead className="border-b bg-background sticky top-0">
-                <tr className="text-left">
-                  <Th
-                    label="When"
-                    active={credSortKey === "credited_at"}
-                    dir={credSortDir}
-                    onClick={() => {
-                      setCredSortKey("credited_at");
-                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                    }}
-                  />
-                  <Th
-                    label="User"
-                    active={credSortKey === "user_email"}
-                    dir={credSortDir}
-                    onClick={() => {
-                      setCredSortKey("user_email");
-                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                    }}
-                  />
-                  <th className="py-2 pr-3 w-1/2">Codes</th>
-                  <Th
-                    label="# Credited"
-                    active={credSortKey === "credited_count"}
-                    dir={credSortDir}
-                    onClick={() => {
-                      setCredSortKey("credited_count");
-                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                    }}
-                  />
-                  <Th
-                    label="TIME Total"
-                    active={credSortKey === "total_time"}
-                    dir={credSortDir}
-                    onClick={() => {
-                      setCredSortKey("total_time");
-                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                    }}
-                  />
-                  <Th
-                    label="Redemption"
-                    active={credSortKey === "redemption_id"}
-                    dir={credSortDir}
-                    onClick={() => {
-                      setCredSortKey("redemption_id");
-                      setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                    }}
-                  />
-                </tr>
-              </thead>
-              <tbody>
-                {creditedGrouped.map((g) => (
-                  <tr key={g.redemption_id} className="border-b last:border-b-0 align-top">
-                    <td className="py-2 pr-3 whitespace-nowrap">
-                      {g.credited_at ? new Date(g.credited_at).toLocaleString() : "—"}
-                    </td>
-                    <td className="py-2 pr-3">{g.user_email ?? "—"}</td>
-                    <td className="py-2 pr-3">
-                      <div className="flex flex-wrap gap-1">
-                        {g.codes.slice(0, 10).map((code) => (
-                          <span key={code} className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
-                            {code}
-                          </span>
-                        ))}
-                        {g.codes.length > 10 && (
-                          <span className="text-xs opacity-70">+{g.codes.length - 10} more</span>
+        {/* ---------- Pending Redemptions (grouped by user) ---------- */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">Pending Redemptions</h2>
+              <p className="text-sm text-muted-foreground">Review and approve TIME redemption requests</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={approveSelectedSuggested} 
+                className="px-4 py-2 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground rounded-lg hover:opacity-90 transition-opacity font-medium glow-primary"
+              >
+                Approve Selected
+              </button>
+              <button 
+                onClick={clearRedSelection} 
+                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+
+          {loadingPending ? (
+            <div className="text-center py-8">
+              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+              <div className="text-muted-foreground">Loading pending redemptions...</div>
+            </div>
+          ) : pending.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No pending redemptions.</div>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(pendingGroups).map(([userId, reds]) => {
+                const selectedCount = reds.filter((r) => selectedReds[r.id]).length;
+                const email = reds[0]?.email ?? null;
+
+                return (
+                  <div key={userId} className="glass-panel p-4 rounded-xl">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                      <div>
+                        <div className="font-semibold text-foreground">User: {email ?? userId}</div>
+                        <div className="text-sm text-muted-foreground">Redemptions: {reds.length}</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => selectAllUserReds(userId)}
+                          className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm font-medium"
+                        >
+                          Select All ({reds.length})
+                        </button>
+                        {selectedCount > 0 && (
+                          <div className="text-sm text-muted-foreground">Selected: {selectedCount}</div>
                         )}
                       </div>
-                    </td>
-                    <td className="py-2 pr-3">{g.credited_count}</td>
-                    <td className="py-2 pr-3">{g.total_time}</td>
-                    <td className="py-2 pr-3 font-mono">
-                      <Link to={`/receipt/${g.redemption_id}`} className="underline" target="_blank" rel="noreferrer">
-                        {g.redemption_id.slice(0, 8)}…
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+
+                    <div className="space-y-4">
+                      {reds.map((r) => {
+                        const m = cardSel[r.id] || {};
+                        const { count, total } = selectedSummary(r);
+                        return (
+                          <div key={r.id} className="glass-panel p-4 rounded-lg">
+                            <div className="flex items-center justify-between mb-3">
+                              <label className="flex items-center gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedReds[r.id]}
+                                  onChange={() => toggleRed(r.id)}
+                                  className="w-4 h-4 rounded border-muted"
+                                />
+                                <span className="font-medium text-foreground">
+                                  Redemption <span className="text-muted-foreground">{r.id.slice(0, 8)}…</span>
+                                  {" • "}
+                                  <span className="text-muted-foreground">{r.email ?? r.user_id}</span>
+                                </span>
+                              </label>
+                              <div className="text-sm text-muted-foreground">
+                                {r.card_count} card(s) • Suggested TIME: <span className="font-semibold text-primary">{r.total_time_value}</span> • Submitted{" "}
+                                {new Date(r.submitted_at).toLocaleString()}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 text-sm mb-4">
+                              <button
+                                onClick={() => selectAllCards(r.id, r.cards)}
+                                className="px-3 py-1 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
+                              >
+                                Select All Cards
+                              </button>
+                              <button 
+                                onClick={() => selectNoneCards(r.id)} 
+                                className="px-3 py-1 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
+                              >
+                                Select None
+                              </button>
+                              <div className="text-muted-foreground">
+                                Selected: <span className="font-semibold text-primary">{count}</span> • Selected TIME: <span className="font-semibold text-primary">{total}</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                              {r.cards?.map((c) => {
+                                const checked = !!m[c.card_id || ""];
+                                return (
+                                  <label
+                                    key={c.card_id}
+                                    className={`glass-panel rounded-lg overflow-hidden block cursor-pointer transition-all hover:scale-105 ${
+                                      checked ? "border-2 border-primary glow-primary" : "hover:bg-muted/5"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="hidden"
+                                      checked={checked}
+                                      onChange={() => c.card_id && toggleCard(r.id, c.card_id)}
+                                    />
+                                    <div className="aspect-[3/4] bg-muted/20 overflow-hidden">
+                                      {c.image_url && (
+                                        <img
+                                          src={c.image_url}
+                                          alt={c.name ?? "Card"}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      )}
+                                    </div>
+                                    <div className="p-3 space-y-1">
+                                      <div className="font-medium text-foreground truncate">{c.name ?? "—"}</div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
+                                      </div>
+                                      <div className="text-sm font-medium text-primary">TIME: {c.time_value ?? 0}</div>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <Link
+                                to={`/receipt/${r.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
+                              >
+                                View Receipt
+                              </Link>
+                              <button 
+                                onClick={() => finalizeRedemption(r)} 
+                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
+                              >
+                                Credit Selected
+                              </button>
+                              <button 
+                                onClick={() => rejectAll(r)} 
+                                className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors font-medium"
+                              >
+                                Reject All
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ---------- Credited Log ---------- */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">
+                Credited Log — {creditedGrouped.length}
+              </h2>
+              <p className="text-sm text-muted-foreground">Recently credited redemptions and card details</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                value={credQuery}
+                onChange={(e) => setCredQuery(e.target.value)}
+                placeholder="Search codes, emails, users..."
+                className="px-3 py-2 glass-panel border-muted/30 rounded-lg focus:border-primary text-foreground placeholder:text-muted-foreground"
+              />
+              <button 
+                onClick={loadCredited} 
+                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
-        )}
-      </section>
 
-      {/* ---------- Scan Log (sortable) ---------- */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Scan Log (latest 200)</h2>
-          <button onClick={loadScans} className="border rounded px-3 py-1 text-sm">
-            Refresh
-          </button>
-        </div>
-
-        <div className="flex flex-wrap gap-2 items-center">
-          <input
-            value={scanQuery}
-            onChange={(e) => setScanQuery(e.target.value)}
-            placeholder="Search by email or code…"
-            className="border rounded px-2 py-1"
-          />
-          <select
-            value={scanOutcome}
-            onChange={(e) => setScanOutcome(e.target.value as any)}
-            className="border rounded px-2 py-1"
-          >
-            <option value="all">All outcomes</option>
-            <option value="claimed">claimed</option>
-            <option value="already_owner">already_owner</option>
-            <option value="owned_by_other">owned_by_other</option>
-            <option value="not_found">not_found</option>
-            <option value="blocked">blocked</option>
-            <option value="error">error</option>
-          </select>
-
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm table-fixed">
-            <thead className="border-b bg-background sticky top-0">
-              <tr className="text-left">
-                <th className="py-2 pr-3">When</th>
-                <th className="py-2 pr-3">Email</th>
-                <th className="py-2 pr-3">Code</th>
-                <th className="py-2 pr-3">Outcome</th>
-                <th className="py-2 pr-3">Card ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredScans.map((s, idx) => (
-                <tr key={`${s.created_at}-${idx}`} className="border-b last:border-b-0">
-                  <td className="py-2 pr-3 whitespace-nowrap">{new Date(s.created_at).toLocaleString()}</td>
-                  <td className="py-2 pr-3">{s.email ?? "—"}</td>
-                  <td className="py-2 pr-3 font-mono">{s.code}</td>
-                  <td className="py-2 pr-3">{s.outcome}</td>
-                  <td className="py-2 pr-3 font-mono">{s.card_id ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ---------- Blocked users ---------- */}
-      <section className="border rounded-xl p-3">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold">Blocked users</h2>
-          <button onClick={loadBlocked} className="border rounded px-3 py-1 text-sm">
-            Refresh list
-          </button>
-        </div>
-
-        <div className="mb-3">
-          <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
-        </div>
-
-        {loadingBlocked ? (
-          <div className="opacity-70 text-sm">Loading blocked users…</div>
-        ) : blocked.length === 0 ? (
-          <div className="opacity-70 text-sm">No one is blocked.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm table-fixed">
-              <thead className="border-b bg-background sticky top-0">
-                <tr className="text-left">
-                  <th className="py-2 pr-3">Email</th>
-                  <th className="py-2 pr-3">Reason</th>
-                  <th className="py-2 pr-3">Blocked at</th>
-                  <th className="py-2 pr-3">Blocked by</th>
-                  <th className="py-2 pr-0"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {blocked.map((b) => (
-                  <tr key={b.user_id} className="border-b last:border-b-0">
-                    <td className="py-2 pr-3">{b.email ?? "—"}</td>
-                    <td className="py-2 pr-3">{b.reason ?? "—"}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap">{new Date(b.blocked_at).toLocaleString()}</td>
-                    <td className="py-2 pr-3">{b.blocked_by_email ?? "—"}</td>
-                    <td className="py-2 pr-0">
-                      {b.email && (
-                        <button
-                          onClick={async () => {
-                            const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
-                              p_email: b.email!,
-                            });
-                            if (error) setToolMsg(error.message);
-                            else if ((data as any)?.ok) {
-                              setToolMsg(`✅ Unblocked ${b.email}`);
-                              await loadBlocked();
-                            }
-                          }}
-                          className="border rounded px-2 py-1 text-xs"
+          {loadingCredited ? (
+            <div className="text-center py-8">
+              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+              <div className="text-muted-foreground">Loading credited log...</div>
+            </div>
+          ) : creditedGrouped.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No credited redemptions yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <Th
+                      label="When"
+                      active={credSortKey === "credited_at"}
+                      dir={credSortDir}
+                      onClick={() => {
+                        setCredSortKey("credited_at");
+                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                    />
+                    <Th
+                      label="User"
+                      active={credSortKey === "user_email"}
+                      dir={credSortDir}
+                      onClick={() => {
+                        setCredSortKey("user_email");
+                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                    />
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Codes</th>
+                    <Th
+                      label="# Credited"
+                      active={credSortKey === "credited_count"}
+                      dir={credSortDir}
+                      onClick={() => {
+                        setCredSortKey("credited_count");
+                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                    />
+                    <Th
+                      label="TIME Total"
+                      active={credSortKey === "total_time"}
+                      dir={credSortDir}
+                      onClick={() => {
+                        setCredSortKey("total_time");
+                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                    />
+                    <Th
+                      label="Redemption"
+                      active={credSortKey === "redemption_id"}
+                      dir={credSortDir}
+                      onClick={() => {
+                        setCredSortKey("redemption_id");
+                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                    />
+                  </tr>
+                </thead>
+                <tbody>
+                  {creditedGrouped.map((g) => (
+                    <tr key={g.redemption_id} className="border-b border-border/30 hover:bg-muted/5 transition-colors">
+                      <td className="py-3 pr-4 text-foreground">
+                        {g.credited_at ? new Date(g.credited_at).toLocaleString() : "—"}
+                      </td>
+                      <td className="py-3 pr-4 text-foreground">{g.user_email ?? "—"}</td>
+                      <td className="py-3 pr-4">
+                        <div className="flex flex-wrap gap-1">
+                          {g.codes.slice(0, 10).map((code) => (
+                            <span key={code} className="px-2 py-1 rounded bg-primary/10 text-primary text-xs font-mono">
+                              {code}
+                            </span>
+                          ))}
+                          {g.codes.length > 10 && (
+                            <span className="text-xs text-muted-foreground">+{g.codes.length - 10} more</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4 text-foreground font-medium">{g.credited_count}</td>
+                      <td className="py-3 pr-4 text-primary font-semibold">{g.total_time}</td>
+                      <td className="py-3 pr-4">
+                        <Link 
+                          to={`/receipt/${g.redemption_id}`} 
+                          className="text-primary hover:underline font-mono text-sm" 
+                          target="_blank" 
+                          rel="noreferrer"
                         >
-                          Unblock
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          {g.redemption_id.slice(0, 8)}…
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* ---------- Scan Log ---------- */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">Scan Activity Log</h2>
+              <p className="text-sm text-muted-foreground">Latest 200 scan events and their outcomes</p>
+            </div>
+            <button 
+              onClick={loadScans} 
+              className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium"
+            >
+              Refresh Log
+            </button>
           </div>
-        )}
-      </section>
+
+          <div className="flex flex-wrap gap-3 items-center mb-6">
+            <input
+              value={scanQuery}
+              onChange={(e) => setScanQuery(e.target.value)}
+              placeholder="Search by email or code..."
+              className="flex-1 min-w-[200px] px-3 py-2 glass-panel border-muted/30 rounded-lg focus:border-primary text-foreground placeholder:text-muted-foreground"
+            />
+            <select
+              value={scanOutcome}
+              onChange={(e) => setScanOutcome(e.target.value as any)}
+              className="px-3 py-2 glass-panel border-muted/30 rounded-lg focus:border-primary text-foreground"
+            >
+              <option value="all">All outcomes</option>
+              <option value="claimed">claimed</option>
+              <option value="already_owner">already_owner</option>
+              <option value="owned_by_other">owned_by_other</option>
+              <option value="not_found">not_found</option>
+              <option value="blocked">blocked</option>
+              <option value="error">error</option>
+            </select>
+          </div>
+
+          {loadingScans ? (
+            <div className="text-center py-8">
+              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+              <div className="text-muted-foreground">Loading scan activity...</div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">When</th>
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Email</th>
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Code</th>
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Outcome</th>
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Card ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredScans.map((s, idx) => (
+                    <tr key={`${s.created_at}-${idx}`} className="border-b border-border/30 hover:bg-muted/5 transition-colors">
+                      <td className="py-3 pr-4 text-foreground">{new Date(s.created_at).toLocaleString()}</td>
+                      <td className="py-3 pr-4 text-foreground">{s.email ?? "—"}</td>
+                      <td className="py-3 pr-4 font-mono text-primary">{s.code}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          s.outcome === 'claimed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' :
+                          s.outcome === 'already_owner' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' :
+                          s.outcome === 'owned_by_other' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' :
+                          s.outcome === 'not_found' ? 'bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-200' :
+                          s.outcome === 'blocked' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' :
+                          'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'
+                        }`}>
+                          {s.outcome}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 font-mono text-muted-foreground">{s.card_id ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* ---------- Blocked Users ---------- */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">Blocked Users</h2>
+              <p className="text-sm text-muted-foreground">Manage user access restrictions</p>
+            </div>
+            <button 
+              onClick={loadBlocked} 
+              className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium"
+            >
+              Refresh List
+            </button>
+          </div>
+
+          <div className="mb-6">
+            <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
+          </div>
+
+          {loadingBlocked ? (
+            <div className="text-center py-8">
+              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+              <div className="text-muted-foreground">Loading blocked users...</div>
+            </div>
+          ) : blocked.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No users are currently blocked.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Email</th>
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Reason</th>
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Blocked At</th>
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Blocked By</th>
+                    <th className="py-3 pr-4 text-left font-medium text-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {blocked.map((b) => (
+                    <tr key={b.user_id} className="border-b border-border/30 hover:bg-muted/5 transition-colors">
+                      <td className="py-3 pr-4 text-foreground font-medium">{b.email ?? "—"}</td>
+                      <td className="py-3 pr-4 text-muted-foreground">{b.reason ?? "—"}</td>
+                      <td className="py-3 pr-4 text-foreground">{new Date(b.blocked_at).toLocaleString()}</td>
+                      <td className="py-3 pr-4 text-muted-foreground">{b.blocked_by_email ?? "—"}</td>
+                      <td className="py-3 pr-4">
+                        {b.email && (
+                          <button
+                            onClick={async () => {
+                              const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
+                                p_email: b.email!,
+                              });
+                              if (error) setToolMsg(error.message);
+                              else if ((data as any)?.ok) {
+                                setToolMsg(`✅ Unblocked ${b.email}`);
+                                await loadBlocked();
+                              }
+                            }}
+                            className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm font-medium"
+                          >
+                            Unblock
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

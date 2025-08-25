@@ -230,8 +230,22 @@ export default function AdminQR() {
     })();
   }, []);
 
-  if (isAdmin === null) return <div className="p-6">Loading…</div>;
-  if (isAdmin === false) return <div className="p-6">Not authorized.</div>;
+  if (isAdmin === null) return (
+    <div className="min-h-screen hero-gradient flex items-center justify-center p-6">
+      <div className="glass-panel p-8 rounded-2xl text-center">
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+        <div className="text-foreground">Loading QR generator...</div>
+      </div>
+    </div>
+  );
+  if (isAdmin === false) return (
+    <div className="min-h-screen hero-gradient flex items-center justify-center p-6">
+      <div className="glass-panel p-8 rounded-2xl text-center">
+        <div className="text-destructive text-lg font-medium">Access Denied</div>
+        <div className="text-muted-foreground mt-2">You are not authorized to access the QR generator.</div>
+      </div>
+    </div>
+  );
 
   /* -------------- Helpers -------------- */
 

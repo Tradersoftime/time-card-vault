@@ -413,29 +413,58 @@ const AdminCards = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen hero-gradient flex items-center justify-center">
+        <div className="glass-panel p-8 rounded-2xl text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+          <div className="text-foreground">Loading card management...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Card Management</h1>
-        <Button onClick={() => setIsEditing(true)} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Add New Card
-        </Button>
-      </div>
+    <div className="min-h-screen hero-gradient">
+      <div className="container mx-auto py-8 px-4">
+        <div className="glass-panel p-6 rounded-2xl mb-8">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
+                Card Management
+              </h1>
+              <p className="text-muted-foreground">Create, edit, and manage trading card database</p>
+            </div>
+            <Button 
+              onClick={() => setIsEditing(true)} 
+              className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold hover:opacity-90 transition-opacity glow-primary"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add New Card
+            </Button>
+          </div>
+        </div>
 
-      <Tabs defaultValue="list" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="list">Card List</TabsTrigger>
-          <TabsTrigger value="form">
-            {isEditing ? (selectedCard ? 'Edit Card' : 'Add Card') : 'Card Form'}
-          </TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="list" className="w-full">
+          <div className="glass-panel p-4 rounded-2xl mb-6">
+            <TabsList className="grid w-full grid-cols-2 bg-muted/20">
+              <TabsTrigger value="list" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Card List
+              </TabsTrigger>
+              <TabsTrigger value="form" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                {isEditing ? (selectedCard ? 'Edit Card' : 'Add Card') : 'Card Form'}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="list" className="space-y-4">{/* ... keep existing code ... */}</TabsContent>
+          <TabsContent value="form">{/* ... keep existing code ... */}</TabsContent>
+        </Tabs>
+        
+        {/* Image Preview Modal - keep existing code */}
+      </div>
+    );
+  };
+
+export default AdminCards;
 
         <TabsContent value="list" className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
