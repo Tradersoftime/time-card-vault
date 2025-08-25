@@ -302,43 +302,49 @@ export default function AdminQR() {
       return;
     }
 
-    // Create draft card record
-    const { data: existingCard } = await supabase
-      .from("cards")
-      .select("id")
-      .eq("code", code)
-      .maybeSingle();
-
-    let cardId = existingCard?.id;
-
-    if (!existingCard) {
-      const { data: newCard, error } = await supabase
+    try {
+      // Create draft card record
+      const { data: existingCard } = await supabase
         .from("cards")
-        .insert({
-          code,
-          name: singleLabel || code,
-          suit: "Unknown",
-          rank: "Unknown", 
-          era: "Unknown",
-          status: "draft",
-          is_active: true,
-          time_value: 0
-        })
         .select("id")
-        .single();
+        .eq("code", code)
+        .maybeSingle();
 
-      if (error) {
-        setMsg(error.message);
-        return;
+      let cardId = existingCard?.id;
+
+      if (!existingCard) {
+        const { data: newCard, error } = await supabase
+          .from("cards")
+          .insert({
+            code,
+            name: singleLabel || code,
+            suit: "Unknown",
+            rank: "Unknown", 
+            era: "Unknown",
+            status: "draft",
+            is_active: true,
+            time_value: 0
+          })
+          .select("id")
+          .single();
+
+        if (error) {
+          console.error('Database error creating card:', error);
+          setMsg(`Error creating card: ${error.message}`);
+          return;
+        }
+        cardId = newCard.id;
       }
-      cardId = newCard.id;
-    }
 
-    setCreatedCardId(cardId);
-    const url = baseUrl + encodeURIComponent(code);
-    const dataUrl = await toPNG(url, singleLabel || code);
-    setPngDataUrl(dataUrl);
-    setMsg("✅ QR code generated and draft card created!");
+      setCreatedCardId(cardId);
+      const url = baseUrl + encodeURIComponent(code);
+      const dataUrl = await toPNG(url, singleLabel || code);
+      setPngDataUrl(dataUrl);
+      setMsg("✅ QR code generated and draft card created!");
+    } catch (error) {
+      console.error('Unexpected error in buildSingle:', error);
+      setMsg(`Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /* -------------- Image Code Mapping -------------- */

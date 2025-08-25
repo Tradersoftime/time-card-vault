@@ -178,7 +178,8 @@ export default function Scan() {
       case "not_signed_in":  navigate("/auth/login?next=/scan", { replace: true }); return;
     }
 
-    const card = await fetchCardByCodeLike(code);
+    // Don't fetch card details for owned_by_other to prevent information leakage
+    const card = status === "owned_by_other" ? undefined : await fetchCardByCodeLike(code);
     const item: LogItem = {
       id: crypto.randomUUID(),
       ts: now(),
@@ -255,13 +256,6 @@ export default function Scan() {
               {error}
             </div>
           )}
-
-          <ManualEntry onSubmit={(text) => {
-            const code = extractCode(text);
-            if (!code) { setError("Enter a valid code or URL."); return; }
-            if (!shouldProcess(code)) return;
-            claim(code);
-          }} />
         </div>
 
         {/* Log */}
@@ -279,22 +273,24 @@ export default function Scan() {
           </div>
 
           {log.length === 0 ? (
-            <div className="text-muted-foreground text-sm">No scans yet. Point the camera at a card QR, or paste a code.</div>
+            <div className="text-muted-foreground text-sm">No scans yet. Point the camera at a card QR code.</div>
           ) : (
             <ul className="space-y-2">
               {log.map((row) => (
                 <li key={row.id} className="card-premium border border-border rounded-lg p-2 flex gap-3 items-center">
                   <div className="w-12 h-16 bg-muted/40 rounded overflow-hidden flex-shrink-0">
-                    {row.card?.image_url && (
+                    {row.card?.image_url && row.status !== "owned_by_other" && (
                       <img src={row.card.image_url} alt={row.card?.name ?? "Card"} className="w-full h-full object-cover" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="font-medium truncate text-foreground">{row.card?.name ?? row.code}</div>
+                      <div className="font-medium truncate text-foreground">
+                        {row.status === "owned_by_other" ? row.code : (row.card?.name ?? row.code)}
+                      </div>
                       <StatusPill s={row.status} />
                     </div>
-                    {row.card && (
+                    {row.card && row.status !== "owned_by_other" && (
                       <div className="text-xs text-muted-foreground truncate">
                         {(row.card.era ?? "—")} • {(row.card.suit ?? "—")} {(row.card.rank ?? "—")}
                       </div>
@@ -318,20 +314,3 @@ export default function Scan() {
   );
 }
 
-/* -------- Manual Entry sub-component -------- */
-function ManualEntry({ onSubmit }: { onSubmit: (text: string) => void }) {
-  const [text, setText] = useState("");
-  return (
-    <div className="card-premium border border-border rounded-xl p-3 space-y-2">
-      <div className="font-medium text-foreground">Manual Code Entry</div>
-      <input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Paste code or full URL (e.g., TEST-CODE-ONE or https://app/r/TEST-CODE-ONE)"
-        className="glass-panel border border-border rounded px-2 py-1 w-full text-foreground placeholder:text-muted-foreground"
-      />
-      <button onClick={() => onSubmit(text)} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors">Add</button>
-      <div className="text-xs text-muted-foreground">Accepts both full URLs and raw codes.</div>
-    </div>
-  );
-}
