@@ -286,7 +286,7 @@ export default function Scan() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <div className="font-medium truncate text-foreground">
-                        {row.status === "owned_by_other" ? row.code : (row.card?.name ?? row.code)}
+                        {row.status === "owned_by_other" ? "Card Already Claimed" : (row.card?.name ?? row.code)}
                       </div>
                       <StatusPill s={row.status} />
                     </div>
