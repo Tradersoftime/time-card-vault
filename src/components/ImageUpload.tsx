@@ -84,7 +84,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.svg']
+      'image/*': ['.png', '.jpg', '.jpeg', '.webp']
     },
     multiple: false,
     disabled: uploading
@@ -208,7 +208,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
                     {isDragActive ? 'Drop image here' : 'Upload card image'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Drag & drop or click to browse (PNG, JPG, WebP, SVG - Max 5MB)
+                    Drag & drop or click to browse (PNG, JPG, WebP - Max 5MB)
                   </p>
                 </div>
               </>
