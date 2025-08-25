@@ -346,9 +346,6 @@ export default function Scan() {
     "Turn on Torch in low light for faster focus.",
   ], []);
 
-  // Manual entry
-  const [manual, setManual] = useState("");
-
   function StatusPill({ s }: { s: LogItem["status"] }) {
     const map: Record<LogItem["status"], string> = {
       claimed: "bg-primary/20 text-primary border border-primary/30 glow-primary",
@@ -474,29 +471,6 @@ export default function Scan() {
                     className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
                   >
                     Clear
-                  </button>
-                </div>
-              </div>
-
-              {/* Manual entry */}
-              <div className="glass-panel p-4 rounded-lg mb-4">
-                <div className="font-medium mb-2">Manual test</div>
-                <div className="flex gap-2">
-                  <input
-                    value={manual}
-                    onChange={(e) => setManual(e.target.value)}
-                    placeholder="Enter code (ex: TOT-ABCD-1234 or https://…/r/TOT-ABCD-1234)"
-                    className="border rounded px-2 py-1 w-full"
-                  />
-                  <button
-                    className="border rounded px-3 py-1"
-                    onClick={() => {
-                      const code = extractCode(manual.trim());
-                      if (code && shouldProcess(code)) claim(code);
-                      setManual("");
-                    }}
-                  >
-                    Submit
                   </button>
                 </div>
               </div>
