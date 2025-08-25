@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Search, Edit, Trash2, QrCode, ExternalLink, Copy, Eye, EyeOff, Filter } from 'lucide-react';
+import { Loader2, Plus, Search, Edit, Trash2, QrCode, ExternalLink, Copy, Eye, EyeOff, Filter, ArrowUpDown, ChevronDown } from 'lucide-react';
 import QRCode from 'qrcode';
 import { ImageUpload } from '@/components/ImageUpload';
 import { useSearchParams } from 'react-router-dom';
@@ -45,6 +45,14 @@ const AdminCards = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [qrCodes, setQrCodes] = useState<Map<string, string>>(new Map());
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<string>(() => 
+    localStorage.getItem('adminCards_sortField') || 'created_at'
+  );
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => 
+    (localStorage.getItem('adminCards_sortDirection') as 'asc' | 'desc') || 'desc'
+  );
 
   // Form state for creating/editing cards
   const [formData, setFormData] = useState({
@@ -151,20 +159,53 @@ const AdminCards = () => {
     }
   };
 
-  const filteredCards = cards.filter(card => {
-    const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.suit.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.era.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'complete' && card.status === 'active' && card.name !== 'Unknown') ||
-      (statusFilter === 'draft' && (card.status === 'draft' || card.name === 'Unknown')) ||
-      (statusFilter === 'active' && card.is_active) ||
-      (statusFilter === 'inactive' && !card.is_active);
+  // Sorting function
+  const sortCards = (cardsToSort: CardData[]) => {
+    return [...cardsToSort].sort((a, b) => {
+      let aValue: any = a[sortField as keyof CardData];
+      let bValue: any = b[sortField as keyof CardData];
       
-    return matchesSearch && matchesStatus;
-  });
+      // Handle null/undefined values
+      if (aValue == null) aValue = '';
+      if (bValue == null) bValue = '';
+      
+      // Convert to appropriate types for comparison
+      if (sortField === 'time_value') {
+        aValue = Number(aValue);
+        bValue = Number(bValue);
+      } else if (sortField === 'created_at') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      } else {
+        aValue = String(aValue).toLowerCase();
+        bValue = String(bValue).toLowerCase();
+      }
+      
+      // Compare values
+      let comparison = 0;
+      if (aValue < bValue) comparison = -1;
+      if (aValue > bValue) comparison = 1;
+      
+      return sortDirection === 'desc' ? -comparison : comparison;
+    });
+  };
+
+  const filteredCards = sortCards(
+    cards.filter(card => {
+      const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        card.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        card.suit.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        card.era.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || 
+        (statusFilter === 'complete' && card.status === 'active' && card.name !== 'Unknown') ||
+        (statusFilter === 'draft' && (card.status === 'draft' || card.name === 'Unknown')) ||
+        (statusFilter === 'active' && card.is_active) ||
+        (statusFilter === 'inactive' && !card.is_active);
+        
+      return matchesSearch && matchesStatus;
+    })
+  );
 
   // Get status counts for filter badges
   const statusCounts = {
@@ -312,6 +353,34 @@ const AdminCards = () => {
     }
   };
 
+  // Handle sort changes with localStorage persistence
+  const handleSortChange = (field: string) => {
+    const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
+    setSortField(field);
+    setSortDirection(newDirection);
+    localStorage.setItem('adminCards_sortField', field);
+    localStorage.setItem('adminCards_sortDirection', newDirection);
+  };
+
+  const toggleSortDirection = () => {
+    const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    setSortDirection(newDirection);
+    localStorage.setItem('adminCards_sortDirection', newDirection);
+  };
+
+  // Sort options for the dropdown
+  const sortOptions = [
+    { value: 'name', label: 'Name' },
+    { value: 'code', label: 'Code' },
+    { value: 'era', label: 'Era' },
+    { value: 'suit', label: 'Suit' },
+    { value: 'rank', label: 'Rank' },
+    { value: 'time_value', label: 'TIME Value' },
+    { value: 'created_at', label: 'Created Date' },
+    { value: 'status', label: 'Status' },
+    { value: 'rarity', label: 'Rarity' }
+  ];
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -340,14 +409,45 @@ const AdminCards = () => {
 
         <TabsContent value="list" className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search cards by name, code, suit, or era..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm"
-              />
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search cards by name, code, suit, or era..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-sm"
+                />
+              </div>
+              
+              {/* Sort Controls */}
+              <div className="flex items-center space-x-2">
+                <Select value={sortField} onValueChange={handleSortChange}>
+                  <SelectTrigger className="w-48">
+                    <div className="flex items-center gap-2">
+                      <ArrowUpDown className="h-4 w-4" />
+                      <SelectValue placeholder="Sort by..." />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortOptions.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleSortDirection}
+                  className="px-3"
+                  title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
+                >
+                  <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} />
+                </Button>
+              </div>
             </div>
             
             {/* Status Filter Tabs */}
