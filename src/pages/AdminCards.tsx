@@ -544,7 +544,69 @@ const AdminCards = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* QR Code Preview Section */}
+                {formData.code && (
+                  <div className="bg-muted/50 p-6 rounded-lg border">
+                    <h3 className="text-lg font-semibold mb-4">Preview</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* QR Code Preview */}
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm">QR Code</h4>
+                        <div className="bg-white p-4 rounded-lg border shadow-sm">
+                          <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/claim/${formData.code}`)}`}
+                            alt="QR Code Preview"
+                            className="w-full max-w-48 mx-auto"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Image Preview */}
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm">Card Image</h4>
+                        {formData.image_url ? (
+                          <div className="bg-white p-2 rounded-lg border shadow-sm">
+                            <img 
+                              src={formData.image_url} 
+                              alt="Card Preview"
+                              className="w-full h-32 object-cover rounded"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyOCIgdmlld0JveD0iMCAwIDIwMCAxMjgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTI4IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NS4zMzMgNTJIMTE0LjY2N0M3NC42NjcgNTggOTAgNzQgOTAgNzRTMTA1LjMzMyA1OCAxMTQuNjY3IDUySDg1LjMzM1oiIGZpbGw9IiM5Q0E0QUYiLz4KPC9zdmc+Cg==';
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-32 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+                            No Image
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* URLs */}
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm">URLs</h4>
+                        <div className="space-y-2 text-xs">
+                          <div>
+                            <span className="font-medium">Claim URL:</span>
+                            <code className="block bg-white px-2 py-1 mt-1 rounded border text-xs">
+                              {window.location.origin}/claim/{formData.code}
+                            </code>
+                          </div>
+                          {formData.current_target && (
+                            <div>
+                              <span className="font-medium">Redirect:</span>
+                              <code className="block bg-white px-2 py-1 mt-1 rounded border text-xs break-all">
+                                {formData.current_target}
+                              </code>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="code">Code</Label>
