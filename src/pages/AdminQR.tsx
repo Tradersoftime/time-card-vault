@@ -4,6 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
 import Papa from "papaparse";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { ChevronRight, Copy, Download, Edit, Eye } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 /* ---------------- Types ---------------- */
 
@@ -48,7 +52,13 @@ type CardUpsert = {
   is_active?: boolean;
 };
 
-type CsvRow = Partial<CardUpsert> & { code?: string | null };
+type CsvRow = Partial<CardUpsert> & { code?: string | null; image_code?: string | null };
+
+type ImageMapping = {
+  code: string;
+  url: string;
+  filename: string;
+};
 
 /* ---------------- RecentCardsPanel ---------------- */
 
@@ -172,6 +182,8 @@ function RecentCardsPanel() {
 /* ---------------- Page: AdminQR ---------------- */
 
 export default function AdminQR() {
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -179,11 +191,11 @@ export default function AdminQR() {
   const [singleCode, setSingleCode] = useState("");
   const [singleLabel, setSingleLabel] = useState("");
   const [pngDataUrl, setPngDataUrl] = useState<string | null>(null);
+  const [createdCardId, setCreatedCardId] = useState<string | null>(null);
 
-  // Bulk random
-  const [prefix, setPrefix] = useState("TOT");
-  const [count, setCount] = useState(10);
-  const [saving, setSaving] = useState(false);
+  // Image Code Mapping
+  const [imageMappings, setImageMappings] = useState<ImageMapping[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   // Edit redirect
   const [editCode, setEditCode] = useState("");
@@ -287,71 +299,92 @@ export default function AdminQR() {
       setMsg("Enter a card code.");
       return;
     }
+
+    // Create draft card record
+    const { data: existingCard } = await supabase
+      .from("cards")
+      .select("id")
+      .eq("code", code)
+      .maybeSingle();
+
+    let cardId = existingCard?.id;
+
+    if (!existingCard) {
+      const { data: newCard, error } = await supabase
+        .from("cards")
+        .insert({
+          code,
+          name: singleLabel || code,
+          suit: "Unknown",
+          rank: "Unknown", 
+          era: "Unknown",
+          status: "draft",
+          is_active: true,
+          time_value: 0
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        setMsg(error.message);
+        return;
+      }
+      cardId = newCard.id;
+    }
+
+    setCreatedCardId(cardId);
     const url = baseUrl + encodeURIComponent(code);
     const dataUrl = await toPNG(url, singleLabel || code);
     setPngDataUrl(dataUrl);
+    setMsg("✅ QR code generated and draft card created!");
   }
 
-  /* -------------- Bulk random generate + ZIP -------------- */
+  /* -------------- Image Code Mapping -------------- */
 
-  async function bulkGenerate() {
-    setMsg(null);
-    if (!norm(prefix)) {
-      setMsg("Enter a prefix (e.g., TOT).");
-      return;
-    }
-    if (count <= 0 || count > 1000) {
-      setMsg("Enter a count between 1 and 1000.");
-      return;
-    }
+  async function handleImageUpload(files: FileList) {
+    setUploadingImages(true);
+    const timestamp = Date.now();
+    const newMappings: ImageMapping[] = [];
 
-    // Make unique codes
-    const codes: string[] = [];
-    const seen = new Set<string>();
-    while (codes.length < count) {
-      const c = randomCode(norm(prefix).toUpperCase());
-      if (seen.has(c)) continue;
-      seen.add(c);
-      codes.push(c);
-    }
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const extension = file.name.split('.').pop() || 'jpg';
+        const imageCode = `a${imageMappings.length + i + 1}`;
+        const fileName = `batch-${timestamp}/${imageCode}.${extension}`;
 
-    // Save to DB as active bare cards
-    setSaving(true);
-    const rows = codes.map((code) => ({ 
-      code, 
-      is_active: true, 
-      status: 'active',
-      time_value: 0
-    }));
-    const { error } = await supabase
-      .from("cards")
-      .upsert(rows, { onConflict: "code", ignoreDuplicates: true });
-    setSaving(false);
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
+        const { data, error } = await supabase.storage
+          .from('card-images')
+          .upload(fileName, file);
 
-    // Build ZIP of PNGs
-    const zip = new JSZip();
-    const folder = zip.folder("qrs")!;
-    for (const code of codes) {
-      const url = baseUrl + encodeURIComponent(code);
-      const png = await toPNG(url, code);
-      const base64 = png.split(",")[1];
-      folder.file(`${code}.png`, base64, { base64: true });
-    }
-    const blob = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `tot-cards-qrs-${prefix}-${codes.length}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+        if (error) {
+          console.error('Upload error:', error);
+          continue;
+        }
 
-    setMsg(`✅ Generated ${codes.length} codes, saved to DB, and downloaded ZIP.`);
+        const { data: { publicUrl } } = supabase.storage
+          .from('card-images')
+          .getPublicUrl(fileName);
+
+        newMappings.push({
+          code: imageCode,
+          url: publicUrl,
+          filename: file.name
+        });
+      }
+
+      setImageMappings(prev => [...prev, ...newMappings]);
+      setMsg(`✅ Uploaded ${newMappings.length} images with codes ${newMappings.map(m => m.code).join(', ')}`);
+    } catch (error) {
+      setMsg('Error uploading images');
+    } finally {
+      setUploadingImages(false);
+    }
+  }
+
+  function clearImageMappings() {
+    setImageMappings([]);
+    setMsg("Image mappings cleared.");
   }
 
   /* -------------- Edit redirect -------------- */
@@ -468,6 +501,19 @@ export default function AdminQR() {
         if (!era) errors.push(`Line ${line}: missing era (required for complete cards)`);
       }
 
+      // Handle image code to URL conversion
+      let imageUrl = r.image_url ? norm(r.image_url) : undefined;
+      const imageCode = r.image_code ? norm(r.image_code) : undefined;
+      
+      if (imageCode && !imageUrl) {
+        const mapping = imageMappings.find(m => m.code === imageCode);
+        if (mapping) {
+          imageUrl = mapping.url;
+        } else {
+          errors.push(`Line ${line}: image code "${imageCode}" not found in uploaded mappings`);
+        }
+      }
+
       const row: CardUpsert = {
         code,
         name,
@@ -477,7 +523,7 @@ export default function AdminQR() {
         rarity: r.rarity ? norm(r.rarity) : undefined,
         trader_value: r.trader_value ? norm(r.trader_value) : undefined,
         time_value: r.time_value ? Number(r.time_value) || 0 : 0,
-        image_url: r.image_url ? norm(r.image_url) : undefined,
+        image_url: imageUrl,
         description: r.description ? norm(r.description) : undefined,
         current_target: r.current_target ? norm(r.current_target) : undefined,
         status: r.status ? norm(r.status) : 'active',
@@ -590,58 +636,101 @@ export default function AdminQR() {
             onClick={buildSingle}
             className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors"
           >
-            Build Preview
+            Generate QR & Create Card
           </button>
         </div>
         {pngDataUrl && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <img src={pngDataUrl} alt="QR preview" className="w-64 border border-border rounded" />
-            <div>
-              <button
+            <div className="flex gap-2 flex-wrap">
+              <Button
                 onClick={() => downloadDataUrl(`${singleCode || "qr"}.png`, pngDataUrl)}
-                className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors"
+                variant="secondary"
+                size="sm"
               >
+                <Download className="w-4 h-4 mr-2" />
                 Download PNG
-              </button>
+              </Button>
+              <Button
+                onClick={() => navigate(`/admin/cards?code=${encodeURIComponent(singleCode)}`)}
+                variant="outline"
+                size="sm"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Add Card Details
+              </Button>
+              <Button
+                onClick={() => navigate('/admin/cards')}
+                variant="ghost"
+                size="sm"
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                View in Card List
+              </Button>
             </div>
           </div>
         )}
       </section>
 
-      {/* Bulk random generate */}
+      {/* Image Upload & Mapping */}
       <section className="card-premium rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">Bulk Generate Codes + ZIP</h2>
-        <div className="grid md:grid-cols-4 gap-3">
-          <input
-            value={prefix}
-            onChange={(e) => setPrefix(e.target.value)}
-            placeholder="Prefix (e.g., TOT)"
-            className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
-          />
-          <input
-            type="number"
-            value={count}
-            min={1}
-            max={1000}
-            onChange={(e) => setCount(parseInt(e.target.value || "0", 10))}
-            placeholder="How many?"
-            className="glass-panel border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground"
-          />
-          <div className="col-span-2 flex items-center">
-            <button
-              onClick={bulkGenerate}
-              disabled={saving}
-              className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Generate + Download ZIP"}
-            </button>
-          </div>
+        <h2 className="text-lg font-semibold text-foreground">Image Upload & Mapping</h2>
+        <div className="text-sm text-muted-foreground">
+          Upload multiple images and assign codes (a1, a2, a3...) for use in CSV import.
         </div>
-        <div className="text-xs text-muted-foreground">
-          Creates codes like{" "}
-          <code className="bg-muted px-1 rounded">{prefix}-4K9V-7XQ2</code>, saves them as
-          active cards in Supabase, and downloads a ZIP of PNG QRs pointing to{" "}
-          <code className="bg-muted px-1 rounded">{baseUrl}&lt;code&gt;</code>.
+        
+        <div className="space-y-3">
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => e.target.files && handleImageUpload(e.target.files)}
+            className="glass-panel border border-border rounded px-2 py-1 text-foreground"
+            disabled={uploadingImages}
+          />
+          
+          {uploadingImages && (
+            <div className="text-sm text-muted-foreground">Uploading images...</div>
+          )}
+          
+          {imageMappings.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">{imageMappings.length} Images Mapped:</span>
+                <Button onClick={clearImageMappings} variant="outline" size="sm">
+                  Clear All
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                {imageMappings.map((mapping) => (
+                  <div key={mapping.code} className="glass-panel p-2 rounded border border-border">
+                    <div className="flex items-center justify-between">
+                      <code className="bg-muted px-1 rounded text-xs font-mono">{mapping.code}</code>
+                      <Button
+                        onClick={() => navigator.clipboard.writeText(mapping.code)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate mt-1" title={mapping.filename}>
+                      {mapping.filename}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="glass-panel p-2 rounded border border-border">
+                <div className="text-xs font-medium mb-1">Copy for Excel:</div>
+                <code className="text-xs bg-muted p-1 rounded block">
+                  {imageMappings.map(m => m.code).join(', ')}
+                </code>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -651,12 +740,17 @@ export default function AdminQR() {
         <div className="text-sm text-muted-foreground">
           Required column: <code className="bg-muted px-1 rounded">code</code>. Optional:{" "}
           <code className="bg-muted px-1 rounded">
-            name,suit,rank,era,rarity,trader_value,time_value,description,image_url,current_target,status,is_active
+            name,suit,rank,era,rarity,trader_value,time_value,description,image_url,image_code,current_target,status,is_active
           </code>
           <br />
           <span className="text-xs mt-1 block">
-            For complete cards, provide: name, suit, rank, era. Default time_value: 0, status: 'active'
+            For complete cards, provide: name, suit, rank, era. Use <code className="bg-muted px-1 rounded">image_code</code> (a1, a2...) instead of full URLs. Default time_value: 0, status: 'active'
           </span>
+          {imageMappings.length > 0 && (
+            <span className="text-xs mt-1 block text-primary">
+              💡 {imageMappings.length} image codes available: {imageMappings.map(m => m.code).join(', ')}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-col md:flex-row gap-3">
@@ -677,8 +771,8 @@ export default function AdminQR() {
         <textarea
           value={csvText}
           onChange={(e) => setCsvText(e.target.value)}
-          placeholder={`code,name,suit,rank,era,rarity,trader_value,time_value,description,image_url,current_target,status,is_active
-TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,10,Famous mathematician and programmer,https://.../ada.png,https://your-site/trader/ada,active,true`}
+          placeholder={`code,name,suit,rank,era,rarity,trader_value,time_value,description,image_code,current_target,status,is_active
+TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,10,Famous mathematician and programmer,a1,https://your-site/trader/ada,active,true`}
           rows={6}
           className="w-full glass-panel border border-border rounded px-2 py-1 font-mono text-xs text-foreground placeholder:text-muted-foreground"
         />

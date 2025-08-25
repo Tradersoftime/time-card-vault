@@ -10,9 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Search, Edit, Trash2, QrCode, ExternalLink, Copy, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Plus, Search, Edit, Trash2, QrCode, ExternalLink, Copy, Eye, EyeOff, Filter } from 'lucide-react';
 import QRCode from 'qrcode';
 import { ImageUpload } from '@/components/ImageUpload';
+import { useSearchParams } from 'react-router-dom';
 
 interface CardData {
   id: string;
@@ -35,9 +36,11 @@ interface CardData {
 const AdminCards = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [cards, setCards] = useState<CardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -65,6 +68,20 @@ const AdminCards = () => {
       fetchCards();
     }
   }, [user]);
+
+  // Check for query parameters on mount
+  useEffect(() => {
+    const codeParam = searchParams.get('code');
+    if (codeParam) {
+      setSearchTerm(codeParam);
+      // Auto-expand the card if found after cards are loaded
+      const matchingCard = cards.find(card => card.code.toLowerCase() === codeParam.toLowerCase());
+      if (matchingCard) {
+        setExpandedCards(new Set([matchingCard.id]));
+        loadQRCode(matchingCard);
+      }
+    }
+  }, [searchParams, cards]);
 
   // Utility functions
   const generateQRCode = async (code: string): Promise<string> => {
@@ -134,12 +151,29 @@ const AdminCards = () => {
     }
   };
 
-  const filteredCards = cards.filter(card =>
-    card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    card.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    card.suit.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    card.era.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCards = cards.filter(card => {
+    const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      card.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      card.suit.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      card.era.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || 
+      (statusFilter === 'complete' && card.status === 'active' && card.name !== 'Unknown') ||
+      (statusFilter === 'draft' && (card.status === 'draft' || card.name === 'Unknown')) ||
+      (statusFilter === 'active' && card.is_active) ||
+      (statusFilter === 'inactive' && !card.is_active);
+      
+    return matchesSearch && matchesStatus;
+  });
+
+  // Get status counts for filter badges
+  const statusCounts = {
+    all: cards.length,
+    complete: cards.filter(card => card.status === 'active' && card.name !== 'Unknown').length,
+    draft: cards.filter(card => card.status === 'draft' || card.name === 'Unknown').length,
+    active: cards.filter(card => card.is_active).length,
+    inactive: cards.filter(card => !card.is_active).length
+  };
 
   const resetForm = () => {
     setFormData({
@@ -305,14 +339,41 @@ const AdminCards = () => {
         </TabsList>
 
         <TabsContent value="list" className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search cards by name, code, suit, or era..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search cards by name, code, suit, or era..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm"
+              />
+            </div>
+            
+            {/* Status Filter Tabs */}
+            <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+              <Button
+                variant={statusFilter === 'all' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusFilter('all')}
+              >
+                All ({statusCounts.all})
+              </Button>
+              <Button
+                variant={statusFilter === 'complete' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusFilter('complete')}
+              >
+                Complete ({statusCounts.complete})
+              </Button>
+              <Button
+                variant={statusFilter === 'draft' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusFilter('draft')}
+              >
+                Draft ({statusCounts.draft})
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6">
@@ -331,6 +392,11 @@ const AdminCards = () => {
                           <Badge variant={card.is_active ? "default" : "destructive"}>
                             {card.status}
                           </Badge>
+                          {(card.status === 'draft' || card.name === 'Unknown') && (
+                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                              Draft
+                            </Badge>
+                          )}
                           {card.rarity && <Badge variant="outline">{card.rarity}</Badge>}
                         </div>
                       </div>
