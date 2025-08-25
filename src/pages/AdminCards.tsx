@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Search, Edit, Trash2, QrCode, ExternalLink, Copy, Eye, EyeOff } from 'lucide-react';
+import QRCode from 'qrcode';
 
 interface CardData {
   id: string;
@@ -27,6 +28,7 @@ interface CardData {
   status: string;
   is_active: boolean;
   created_at: string;
+  current_target?: string | null;
 }
 
 const AdminCards = () => {
@@ -37,6 +39,8 @@ const AdminCards = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [qrCodes, setQrCodes] = useState<Map<string, string>>(new Map());
 
   // Form state for creating/editing cards
   const [formData, setFormData] = useState({
@@ -51,7 +55,8 @@ const AdminCards = () => {
     image_url: '',
     description: '',
     status: 'active',
-    is_active: true
+    is_active: true,
+    current_target: ''
   });
 
   useEffect(() => {
@@ -59,6 +64,52 @@ const AdminCards = () => {
       fetchCards();
     }
   }, [user]);
+
+  // Utility functions
+  const generateQRCode = async (code: string): Promise<string> => {
+    try {
+      const url = `${window.location.origin}/claim/${code}`;
+      return await QRCode.toDataURL(url, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      return '';
+    }
+  };
+
+  const loadQRCode = async (card: CardData) => {
+    if (!qrCodes.has(card.id)) {
+      const qrDataUrl = await generateQRCode(card.code);
+      setQrCodes(prev => new Map(prev).set(card.id, qrDataUrl));
+    }
+  };
+
+  const copyToClipboard = (text: string, type: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: "Copied!",
+        description: `${type} copied to clipboard`,
+      });
+    });
+  };
+
+  const toggleCardExpansion = (cardId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(cardId)) {
+        newSet.delete(cardId);
+      } else {
+        newSet.add(cardId);
+      }
+      return newSet;
+    });
+  };
 
   const fetchCards = async () => {
     try {
@@ -102,7 +153,8 @@ const AdminCards = () => {
       image_url: '',
       description: '',
       status: 'active',
-      is_active: true
+      is_active: true,
+      current_target: ''
     });
     setSelectedCard(null);
     setIsEditing(false);
@@ -122,7 +174,8 @@ const AdminCards = () => {
       image_url: card.image_url || '',
       description: card.description || '',
       status: card.status,
-      is_active: card.is_active
+      is_active: card.is_active,
+      current_target: card.current_target || ''
     });
     setIsEditing(true);
   };
@@ -146,7 +199,8 @@ const AdminCards = () => {
             image_url: formData.image_url || null,
             description: formData.description || null,
             status: formData.status,
-            is_active: formData.is_active
+            is_active: formData.is_active,
+            current_target: formData.current_target || null
           })
           .eq('id', selectedCard.id);
 
@@ -172,7 +226,8 @@ const AdminCards = () => {
             image_url: formData.image_url || null,
             description: formData.description || null,
             status: formData.status,
-            is_active: formData.is_active
+            is_active: formData.is_active,
+            current_target: formData.current_target || null
           }]);
 
         if (error) throw error;
@@ -259,48 +314,225 @@ const AdminCards = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCards.map((card) => (
-              <Card key={card.id} className="relative">
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{card.name}</CardTitle>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(card)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(card)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+          <div className="grid grid-cols-1 gap-6">
+            {filteredCards.map((card) => {
+              const isExpanded = expandedCards.has(card.id);
+              return (
+                <Card key={card.id} className="relative border-2">
+                  <CardHeader className="pb-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <CardTitle className="text-xl mb-2">{card.name}</CardTitle>
+                        <div className="flex gap-2 flex-wrap mb-3">
+                          <Badge variant="secondary" className="cursor-pointer" onClick={() => copyToClipboard(card.code, 'Card Code')}>
+                            {card.code} <Copy className="h-3 w-3 ml-1" />
+                          </Badge>
+                          <Badge variant={card.is_active ? "default" : "destructive"}>
+                            {card.status}
+                          </Badge>
+                          {card.rarity && <Badge variant="outline">{card.rarity}</Badge>}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            toggleCardExpansion(card.id);
+                            if (!isExpanded) loadQRCode(card);
+                          }}
+                        >
+                          {isExpanded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(card)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(card)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Badge variant="secondary">{card.code}</Badge>
-                    <Badge variant={card.is_active ? "default" : "destructive"}>
-                      {card.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Suit:</strong> {card.suit}</div>
-                    <div><strong>Rank:</strong> {card.rank}</div>
-                    <div><strong>Era:</strong> {card.era}</div>
-                    {card.rarity && <div><strong>Rarity:</strong> {card.rarity}</div>}
-                    <div><strong>TIME Value:</strong> {card.time_value}</div>
-                    {card.trader_value && <div><strong>Trader Value:</strong> {card.trader_value}</div>}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Basic Info Column */}
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Basic Info</h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="font-medium">Suit:</span> 
+                            <span>{card.suit}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-medium">Rank:</span> 
+                            <span>{card.rank}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-medium">Era:</span> 
+                            <span>{card.era}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-medium">TIME Value:</span> 
+                            <span className="font-bold text-primary">{card.time_value}</span>
+                          </div>
+                          {card.trader_value && (
+                            <div className="flex justify-between">
+                              <span className="font-medium">Trader Value:</span> 
+                              <span>{card.trader_value}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Image Column */}
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Image Preview</h4>
+                        {card.image_url ? (
+                          <div className="relative">
+                            <img 
+                              src={card.image_url} 
+                              alt={card.name}
+                              className="w-full h-48 object-cover rounded-lg border shadow-sm"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+                              onClick={() => copyToClipboard(card.image_url!, 'Image URL')}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+                            No Image
+                          </div>
+                        )}
+                      </div>
+
+                      {/* QR Code Column */}
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">QR Code</h4>
+                        {isExpanded && qrCodes.has(card.id) ? (
+                          <div className="relative">
+                            <img 
+                              src={qrCodes.get(card.id)} 
+                              alt={`QR Code for ${card.name}`}
+                              className="w-full max-w-48 mx-auto border rounded-lg shadow-sm bg-white p-2"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+                              onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+                            <QrCode className="h-12 w-12 mb-2" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Extended Info (when expanded) */}
+                    {isExpanded && (
+                      <div className="mt-6 pt-6 border-t space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">URLs & Links</h4>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="font-medium">Claim URL:</span>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <code className="bg-muted px-2 py-1 rounded text-xs flex-1">
+                                    {window.location.origin}/claim/{card.code}
+                                  </code>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              {card.current_target && (
+                                <div>
+                                  <span className="font-medium">Redirect URL:</span>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <code className="bg-muted px-2 py-1 rounded text-xs flex-1">
+                                      {card.current_target}
+                                    </code>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => copyToClipboard(card.current_target!, 'Redirect URL')}
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => window.open(card.current_target!, '_blank')}
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Metadata</h4>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="font-medium">Card ID:</span>
+                                <code className="text-xs bg-muted px-1 rounded">{card.id}</code>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium">Created:</span>
+                                <span>{new Date(card.created_at).toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium">Active:</span>
+                                <Badge variant={card.is_active ? "default" : "destructive"} className="text-xs">
+                                  {card.is_active ? 'Yes' : 'No'}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {card.description && (
+                          <div className="space-y-2">
+                            <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Description</h4>
+                            <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                              {card.description}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </TabsContent>
 
@@ -392,6 +624,15 @@ const AdminCards = () => {
                       id="image_url"
                       value={formData.image_url}
                       onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="current_target">Redirect URL</Label>
+                    <Input
+                      id="current_target"
+                      value={formData.current_target}
+                      onChange={(e) => setFormData({ ...formData, current_target: e.target.value })}
+                      placeholder="https://example.com"
                     />
                   </div>
                   <div>
