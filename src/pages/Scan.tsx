@@ -1,8 +1,12 @@
 // src/pages/Scan.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Scanner } from "@yudiel/react-qr-scanner";
 import { supabase } from "@/integrations/supabase/client";
+
+// --- TS helper for BarcodeDetector without extra deps ---
+declare global {
+  interface Window { BarcodeDetector?: any; }
+}
 
 type LogItem = {
   id: string;
@@ -24,14 +28,31 @@ type LogItem = {
 
 export default function Scan() {
   const navigate = useNavigate();
+
+  // camera / decoding state
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const trackRef = useRef<MediaStreamTrack | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const detectorRef = useRef<any | null>(null);
+
+  // UI state
   const [error, setError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [running, setRunning] = useState(true);
+
+  // advanced camera features
+  const [supportsDetector, setSupportsDetector] = useState<boolean>(false);
+  const [supportsTorch, setSupportsTorch] = useState<boolean>(false);
+  const [supportsZoom, setSupportsZoom] = useState<boolean>(false);
+  const [zoom, setZoom] = useState<number>(1);
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number }>({ min: 1, max: 1, step: 0.1 });
+  const [torchOn, setTorchOn] = useState(false);
 
   // live log
   const [log, setLog] = useState<LogItem[]>([]);
-  // per-code cooldown so the same QR doesn’t spam
   const cooldownRef = useRef<Record<string, number>>({});
-  const COOLDOWN_MS = 3000;
+  const COOLDOWN_MS = 1500;
 
   // Ensure signed in
   useEffect(() => {
@@ -151,7 +172,6 @@ export default function Scan() {
       return;
     }
 
-    // ok or not_ok from RPC
     if (data?.ok) {
       const status: LogItem["status"] = data.already_owner ? "already_owner" : "claimed";
       const card = data.card_id ? await fetchCardById(data.card_id) : undefined;
@@ -178,7 +198,6 @@ export default function Scan() {
       case "not_signed_in":  navigate("/auth/login?next=/scan", { replace: true }); return;
     }
 
-    // Don't fetch card details for owned_by_other to prevent information leakage
     const card = status === "owned_by_other" ? undefined : await fetchCardByCodeLike(code);
     const item: LogItem = {
       id: crypto.randomUUID(),
@@ -192,27 +211,144 @@ export default function Scan() {
     pushLog(item);
   }
 
-  /* ---------- scanner callbacks ---------- */
-  const onScan = useCallback(async (detectedCodes: any[]) => {
-    const raw = detectedCodes?.[0]?.rawValue;
-    if (!raw) return;
-    const code = extractCode(raw);
-    if (!code) { setError("Could not read a card code from that QR."); return; }
-    if (!shouldProcess(code)) return; // debounce
-    await claim(code);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  /* ---------- High-res camera setup with zoom/torch ---------- */
 
-  const onError = useCallback((err: any) => {
-    setError(String(err?.message || err) || "Camera error");
+  useEffect(() => {
+    setSupportsDetector(!!window.BarcodeDetector);
+    if (window.BarcodeDetector) {
+      detectorRef.current = new window.BarcodeDetector({ formats: ["qr_code"] });
+    }
   }, []);
 
-  const tips = useMemo(() => [
-    "Allow camera access when prompted.",
-    "Hold the QR steady; fill most of the square.",
-    "Good, even lighting helps focus and decode.",
-  ], []);
+  useEffect(() => {
+    startCamera();
+    return () => stopCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function startCamera() {
+    stopCamera();
+    setError(null);
+    setCameraReady(false);
+
+    const constraints: MediaStreamConstraints = {
+      video: {
+        facingMode: { ideal: "environment" as any },
+        width: { ideal: 2560, max: 3840 },
+        height: { ideal: 1440, max: 2160 },
+        frameRate: { ideal: 60 },
+      },
+      audio: false,
+    };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      const video = videoRef.current!;
+      video.srcObject = stream;
+      await video.play();
+
+      const [track] = stream.getVideoTracks();
+      trackRef.current = track;
+
+      const caps = track.getCapabilities ? track.getCapabilities() : ({} as any);
+
+      // Continuous autofocus
+      if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) {
+        try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" as any }] as any }); } catch { /* ignore */ }
+      }
+
+      // Zoom
+      if (caps.zoom && (caps.zoom.min !== undefined || typeof caps.zoom === "number")) {
+        const min = caps.zoom.min ?? 1;
+        const max = caps.zoom.max ?? Math.max(1, Number(caps.zoom) || 1);
+        const step = caps.zoom.step ?? 0.1;
+        setSupportsZoom(max > min);
+        setZoomRange({ min, max, step });
+        // start at ~60% of range to help tiny QRs
+        const start = Math.min(max, Math.max(min, min + (max - min) * 0.6));
+        try { await track.applyConstraints({ advanced: [{ zoom: start }] as any }); setZoom(start); } catch { setSupportsZoom(false); }
+      } else {
+        setSupportsZoom(false);
+      }
+
+      // Torch
+      setSupportsTorch(!!caps.torch);
+
+      setCameraReady(true);
+      setRunning(true);
+      loop();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    }
+  }
+
+  function stopCamera() {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    trackRef.current?.stop();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    trackRef.current = null;
+  }
+
+  async function setTorch(on: boolean) {
+    const track = trackRef.current;
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: on } as any] as any });
+      setTorchOn(on);
+    } catch {
+      setSupportsTorch(false);
+      setError("Torch not supported on this device/camera.");
+    }
+  }
+
+  async function setZoomLevel(z: number) {
+    const track = trackRef.current;
+    if (!track) return;
+    try { await track.applyConstraints({ advanced: [{ zoom: z }] as any }); setZoom(z); }
+    catch { setSupportsZoom(false); }
+  }
+
+  /* ---------- Decode loop ---------- */
+
+  function loop() {
+    if (!running) return;
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  async function tick() {
+    try {
+      const video = videoRef.current;
+      const detector = detectorRef.current;
+      if (video && detector && video.readyState >= 2) {
+        const barcodes = await detector.detect(video);
+        if (barcodes?.length) {
+          const first = barcodes.find((b: any) => !!b.rawValue) || barcodes[0];
+          const raw = String(first.rawValue || "").trim();
+          const code = extractCode(raw);
+          if (code && shouldProcess(code)) await claim(code);
+        }
+      }
+    } catch {
+      // ignore per-frame errors
+    } finally {
+      loop();
+    }
+  }
 
   /* ---------- UI ---------- */
+
+  const tips = useMemo(() => [
+    "Use the rear camera and good, even light.",
+    "If the QR is tiny, increase the camera Zoom.",
+    "Turn on Torch in low light for faster focus.",
+  ], []);
+
+  // Manual entry
+  const [manual, setManual] = useState("");
+
   function StatusPill({ s }: { s: LogItem["status"] }) {
     const map: Record<LogItem["status"], string> = {
       claimed: "bg-primary/20 text-primary border border-primary/30 glow-primary",
@@ -247,12 +383,65 @@ export default function Scan() {
           {/* Camera */}
           <div className="space-y-4">
             <div className="glass-panel p-6 rounded-2xl glow-primary">
-              <div className="aspect-square bg-black rounded-xl overflow-hidden border border-primary/20">
-                <Scanner
-                  onScan={onScan}
-                  onError={onError}
-                  constraints={{ facingMode: "environment" }}
+              <div className="aspect-square bg-black rounded-xl overflow-hidden border border-primary/20 relative">
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  autoPlay
+                  className="w-full h-full object-cover"
                 />
+                {/* guide box */}
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="w-40 h-40 border-2 border-emerald-400/80 rounded-md"></div>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
+                  onClick={() => {
+                    if (running) { setRunning(false); }
+                    else { setRunning(true); loop(); }
+                  }}
+                >
+                  {running ? "Pause" : "Resume"}
+                </button>
+                <button
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
+                  onClick={() => startCamera()}
+                >
+                  Restart (hi-res)
+                </button>
+
+                {supportsTorch && (
+                  <button
+                    className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
+                    onClick={() => setTorch(!torchOn)}
+                  >
+                    {torchOn ? "Torch Off" : "Torch On"}
+                  </button>
+                )}
+
+                {supportsZoom && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs opacity-70">Zoom</span>
+                    <input
+                      type="range"
+                      min={zoomRange.min}
+                      max={zoomRange.max}
+                      step={zoomRange.step}
+                      value={zoom}
+                      onChange={(e) => setZoomLevel(Number(e.target.value))}
+                    />
+                    <span className="text-xs tabular-nums">{zoom.toFixed(2)}×</span>
+                  </div>
+                )}
+
+                <span className="ml-auto text-xs opacity-60">
+                  {cameraReady ? "Camera ready" : "Starting…"} {supportsDetector ? "• Fast decode" : "• Add fallback for older browsers"}
+                </span>
               </div>
             </div>
 
@@ -285,6 +474,29 @@ export default function Scan() {
                     className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
                   >
                     Clear
+                  </button>
+                </div>
+              </div>
+
+              {/* Manual entry */}
+              <div className="glass-panel p-4 rounded-lg mb-4">
+                <div className="font-medium mb-2">Manual test</div>
+                <div className="flex gap-2">
+                  <input
+                    value={manual}
+                    onChange={(e) => setManual(e.target.value)}
+                    placeholder="Enter code (ex: TOT-ABCD-1234 or https://…/r/TOT-ABCD-1234)"
+                    className="border rounded px-2 py-1 w-full"
+                  />
+                  <button
+                    className="border rounded px-3 py-1"
+                    onClick={() => {
+                      const code = extractCode(manual.trim());
+                      if (code && shouldProcess(code)) claim(code);
+                      setManual("");
+                    }}
+                  >
+                    Submit
                   </button>
                 </div>
               </div>
@@ -339,4 +551,3 @@ export default function Scan() {
     </div>
   );
 }
-
