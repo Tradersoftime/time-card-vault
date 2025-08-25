@@ -2,6 +2,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, ArrowUpDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type Row = {
   claimed_at: string;
@@ -24,6 +28,9 @@ export default function MyCards() {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("claimed_at");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const navigate = useNavigate();
 
   // Load
@@ -58,10 +65,72 @@ export default function MyCards() {
     setLoading(false);
   }
 
-  // Groups
-  const ready = useMemo(() => rows.filter(r => !r.is_pending && !r.is_credited), [rows]);
-  const pending = useMemo(() => rows.filter(r => r.is_pending && !r.is_credited), [rows]);
-  const credited = useMemo(() => rows.filter(r => r.is_credited), [rows]);
+  // Search and sort functions
+  const filterCards = (cards: Row[]) => {
+    if (!searchTerm) return cards;
+    const term = searchTerm.toLowerCase();
+    return cards.filter(card => 
+      (card.name?.toLowerCase().includes(term)) ||
+      (card.era?.toLowerCase().includes(term)) ||
+      (card.suit?.toLowerCase().includes(term)) ||
+      (card.rank?.toLowerCase().includes(term)) ||
+      (card.rarity?.toLowerCase().includes(term)) ||
+      (card.trader_value?.toLowerCase().includes(term))
+    );
+  };
+
+  const sortCards = (cards: Row[]) => {
+    return [...cards].sort((a, b) => {
+      let aValue: any, bValue: any;
+      
+      switch (sortBy) {
+        case 'name':
+          aValue = a.name?.toLowerCase() || '';
+          bValue = b.name?.toLowerCase() || '';
+          break;
+        case 'era':
+          aValue = a.era?.toLowerCase() || '';
+          bValue = b.era?.toLowerCase() || '';
+          break;
+        case 'suit':
+          aValue = a.suit?.toLowerCase() || '';
+          bValue = b.suit?.toLowerCase() || '';
+          break;
+        case 'rank':
+          aValue = a.rank?.toLowerCase() || '';
+          bValue = b.rank?.toLowerCase() || '';
+          break;
+        case 'rarity':
+          aValue = a.rarity?.toLowerCase() || '';
+          bValue = b.rarity?.toLowerCase() || '';
+          break;
+        case 'time_value':
+          aValue = a.time_value || 0;
+          bValue = b.time_value || 0;
+          break;
+        case 'trader_value':
+          aValue = parseFloat(a.trader_value || '0');
+          bValue = parseFloat(b.trader_value || '0');
+          break;
+        case 'claimed_at':
+        default:
+          aValue = new Date(a.claimed_at).getTime();
+          bValue = new Date(b.claimed_at).getTime();
+          break;
+      }
+      
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const processCards = (cards: Row[]) => sortCards(filterCards(cards));
+
+  // Groups with search and sort applied
+  const ready = useMemo(() => processCards(rows.filter(r => !r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
+  const pending = useMemo(() => processCards(rows.filter(r => r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
+  const credited = useMemo(() => processCards(rows.filter(r => r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
 
   // Totals
   const timeOf = (list: Row[]) => list.reduce((s, r) => s + (r.time_value ?? 0), 0);
@@ -182,6 +251,78 @@ export default function MyCards() {
             <div className="text-primary text-sm">{msg}</div>
           </div>
         )}
+
+        {/* Search and Sort Controls */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground mb-1">Filter & Sort Collection</h3>
+              <p className="text-sm text-muted-foreground">Search and organize your cards</p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              {/* Search */}
+              <div className="relative flex-1 sm:min-w-[300px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, era, suit, rank, rarity..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-background/50 border-primary/20 focus:border-primary"
+                />
+              </div>
+              
+              {/* Sort */}
+              <div className="flex gap-2">
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[180px] bg-background/50 border-primary/20">
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-primary/20">
+                    <SelectItem value="claimed_at">Date Claimed</SelectItem>
+                    <SelectItem value="name">Card Name</SelectItem>
+                    <SelectItem value="era">Era</SelectItem>
+                    <SelectItem value="suit">Suit</SelectItem>
+                    <SelectItem value="rank">Rank</SelectItem>
+                    <SelectItem value="rarity">Rarity</SelectItem>
+                    <SelectItem value="time_value">TIME Value</SelectItem>
+                    <SelectItem value="trader_value">Trader Value</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+                  className="px-3 bg-background/50 border-primary/20 hover:bg-primary/10"
+                  title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
+                >
+                  <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} />
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Results Summary */}
+          {searchTerm && (
+            <div className="mt-4 pt-4 border-t border-primary/20">
+              <div className="text-sm text-muted-foreground">
+                Search results: <span className="text-primary font-medium">{ready.length + pending.length + credited.length}</span> cards found
+                {searchTerm && (
+                  <span className="ml-2">
+                    for "<span className="text-foreground font-medium">{searchTerm}</span>"
+                    <button 
+                      onClick={() => setSearchTerm("")}
+                      className="ml-2 text-primary hover:text-primary/80 text-xs underline"
+                    >
+                      Clear
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Unsubmitted (Ready for TIME) */}
         <div className="glass-panel p-6 rounded-2xl">
