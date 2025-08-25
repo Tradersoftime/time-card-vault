@@ -59,44 +59,94 @@ export default function ClaimCard() {
   }
 
   if (loading) {
-    return <div className="p-8 text-center opacity-80">Loading…</div>;
+    return (
+      <div className="min-h-screen hero-gradient flex items-center justify-center p-6">
+        <div className="glass-panel p-8 rounded-2xl text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+          <div className="text-foreground">Loading card details...</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
-      {card ? (
-        <div className="flex items-start gap-6">
-          {card.image_url && (
-            <img
-              src={card.image_url}
-              alt={card.name ?? "Card"}
-              className="w-40 h-60 object-cover rounded-xl border"
-            />
-          )}
-          <div className="space-y-1">
-            <div className="text-2xl font-semibold">{card.name}</div>
-            <div className="opacity-80">
-              {card.era} • {card.suit} {card.rank}
-            </div>
-            <div className="opacity-80">Rarity: {card.rarity ?? "—"}</div>
-            <div className="opacity-80">Trader Value: {card.trader_value ?? "—"}</div>
-            {card.status !== "active" && (
-              <div className="text-amber-500">Status: {card.status}</div>
+    <div className="min-h-screen hero-gradient flex items-center justify-center p-6">
+      <div className="w-full max-w-4xl">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
+            Claim Your Card
+          </h1>
+          <p className="text-muted-foreground">Add this trading card to your collection</p>
+        </div>
+        
+        {loading ? (
+          <div className="glass-panel p-8 rounded-2xl text-center">
+            <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+            <div className="text-foreground">Loading card details...</div>
+          </div>
+        ) : (
+          <div className="glass-panel p-8 rounded-2xl">
+            {card ? (
+              <div className="flex flex-col lg:flex-row items-start gap-8">
+                <div className="flex-shrink-0 mx-auto lg:mx-0">
+                  {card.image_url && (
+                    <div className="glass-panel p-4 rounded-xl glow-primary">
+                      <img
+                        src={card.image_url}
+                        alt={card.name ?? "Card"}
+                        className="w-64 h-80 object-cover rounded-lg"
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <h2 className="text-3xl font-bold text-foreground mb-2">{card.name}</h2>
+                    <div className="text-lg text-muted-foreground mb-4">
+                      {card.era} • {card.suit} {card.rank}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="glass-panel p-4 rounded-lg">
+                      <div className="text-sm text-muted-foreground">Rarity</div>
+                      <div className="text-lg font-medium text-foreground">{card.rarity ?? "—"}</div>
+                    </div>
+                    <div className="glass-panel p-4 rounded-lg">
+                      <div className="text-sm text-muted-foreground">Trader Value</div>
+                      <div className="text-lg font-medium text-foreground">{card.trader_value ?? "—"}</div>
+                    </div>
+                  </div>
+                  
+                  {card.status !== "active" && (
+                    <div className="glass-panel p-4 rounded-lg border-l-4 border-l-amber-500">
+                      <div className="text-amber-500">Status: {card.status}</div>
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={handleClaim}
+                    className="w-full py-4 px-6 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold rounded-xl hover:opacity-90 transition-opacity glow-primary"
+                  >
+                    Add to My Collection
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">No card to display.</div>
+              </div>
+            )}
+
+            {msg && (
+              <div className="mt-6 glass-panel p-4 rounded-lg border-l-4 border-l-primary">
+                <div className="text-primary">{msg}</div>
+              </div>
             )}
           </div>
-        </div>
-      ) : (
-        <div className="p-4 rounded border">No card to display.</div>
-      )}
-
-      <button
-        onClick={handleClaim}
-        className="px-5 py-2 rounded-xl border hover:opacity-90 transition"
-      >
-        Add to My Collection
-      </button>
-
-      {msg && <div className="text-sm opacity-90">{msg}</div>}
+        )}
+      </div>
     </div>
   );
 }

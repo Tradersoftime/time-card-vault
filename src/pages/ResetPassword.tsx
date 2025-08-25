@@ -2,7 +2,6 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -19,27 +18,43 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold text-center">Set a new password</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={updatePwd} className="space-y-4">
-            <Input
-              type="password"
-              required
-              placeholder="New password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Button type="submit" disabled={busy} className="w-full">
-              {busy ? "Saving…" : "Save password"}
+    <div className="min-h-screen hero-gradient flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
+            Set New Password
+          </h1>
+          <p className="text-muted-foreground">Create a secure password for your account</p>
+        </div>
+        
+        <div className="glass-panel p-8 rounded-2xl">
+          <form onSubmit={updatePwd} className="space-y-6">
+            <div>
+              <Input
+                type="password"
+                required
+                placeholder="Enter your new password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="glass-panel border-muted/30 focus:border-primary"
+              />
+            </div>
+            <Button 
+              type="submit" 
+              disabled={busy} 
+              className="w-full py-3 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold hover:opacity-90 transition-opacity glow-primary"
+            >
+              {busy ? "Saving Password..." : "Save New Password"}
             </Button>
           </form>
-          {msg && <div className="text-sm text-muted-foreground mt-4 text-center">{msg}</div>}
-        </CardContent>
-      </Card>
+          
+          {msg && (
+            <div className="mt-6 glass-panel p-4 rounded-lg border-l-4 border-l-primary">
+              <div className="text-primary text-sm">{msg}</div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

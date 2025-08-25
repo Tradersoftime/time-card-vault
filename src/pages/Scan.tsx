@@ -215,7 +215,7 @@ export default function Scan() {
   /* ---------- UI ---------- */
   function StatusPill({ s }: { s: LogItem["status"] }) {
     const map: Record<LogItem["status"], string> = {
-      claimed: "bg-primary/20 text-primary border border-primary/30",
+      claimed: "bg-primary/20 text-primary border border-primary/30 glow-primary",
       already_owner: "bg-secondary/20 text-secondary-foreground border border-secondary/30",
       owned_by_other: "bg-muted/20 text-muted-foreground border border-muted/30",
       not_found: "bg-accent/20 text-accent-foreground border border-accent/30",
@@ -230,85 +230,111 @@ export default function Scan() {
       blocked: "Blocked",
       error: "Error",
     };
-    return <span className={`inline-block text-xs px-2 py-0.5 rounded ${map[s]}`}>{label[s]}</span>;
+    return <span className={`inline-block text-xs px-3 py-1 rounded-full font-medium ${map[s]}`}>{label[s]}</span>;
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Scan Cards</h1>
-
-      <div className="grid md:grid-cols-2 gap-5">
-        {/* Camera */}
-        <div className="space-y-3">
-          <div className="card-premium border border-border rounded-xl overflow-hidden">
-            <Scanner
-              onScan={onScan}
-              onError={onError}
-              constraints={{ facingMode: "environment" }}
-            />
-          </div>
-
-          {!cameraReady && (
-            <div className="text-sm text-muted-foreground">Initializing camera… If asked, please allow camera access.</div>
-          )}
-          {error && (
-            <div className="glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-destructive text-destructive-foreground">
-              {error}
-            </div>
-          )}
+    <div className="min-h-screen hero-gradient">
+      <div className="p-6 space-y-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
+            Scan Trading Cards
+          </h1>
+          <p className="text-muted-foreground">Point your camera at any card QR code to add it to your collection</p>
         </div>
 
-        {/* Log */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="font-medium text-foreground">Scan Log</div>
-            <div className="flex gap-2">
-              <button onClick={() => navigate("/me/cards")} className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 text-sm hover:bg-primary/90 transition-colors">
-                Open My Collection
-              </button>
-              <button onClick={() => setLog([])} className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 text-sm hover:bg-secondary/80 transition-colors">
-                Clear Log
-              </button>
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Camera */}
+          <div className="space-y-4">
+            <div className="glass-panel p-6 rounded-2xl glow-primary">
+              <div className="aspect-square bg-black rounded-xl overflow-hidden border border-primary/20">
+                <Scanner
+                  onScan={onScan}
+                  onError={onError}
+                  constraints={{ facingMode: "environment" }}
+                />
+              </div>
             </div>
+
+            {!cameraReady && (
+              <div className="glass-panel p-4 rounded-lg text-center">
+                <div className="text-sm text-muted-foreground">Initializing camera… If asked, please allow camera access.</div>
+              </div>
+            )}
+            {error && (
+              <div className="glass-panel p-4 rounded-lg border-l-4 border-l-destructive">
+                <div className="text-sm text-destructive">{error}</div>
+              </div>
+            )}
           </div>
 
-          {log.length === 0 ? (
-            <div className="text-muted-foreground text-sm">No scans yet. Point the camera at a card QR code.</div>
-          ) : (
-            <ul className="space-y-2">
-              {log.map((row) => (
-                <li key={row.id} className="card-premium border border-border rounded-lg p-2 flex gap-3 items-center">
-                  <div className="w-12 h-16 bg-muted/40 rounded overflow-hidden flex-shrink-0">
-                    {row.card?.image_url && row.status !== "owned_by_other" && (
-                      <img src={row.card.image_url} alt={row.card?.name ?? "Card"} className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium truncate text-foreground">
-                        {row.status === "owned_by_other" ? "Card Already Claimed" : (row.card?.name ?? row.code)}
+          {/* Log */}
+          <div className="space-y-4">
+            <div className="glass-panel p-6 rounded-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-foreground">Scan Activity</h2>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => navigate("/me/cards")} 
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 transition-colors px-4 py-2 rounded-lg text-sm font-medium glow-primary"
+                  >
+                    My Collection
+                  </button>
+                  <button 
+                    onClick={() => setLog([])} 
+                    className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              {log.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-muted-foreground">No scans yet. Point the camera at a card QR code to get started.</div>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {log.map((row) => (
+                    <div key={row.id} className="glass-panel p-4 rounded-lg flex gap-3 items-center hover:bg-muted/5 transition-colors">
+                      <div className="w-12 h-16 bg-muted/20 rounded overflow-hidden flex-shrink-0">
+                        {row.card?.image_url && row.status !== "owned_by_other" && (
+                          <img src={row.card.image_url} alt={row.card?.name ?? "Card"} className="w-full h-full object-cover" />
+                        )}
                       </div>
-                      <StatusPill s={row.status} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="font-medium truncate text-foreground">
+                            {row.status === "owned_by_other" ? "Card Already Claimed" : (row.card?.name ?? row.code)}
+                          </div>
+                          <StatusPill s={row.status} />
+                        </div>
+                        {row.card && row.status !== "owned_by_other" && (
+                          <div className="text-xs text-muted-foreground truncate">
+                            {(row.card.era ?? "—")} • {(row.card.suit ?? "—")} {(row.card.rank ?? "—")}
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground">{row.message} · {new Date(row.ts).toLocaleTimeString()}</div>
+                      </div>
                     </div>
-                    {row.card && row.status !== "owned_by_other" && (
-                      <div className="text-xs text-muted-foreground truncate">
-                        {(row.card.era ?? "—")} • {(row.card.suit ?? "—")} {(row.card.rank ?? "—")}
-                      </div>
-                    )}
-                    <div className="text-xs text-muted-foreground">{row.message} · {new Date(row.ts).toLocaleTimeString()}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="card-premium border border-border rounded-xl p-3">
-        <div className="font-medium mb-2 text-foreground">Tips</div>
-        <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-          {tips.map((t, i) => <li key={i}>{t}</li>)}
-        </ul>
+        <div className="glass-panel p-6 rounded-2xl">
+          <h3 className="font-semibold mb-3 text-foreground">Scanning Tips</h3>
+          <ul className="space-y-2">
+            {tips.map((tip, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></div>
+                {tip}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );

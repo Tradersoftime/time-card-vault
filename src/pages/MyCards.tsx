@@ -141,123 +141,177 @@ export default function MyCards() {
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
   return (
-    <div className="p-6 space-y-8">
-      {/* Summary */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Collection TIME" value={totalTimeAll} sub={`${totalCards} card${totalCards===1?"":"s"}`} />
-        <Stat label="Credited TIME" value={totalTimeCredited} sub={`${credited.length} card${credited.length===1?"":"s"}`} />
-        <Stat label="Ready to claim TIME" value={totalTimeReady} sub={`${ready.length} card${ready.length===1?"":"s"}`} />
-        <Stat label="Pending TIME" value={totalTimePending} sub={`${pending.length} card${pending.length===1?"":"s"}`} />
-      </section>
-
-      {msg && (
-        <div className="text-sm px-3 py-2 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
-          {msg}
+    <div className="min-h-screen hero-gradient">
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-3">
+            My Collection
+          </h1>
+          <p className="text-muted-foreground">Manage your trading cards and submit them for TIME rewards</p>
         </div>
-      )}
-
-      {/* Unsubmitted (Ready for TIME) */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Unsubmitted (Ready for TIME)</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={selectAllReady} className="border rounded px-3 py-1">Select All</button>
-            <button onClick={clearSelection} className="border rounded px-3 py-1">Clear</button>
-            <button onClick={submitSelected} className="border rounded px-3 py-1">Submit selected for TIME</button>
+        
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="glass-panel p-6 rounded-2xl glow-primary">
+            <div className="text-3xl font-bold text-primary">{totalTimeAll.toFixed(2)}</div>
+            <div className="text-sm text-muted-foreground">Collection TIME</div>
+            <div className="text-xs text-muted-foreground">{totalCards} card{totalCards === 1 ? "" : "s"}</div>
+          </div>
+          
+          <div className="glass-panel p-6 rounded-2xl">
+            <div className="text-3xl font-bold text-foreground">{totalTimeCredited.toFixed(2)}</div>
+            <div className="text-sm text-muted-foreground">Credited TIME</div>
+            <div className="text-xs text-muted-foreground">{credited.length} card{credited.length === 1 ? "" : "s"}</div>
+          </div>
+          
+          <div className="glass-panel p-6 rounded-2xl glow-primary">
+            <div className="text-3xl font-bold text-primary">{totalTimeReady.toFixed(2)}</div>
+            <div className="text-sm text-muted-foreground">Ready to Claim</div>
+            <div className="text-xs text-muted-foreground">{ready.length} card{ready.length === 1 ? "" : "s"}</div>
+          </div>
+          
+          <div className="glass-panel p-6 rounded-2xl">
+            <div className="text-3xl font-bold text-foreground">{totalTimePending.toFixed(2)}</div>
+            <div className="text-sm text-muted-foreground">Pending TIME</div>
+            <div className="text-xs text-muted-foreground">{pending.length} card{pending.length === 1 ? "" : "s"}</div>
           </div>
         </div>
 
-        {ready.length === 0 ? (
-          <div className="opacity-70">No unsubmitted cards.</div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {ready.map((r) => {
-              const checked = !!selected[r.card_id];
-              return (
-                <label
-                  key={r.card_id}
-                  className={`border rounded-xl overflow-hidden block cursor-pointer ${checked ? "ring-2 ring-emerald-500" : ""}`}
-                >
-                  <input
-                    type="checkbox"
-                    className="hidden"
-                    checked={checked}
-                    onChange={() => toggle(r.card_id)}
-                  />
-                  {r.image_url && (
-                    <img src={r.image_url} alt={r.name ?? "Card"} className="w-full aspect-[3/4] object-cover" />
-                  )}
-                  <div className="p-3 space-y-1">
-                    <div className="font-medium">{r.name ?? "Unnamed Trader"}</div>
-                    <div className="text-sm opacity-80">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
-                    <div className="text-xs opacity-70">
-                      Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"} · TIME: {r.time_value ?? 0}
+        {msg && (
+          <div className="glass-panel p-4 rounded-lg border-l-4 border-l-primary">
+            <div className="text-primary text-sm">{msg}</div>
+          </div>
+        )}
+
+        {/* Unsubmitted (Ready for TIME) */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">Ready for TIME Submission</h2>
+              <p className="text-sm text-muted-foreground">Select cards to submit for TIME rewards</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={selectAllReady}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium glow-primary"
+              >
+                Select All ({ready.length})
+              </button>
+              <button
+                onClick={clearSelection}
+                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm font-medium"
+              >
+                Clear Selection
+              </button>
+              <button
+                onClick={submitSelected}
+                className="px-4 py-2 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground rounded-lg hover:opacity-90 transition-opacity text-sm font-medium glow-primary"
+              >
+                Submit Selected for TIME
+              </button>
+            </div>
+          </div>
+
+          {ready.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No unsubmitted cards.</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {ready.map((r) => {
+                const checked = !!selected[r.card_id];
+                return (
+                  <div
+                    key={r.card_id}
+                    className={`glass-panel p-4 rounded-xl cursor-pointer transition-all transform hover:scale-105 ${
+                      checked
+                        ? 'border-2 border-primary glow-primary bg-primary/5'
+                        : 'hover:bg-muted/10'
+                    }`}
+                    onClick={() => toggle(r.card_id)}
+                  >
+                    <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
+                      {r.image_url && (
+                        <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
+                      )}
                     </div>
-                    <div className="text-xs opacity-60">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
-                    <span className="inline-block text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
-                      Ready
+                    <div className="space-y-1">
+                      <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
+                      <div className="text-sm text-muted-foreground">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}
+                      </div>
+                      <div className="text-sm font-medium text-primary">TIME: {r.time_value ?? 0}</div>
+                      <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
+                      <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-primary/20 text-primary border border-primary/30 glow-primary">
+                        Ready
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Submitted (Pending TIME) */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <h2 className="text-2xl font-semibold text-foreground mb-4">Submitted (Pending TIME)</h2>
+          {pending.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No pending submissions.</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {pending.map((r) => (
+                <div key={r.card_id} className="glass-panel p-4 rounded-xl hover:bg-muted/5 transition-colors">
+                  <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
+                    {r.image_url && (
+                      <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
+                    <div className="text-sm text-muted-foreground">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}</div>
+                    <div className="text-sm font-medium text-foreground">TIME: {r.time_value ?? 0}</div>
+                    <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
+                    <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                      Pending
                     </span>
                   </div>
-                </label>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* Submitted (Pending TIME) */}
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Submitted (Pending TIME)</h2>
-        {pending.length === 0 ? (
-          <div className="opacity-70">No pending submissions.</div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {pending.map((r) => (
-              <div key={r.card_id} className="border rounded-xl overflow-hidden">
-                {r.image_url && (
-                  <img src={r.image_url} alt={r.name ?? "Card"} className="w-full aspect-[3/4] object-cover" />
-                )}
-                <div className="p-3 space-y-1">
-                  <div className="font-medium">{r.name ?? "Unnamed Trader"}</div>
-                  <div className="text-sm opacity-80">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
-                  <div className="text-xs opacity-70">Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"} · TIME: {r.time_value ?? 0}</div>
-                  <div className="text-xs opacity-60">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
-                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                    TIME: Pending
-                  </span>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </div>
 
-      {/* Claimed (Credited) */}
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Claimed</h2>
-        {credited.length === 0 ? (
-          <div className="opacity-70">No claimed cards yet.</div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {credited.map((r) => (
-              <div key={r.card_id} className="border rounded-xl overflow-hidden">
-                {r.image_url && (
-                  <img src={r.image_url} alt={r.name ?? "Card"} className="w-full aspect-[3/4] object-cover" />
-                )}
-                <div className="p-3 space-y-1">
-                  <div className="font-medium">{r.name ?? "Unnamed Trader"}</div>
-                  <div className="text-sm opacity-80">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
-                  <div className="text-xs opacity-70">Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"} · TIME: {r.time_value ?? 0}</div>
-                  <div className="text-xs opacity-60">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
-                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
-                    Credited
-                  </span>
+        {/* Claimed (Credited) */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <h2 className="text-2xl font-semibold text-foreground mb-4">Claimed Cards</h2>
+          {credited.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No claimed cards yet.</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {credited.map((r) => (
+                <div key={r.card_id} className="glass-panel p-4 rounded-xl hover:bg-muted/5 transition-colors glow-primary">
+                  <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
+                    {r.image_url && (
+                      <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
+                    <div className="text-sm text-muted-foreground">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}</div>
+                    <div className="text-sm font-medium text-primary">TIME: {r.time_value ?? 0}</div>
+                    <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
+                    <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                      Credited
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
