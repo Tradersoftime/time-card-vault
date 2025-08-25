@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Search, Copy, Trash2, Download } from 'lucide-react';
 
@@ -17,6 +18,19 @@ export const ImageLibraryView: React.FC = () => {
   const [imageCodes, setImageCodes] = useState<ImageCode[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Image preview modal state
+  const [imagePreview, setImagePreview] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    filename: string;
+    code: string;
+  }>({
+    isOpen: false,
+    imageUrl: '',
+    filename: '',
+    code: ''
+  });
 
   const loadImageCodes = async () => {
     try {
@@ -90,6 +104,26 @@ export const ImageLibraryView: React.FC = () => {
     toast.success('Downloaded image mappings');
   };
 
+  // Open image preview modal
+  const openImagePreview = (imageUrl: string, filename: string, code: string) => {
+    setImagePreview({
+      isOpen: true,
+      imageUrl,
+      filename,
+      code
+    });
+  };
+
+  // Close image preview modal
+  const closeImagePreview = () => {
+    setImagePreview({
+      isOpen: false,
+      imageUrl: '',
+      filename: '',
+      code: ''
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -131,11 +165,11 @@ export const ImageLibraryView: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {filteredImages.map((img) => (
             <div key={img.id} className="group relative border rounded-lg overflow-hidden">
-              <div className="aspect-square bg-muted">
+              <div className="aspect-square bg-muted cursor-pointer" onClick={() => openImagePreview(img.public_url, img.filename, img.code)}>
                 <img
                   src={img.public_url}
                   alt={img.filename}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover hover:opacity-80 transition-opacity"
                 />
               </div>
               
@@ -149,7 +183,10 @@ export const ImageLibraryView: React.FC = () => {
                       size="sm"
                       variant="ghost"
                       className="h-6 w-6 p-0"
-                      onClick={() => copyCode(img.code)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyCode(img.code);
+                      }}
                     >
                       <Copy className="h-3 w-3" />
                     </Button>
@@ -157,7 +194,10 @@ export const ImageLibraryView: React.FC = () => {
                       size="sm"
                       variant="ghost"
                       className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                      onClick={() => deleteImage(img.id, img.code)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteImage(img.id, img.code);
+                      }}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -174,6 +214,27 @@ export const ImageLibraryView: React.FC = () => {
           ))}
         </div>
       )}
+      
+      {/* Image Preview Modal */}
+      <Dialog open={imagePreview.isOpen} onOpenChange={closeImagePreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-4">
+          <DialogHeader>
+            <DialogTitle>
+              {imagePreview.code} - {imagePreview.filename}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center items-center max-h-[70vh] overflow-hidden">
+            <img 
+              src={imagePreview.imageUrl} 
+              alt={imagePreview.filename}
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
