@@ -455,335 +455,339 @@ const AdminCards = () => {
             </TabsList>
           </div>
 
-          <TabsContent value="list" className="space-y-4">{/* ... keep existing code ... */}</TabsContent>
-          <TabsContent value="form">{/* ... keep existing code ... */}</TabsContent>
-        </Tabs>
-        
-        {/* Image Preview Modal - keep existing code */}
-      </div>
-    );
-  };
-
-export default AdminCards;
-
-        <TabsContent value="list" className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search cards by name, code, suit, or era..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-sm"
-                />
-              </div>
-              
-              {/* Sort Controls */}
-              <div className="flex items-center space-x-2">
-                <Select value={sortField} onValueChange={handleSortChange}>
-                  <SelectTrigger className="w-48">
-                    <div className="flex items-center gap-2">
-                      <ArrowUpDown className="h-4 w-4" />
-                      <SelectValue placeholder="Sort by..." />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortOptions.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <TabsContent value="list" className="space-y-4">
+            <div className="glass-panel p-6 rounded-2xl">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search cards by name, code, suit, or era..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="max-w-sm bg-background/50 border-primary/20"
+                    />
+                  </div>
+                  
+                  {/* Sort Controls */}
+                  <div className="flex items-center space-x-2">
+                    <Select value={sortField} onValueChange={handleSortChange}>
+                      <SelectTrigger className="w-48 bg-background/50 border-primary/20">
+                        <div className="flex items-center gap-2">
+                          <ArrowUpDown className="h-4 w-4" />
+                          <SelectValue placeholder="Sort by..." />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleSortDirection}
+                      className="px-3 bg-background/50 border-primary/20 hover:bg-primary/10"
+                      title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
+                    >
+                      <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </div>
+                </div>
                 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={toggleSortDirection}
-                  className="px-3"
-                  title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
-                >
-                  <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} />
-                </Button>
+                {/* Status Filter Tabs */}
+                <div className="flex items-center gap-1 p-1 bg-muted/20 rounded-lg">
+                  <Button
+                    variant={statusFilter === 'all' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setStatusFilter('all')}
+                    className={statusFilter === 'all' ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-primary/10'}
+                  >
+                    All ({statusCounts.all})
+                  </Button>
+                  <Button
+                    variant={statusFilter === 'complete' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setStatusFilter('complete')}
+                    className={statusFilter === 'complete' ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-primary/10'}
+                  >
+                    Complete ({statusCounts.complete})
+                  </Button>
+                  <Button
+                    variant={statusFilter === 'draft' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setStatusFilter('draft')}
+                    className={statusFilter === 'draft' ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-primary/10'}
+                  >
+                    Draft ({statusCounts.draft})
+                  </Button>
+                </div>
               </div>
-            </div>
-            
-            {/* Status Filter Tabs */}
-            <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
-              <Button
-                variant={statusFilter === 'all' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setStatusFilter('all')}
-              >
-                All ({statusCounts.all})
-              </Button>
-              <Button
-                variant={statusFilter === 'complete' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setStatusFilter('complete')}
-              >
-                Complete ({statusCounts.complete})
-              </Button>
-              <Button
-                variant={statusFilter === 'draft' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setStatusFilter('draft')}
-              >
-                Draft ({statusCounts.draft})
-              </Button>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-6">
-            {filteredCards.map((card) => {
-              const isExpanded = expandedCards.has(card.id);
-              return (
-                <Card key={card.id} className="relative border-2">
-                  <CardHeader className="pb-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-xl mb-2">{card.name}</CardTitle>
-                        <div className="flex gap-2 flex-wrap mb-3">
-                          <Badge variant="secondary" className="cursor-pointer" onClick={() => copyToClipboard(card.code, 'Card Code')}>
-                            {card.code} <Copy className="h-3 w-3 ml-1" />
-                          </Badge>
-                          <Badge variant={card.is_active ? "default" : "destructive"}>
-                            {card.status}
-                          </Badge>
-                          {(card.status === 'draft' || card.name === 'Unknown') && (
-                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                              Draft
+              <div className="grid grid-cols-1 gap-6">
+                {filteredCards.map((card) => {
+                  const isExpanded = expandedCards.has(card.id);
+                  return (
+                    <div key={card.id} className="glass-panel p-6 rounded-xl hover:shadow-lg transition-all duration-300 border border-primary/10">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-foreground mb-2">{card.name}</h3>
+                          <div className="flex gap-2 flex-wrap mb-3">
+                            <Badge 
+                              variant="secondary" 
+                              className="cursor-pointer bg-primary/10 text-primary hover:bg-primary/20" 
+                              onClick={() => copyToClipboard(card.code, 'Card Code')}
+                            >
+                              {card.code} <Copy className="h-3 w-3 ml-1" />
                             </Badge>
-                          )}
-                          {card.rarity && <Badge variant="outline">{card.rarity}</Badge>}
+                            <Badge variant={card.is_active ? "default" : "destructive"} className="glow-primary">
+                              {card.status}
+                            </Badge>
+                            {(card.status === 'draft' || card.name === 'Unknown') && (
+                              <Badge variant="outline" className="bg-accent/20 text-accent border-accent/30">
+                                Draft
+                              </Badge>
+                            )}
+                            {card.rarity && <Badge variant="outline" className="border-primary/30">{card.rarity}</Badge>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              toggleCardExpansion(card.id);
+                              if (!isExpanded) loadQRCode(card);
+                            }}
+                            className="hover:bg-primary/10"
+                          >
+                            {isExpanded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(card)}
+                            className="hover:bg-primary/10"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(card)}
+                            className="hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            toggleCardExpansion(card.id);
-                            if (!isExpanded) loadQRCode(card);
-                          }}
-                        >
-                          {isExpanded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(card)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(card)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {/* Basic Info Column */}
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Basic Info</h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="font-medium">Suit:</span> 
-                            <span>{card.suit}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="font-medium">Rank:</span> 
-                            <span>{card.rank}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="font-medium">Era:</span> 
-                            <span>{card.era}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="font-medium">TIME Value:</span> 
-                            <span className="font-bold text-primary">{card.time_value}</span>
-                          </div>
-                          {card.trader_value && (
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Basic Info Column */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">Basic Info</h4>
+                          <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                              <span className="font-medium">Trader Value:</span> 
-                              <span>{card.trader_value}</span>
+                              <span className="font-medium text-muted-foreground">Suit:</span> 
+                              <span className="text-foreground">{card.suit}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-muted-foreground">Rank:</span> 
+                              <span className="text-foreground">{card.rank}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-muted-foreground">Era:</span> 
+                              <span className="text-foreground">{card.era}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-muted-foreground">TIME Value:</span> 
+                              <span className="font-bold text-primary glow-text">{card.time_value}</span>
+                            </div>
+                            {card.trader_value && (
+                              <div className="flex justify-between">
+                                <span className="font-medium text-muted-foreground">Trader Value:</span> 
+                                <span className="text-foreground">{card.trader_value}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Image Column */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">Image Preview</h4>
+                          {card.image_url ? (
+                            <div className="relative">
+                              <img 
+                                src={card.image_url} 
+                                alt={card.name}
+                                className="w-full h-48 object-cover rounded-lg border border-primary/20 shadow-lg cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => openImagePreview(card.image_url!, card.name)}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="absolute top-2 right-2 bg-background/80 hover:bg-background border border-primary/20"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(card.image_url!, 'Image URL');
+                                }}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="w-full h-48 bg-muted/20 rounded-lg flex items-center justify-center text-muted-foreground border border-primary/10">
+                              No Image
+                            </div>
+                          )}
+                        </div>
+
+                        {/* QR Code Column */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">QR Code</h4>
+                          {isExpanded && qrCodes.has(card.id) ? (
+                            <div className="relative">
+                              <img 
+                                src={qrCodes.get(card.id)} 
+                                alt={`QR Code for ${card.name}`}
+                                className="w-full max-w-48 mx-auto border border-primary/20 rounded-lg shadow-lg bg-white p-2"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="absolute top-2 right-2 bg-background/80 hover:bg-background border border-primary/20"
+                                onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="w-full h-48 bg-muted/20 rounded-lg flex flex-col items-center justify-center text-muted-foreground border border-primary/10">
+                              <QrCode className="h-12 w-12 mb-2" />
+                              <span className="text-xs">Click expand to view</span>
                             </div>
                           )}
                         </div>
                       </div>
 
-                      {/* Image Column */}
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Image Preview</h4>
-                        {card.image_url ? (
-                          <div className="relative">
-                            <img 
-                              src={card.image_url} 
-                              alt={card.name}
-                              className="w-full h-48 object-cover rounded-lg border shadow-sm cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => openImagePreview(card.image_url!, card.name)}
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute top-2 right-2 bg-white/80 hover:bg-white"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                copyToClipboard(card.image_url!, 'Image URL');
-                              }}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
-                            No Image
-                          </div>
-                        )}
-                      </div>
-
-                      {/* QR Code Column */}
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">QR Code</h4>
-                        {isExpanded && qrCodes.has(card.id) ? (
-                          <div className="relative">
-                            <img 
-                              src={qrCodes.get(card.id)} 
-                              alt={`QR Code for ${card.name}`}
-                              className="w-full max-w-48 mx-auto border rounded-lg shadow-sm bg-white p-2"
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute top-2 right-2 bg-white/80 hover:bg-white"
-                              onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
-                            <QrCode className="h-12 w-12 mb-2" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Extended Info (when expanded) */}
-                    {isExpanded && (
-                      <div className="mt-6 pt-6 border-t space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-3">
-                            <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">URLs & Links</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="font-medium">Claim URL:</span>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <code className="bg-muted px-2 py-1 rounded text-xs flex-1">
-                                    {window.location.origin}/claim/{card.code}
-                                  </code>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                              {card.current_target && (
+                      {/* Extended Info (when expanded) */}
+                      {isExpanded && (
+                        <div className="mt-6 pt-6 border-t border-primary/20 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-3">
+                              <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">URLs & Links</h4>
+                              <div className="space-y-2 text-sm">
                                 <div>
-                                  <span className="font-medium">Redirect URL:</span>
+                                  <span className="font-medium text-muted-foreground">Claim URL:</span>
                                   <div className="flex items-center gap-2 mt-1">
-                                    <code className="bg-muted px-2 py-1 rounded text-xs flex-1">
-                                      {card.current_target}
+                                    <code className="bg-muted/20 px-2 py-1 rounded text-xs flex-1 border border-primary/10">
+                                      {window.location.origin}/claim/{card.code}
                                     </code>
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => copyToClipboard(card.current_target!, 'Redirect URL')}
+                                      onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
+                                      className="hover:bg-primary/10"
                                     >
                                       <Copy className="h-3 w-3" />
                                     </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => window.open(card.current_target!, '_blank')}
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                    </Button>
                                   </div>
                                 </div>
-                              )}
+                                {card.current_target && (
+                                  <div>
+                                    <span className="font-medium text-muted-foreground">Redirect URL:</span>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <code className="bg-muted/20 px-2 py-1 rounded text-xs flex-1 border border-primary/10">
+                                        {card.current_target}
+                                      </code>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => copyToClipboard(card.current_target!, 'Redirect URL')}
+                                        className="hover:bg-primary/10"
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => window.open(card.current_target!, '_blank')}
+                                        className="hover:bg-primary/10"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">Metadata</h4>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="font-medium text-muted-foreground">Card ID:</span>
+                                  <code className="text-xs bg-muted/20 px-1 rounded border border-primary/10">{card.id}</code>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="font-medium text-muted-foreground">Created:</span>
+                                  <span className="text-foreground">{new Date(card.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="font-medium text-muted-foreground">Active:</span>
+                                  <Badge variant={card.is_active ? "default" : "destructive"} className="text-xs">
+                                    {card.is_active ? 'Yes' : 'No'}
+                                  </Badge>
+                                </div>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="space-y-3">
-                            <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Metadata</h4>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="font-medium">Card ID:</span>
-                                <code className="text-xs bg-muted px-1 rounded">{card.id}</code>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="font-medium">Created:</span>
-                                <span>{new Date(card.created_at).toLocaleDateString()}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="font-medium">Active:</span>
-                                <Badge variant={card.is_active ? "default" : "destructive"} className="text-xs">
-                                  {card.is_active ? 'Yes' : 'No'}
-                                </Badge>
-                              </div>
+                          {card.description && (
+                            <div className="space-y-2">
+                              <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">Description</h4>
+                              <p className="text-sm text-muted-foreground bg-muted/20 p-3 rounded-lg border border-primary/10">
+                                {card.description}
+                              </p>
                             </div>
-                          </div>
+                          )}
                         </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </TabsContent>
 
-                        {card.description && (
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Description</h4>
-                            <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-                              {card.description}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </TabsContent>
+          <TabsContent value="form">
+            <div className="glass-panel p-8 rounded-2xl">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                  {isEditing ? (selectedCard ? 'Edit Card' : 'Add New Card') : 'Card Form'}
+                </h2>
+                <p className="text-muted-foreground mt-2">
+                  {isEditing ? 'Update card information' : 'Create a new trading card'}
+                </p>
+              </div>
 
-        <TabsContent value="form">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {isEditing ? (selectedCard ? 'Edit Card' : 'Add New Card') : 'Card Form'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* QR Code Preview Section */}
                 {formData.code && (
-                  <div className="bg-muted/50 p-6 rounded-lg border">
-                    <h3 className="text-lg font-semibold mb-4">Preview</h3>
+                  <div className="bg-muted/20 p-6 rounded-lg border border-primary/20">
+                    <h3 className="text-lg font-semibold mb-4 text-primary">Preview</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {/* QR Code Preview */}
                       <div className="space-y-2">
-                        <h4 className="font-medium text-sm">QR Code</h4>
-                        <div className="bg-white p-4 rounded-lg border shadow-sm">
+                        <h4 className="font-medium text-sm text-foreground">QR Code</h4>
+                        <div className="bg-white p-4 rounded-lg border border-primary/20 shadow-sm">
                           <img 
                             src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/claim/${formData.code}`)}`}
                             alt="QR Code Preview"
@@ -794,9 +798,9 @@ export default AdminCards;
                       
                       {/* Image Preview */}
                       <div className="space-y-2">
-                        <h4 className="font-medium text-sm">Card Image</h4>
+                        <h4 className="font-medium text-sm text-foreground">Card Image</h4>
                         {formData.image_url ? (
-                          <div className="bg-white p-2 rounded-lg border shadow-sm">
+                          <div className="bg-white p-2 rounded-lg border border-primary/20 shadow-sm">
                             <img 
                               src={formData.image_url} 
                               alt="Card Preview"
@@ -807,218 +811,262 @@ export default AdminCards;
                             />
                           </div>
                         ) : (
-                          <div className="w-full h-32 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+                          <div className="w-full h-32 bg-muted/20 rounded-lg flex items-center justify-center text-muted-foreground border border-primary/10">
                             No Image
                           </div>
                         )}
                       </div>
                       
-                      {/* URLs */}
+                      {/* Info Preview */}
                       <div className="space-y-2">
-                        <h4 className="font-medium text-sm">URLs</h4>
-                        <div className="space-y-2 text-xs">
-                          <div>
-                            <span className="font-medium">Claim URL:</span>
-                            <code className="block bg-white px-2 py-1 mt-1 rounded border text-xs">
-                              {window.location.origin}/claim/{formData.code}
-                            </code>
-                          </div>
-                          {formData.current_target && (
-                            <div>
-                              <span className="font-medium">Redirect:</span>
-                              <code className="block bg-white px-2 py-1 mt-1 rounded border text-xs break-all">
-                                {formData.current_target}
-                              </code>
-                            </div>
-                          )}
+                        <h4 className="font-medium text-sm text-foreground">Card Info</h4>
+                        <div className="bg-background/50 p-4 rounded-lg border border-primary/10 space-y-2 text-sm">
+                          <div><strong>Name:</strong> {formData.name || 'Unnamed Card'}</div>
+                          <div><strong>Suit:</strong> {formData.suit || 'N/A'}</div>
+                          <div><strong>Rank:</strong> {formData.rank || 'N/A'}</div>
+                          <div><strong>Era:</strong> {formData.era || 'N/A'}</div>
+                          <div><strong>TIME Value:</strong> <span className="text-primary font-bold">{formData.time_value}</span></div>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="code">Code</Label>
-                    <Input
-                      id="code"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      required
-                      disabled={isEditing && selectedCard !== null}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="suit">Suit</Label>
-                    <Input
-                      id="suit"
-                      value={formData.suit}
-                      onChange={(e) => setFormData({ ...formData, suit: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="rank">Rank</Label>
-                    <Input
-                      id="rank"
-                      value={formData.rank}
-                      onChange={(e) => setFormData({ ...formData, rank: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="era">Era</Label>
-                    <Input
-                      id="era"
-                      value={formData.era}
-                      onChange={(e) => setFormData({ ...formData, era: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="rarity">Rarity</Label>
-                    <Input
-                      id="rarity"
-                      value={formData.rarity}
-                      onChange={(e) => setFormData({ ...formData, rarity: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="time_value">TIME Value</Label>
-                    <Input
-                      id="time_value"
-                      type="number"
-                      value={formData.time_value}
-                      onChange={(e) => setFormData({ ...formData, time_value: parseInt(e.target.value) || 0 })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="trader_value">Trader Value</Label>
-                    <Input
-                      id="trader_value"
-                      value={formData.trader_value}
-                      onChange={(e) => setFormData({ ...formData, trader_value: e.target.value })}
-                    />
-                  </div>
-                </div>
-                
-                {/* Image Upload Section */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Basic Information */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-primary">Basic Information</h3>
+                    
+                    {!isEditing && (
+                      <div>
+                        <Label htmlFor="code" className="text-foreground">Card Code *</Label>
+                        <Input
+                          id="code"
+                          value={formData.code}
+                          onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
+                          placeholder="e.g., TC001"
+                          required={!isEditing}
+                          className="bg-background/50 border-primary/20 focus:border-primary"
+                        />
+                      </div>
+                    )}
+
                     <div>
-                      <Label>Upload Image</Label>
-                      <ImageUpload
-                        onImageUploaded={(url) => setFormData({ ...formData, image_url: url })}
-                        currentImageUrl={formData.image_url}
-                        cardCode={formData.code}
+                      <Label htmlFor="name" className="text-foreground">Card Name *</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Enter card name"
+                        required
+                        className="bg-background/50 border-primary/20 focus:border-primary"
                       />
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="suit" className="text-foreground">Suit *</Label>
+                        <Select value={formData.suit} onValueChange={(value) => setFormData(prev => ({ ...prev, suit: value }))}>
+                          <SelectTrigger className="bg-background/50 border-primary/20">
+                            <SelectValue placeholder="Select suit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Hearts">Hearts</SelectItem>
+                            <SelectItem value="Diamonds">Diamonds</SelectItem>
+                            <SelectItem value="Clubs">Clubs</SelectItem>
+                            <SelectItem value="Spades">Spades</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="rank" className="text-foreground">Rank *</Label>
+                        <Select value={formData.rank} onValueChange={(value) => setFormData(prev => ({ ...prev, rank: value }))}>
+                          <SelectTrigger className="bg-background/50 border-primary/20">
+                            <SelectValue placeholder="Select rank" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Ace">Ace</SelectItem>
+                            <SelectItem value="2">2</SelectItem>
+                            <SelectItem value="3">3</SelectItem>
+                            <SelectItem value="4">4</SelectItem>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="6">6</SelectItem>
+                            <SelectItem value="7">7</SelectItem>
+                            <SelectItem value="8">8</SelectItem>
+                            <SelectItem value="9">9</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="Jack">Jack</SelectItem>
+                            <SelectItem value="Queen">Queen</SelectItem>
+                            <SelectItem value="King">King</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
                     <div>
-                      <Label htmlFor="image_url">Or Enter Image URL</Label>
+                      <Label htmlFor="era" className="text-foreground">Era *</Label>
                       <Input
-                        id="image_url"
-                        value={formData.image_url}
-                        onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                        placeholder="https://example.com/image.jpg"
+                        id="era"
+                        value={formData.era}
+                        onChange={(e) => setFormData(prev => ({ ...prev, era: e.target.value }))}
+                        placeholder="e.g., Modern, Classic, Vintage"
+                        required
+                        className="bg-background/50 border-primary/20 focus:border-primary"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Upload an image or paste an external URL
-                      </p>
+                    </div>
+                  </div>
+
+                  {/* Additional Information */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-primary">Additional Information</h3>
+                    
+                    <div>
+                      <Label htmlFor="rarity" className="text-foreground">Rarity</Label>
+                      <Select value={formData.rarity} onValueChange={(value) => setFormData(prev => ({ ...prev, rarity: value }))}>
+                        <SelectTrigger className="bg-background/50 border-primary/20">
+                          <SelectValue placeholder="Select rarity" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Common">Common</SelectItem>
+                          <SelectItem value="Uncommon">Uncommon</SelectItem>
+                          <SelectItem value="Rare">Rare</SelectItem>
+                          <SelectItem value="Epic">Epic</SelectItem>
+                          <SelectItem value="Legendary">Legendary</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="time_value" className="text-foreground">TIME Value *</Label>
+                      <Input
+                        id="time_value"
+                        type="number"
+                        value={formData.time_value}
+                        onChange={(e) => setFormData(prev => ({ ...prev, time_value: parseInt(e.target.value) || 0 }))}
+                        placeholder="Enter TIME value"
+                        required
+                        className="bg-background/50 border-primary/20 focus:border-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="trader_value" className="text-foreground">Trader Value</Label>
+                      <Input
+                        id="trader_value"
+                        value={formData.trader_value}
+                        onChange={(e) => setFormData(prev => ({ ...prev, trader_value: e.target.value }))}
+                        placeholder="Enter trader value"
+                        className="bg-background/50 border-primary/20 focus:border-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="current_target" className="text-foreground">Redirect URL</Label>
+                      <Input
+                        id="current_target"
+                        value={formData.current_target}
+                        onChange={(e) => setFormData(prev => ({ ...prev, current_target: e.target.value }))}
+                        placeholder="https://example.com"
+                        className="bg-background/50 border-primary/20 focus:border-primary"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="status" className="text-foreground">Status</Label>
+                        <Select value={formData.status} onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}>
+                          <SelectTrigger className="bg-background/50 border-primary/20">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="draft">Draft</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2 pt-6">
+                        <input
+                          type="checkbox"
+                          id="is_active"
+                          checked={formData.is_active}
+                          onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                          className="rounded border-primary/20"
+                        />
+                        <Label htmlFor="is_active" className="text-foreground">Is Active</Label>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Image Upload */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-primary">Image & Description</h3>
+                  
                   <div>
-                    <Label htmlFor="current_target">Redirect URL</Label>
+                    <Label htmlFor="image_url" className="text-foreground">Image URL</Label>
                     <Input
-                      id="current_target"
-                      value={formData.current_target}
-                      onChange={(e) => setFormData({ ...formData, current_target: e.target.value })}
-                      placeholder="https://example.com"
+                      id="image_url"
+                      value={formData.image_url}
+                      onChange={(e) => setFormData(prev => ({ ...prev, image_url: e.target.value }))}
+                      placeholder="https://example.com/image.jpg"
+                      className="bg-background/50 border-primary/20 focus:border-primary"
                     />
                   </div>
+
                   <div>
-                    <Label htmlFor="status">Status</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(value) => setFormData({ ...formData, status: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="description" className="text-foreground">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Enter card description..."
+                      rows={3}
+                      className="bg-background/50 border-primary/20 focus:border-primary"
+                    />
                   </div>
                 </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="is_active"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  />
-                  <Label htmlFor="is_active">Active</Label>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit">
-                    {isEditing && selectedCard ? 'Update Card' : 'Create Card'}
+
+                {/* Form Actions */}
+                <div className="flex gap-4 pt-6">
+                  <Button 
+                    type="submit" 
+                    className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold hover:opacity-90 transition-opacity glow-primary"
+                  >
+                    {isEditing ? 'Update Card' : 'Create Card'}
                   </Button>
-                  <Button type="button" variant="outline" onClick={resetForm}>
-                    Cancel
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={resetForm}
+                    className="border-primary/20 hover:bg-primary/10"
+                  >
+                    {isEditing ? 'Cancel' : 'Clear'}
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-      
-      {/* Image Preview Modal */}
-      <Dialog open={imagePreview.isOpen} onOpenChange={closeImagePreview}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-4">
-          <DialogHeader>
-            <DialogTitle>
-              {imagePreview.cardName} - Image Preview
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex justify-center items-center max-h-[70vh] overflow-hidden">
-            <img 
-              src={imagePreview.imageUrl} 
-              alt={imagePreview.cardName}
-              className="max-w-full max-h-full object-contain rounded-lg"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+            </div>
+          </TabsContent>
+        </Tabs>
+        
+        {/* Image Preview Modal */}
+        <Dialog open={imagePreview.isOpen} onOpenChange={closeImagePreview}>
+          <DialogContent className="max-w-4xl bg-background/95 backdrop-blur-sm border-primary/20">
+            <DialogHeader>
+              <DialogTitle className="text-primary">Card Image - {imagePreview.cardName}</DialogTitle>
+            </DialogHeader>
+            <div className="flex justify-center">
+              <img 
+                src={imagePreview.imageUrl} 
+                alt={imagePreview.cardName}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg border border-primary/20"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
 };
 
 export default AdminCards;
