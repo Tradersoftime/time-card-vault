@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Plus, Search, Edit, Trash2, QrCode, ExternalLink, Copy, Eye, EyeOff, Filter, ArrowUpDown, ChevronDown } from 'lucide-react';
 import QRCode from 'qrcode';
 import { ImageUpload } from '@/components/ImageUpload';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSearchParams } from 'react-router-dom';
 
 interface CardData {
@@ -53,6 +54,17 @@ const AdminCards = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => 
     (localStorage.getItem('adminCards_sortDirection') as 'asc' | 'desc') || 'desc'
   );
+  
+  // Image preview modal state
+  const [imagePreview, setImagePreview] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    cardName: string;
+  }>({
+    isOpen: false,
+    imageUrl: '',
+    cardName: ''
+  });
 
   // Form state for creating/editing cards
   const [formData, setFormData] = useState({
@@ -368,6 +380,24 @@ const AdminCards = () => {
     localStorage.setItem('adminCards_sortDirection', newDirection);
   };
 
+  // Open image preview modal
+  const openImagePreview = (imageUrl: string, cardName: string) => {
+    setImagePreview({
+      isOpen: true,
+      imageUrl,
+      cardName
+    });
+  };
+
+  // Close image preview modal
+  const closeImagePreview = () => {
+    setImagePreview({
+      isOpen: false,
+      imageUrl: '',
+      cardName: ''
+    });
+  };
+
   // Sort options for the dropdown
   const sortOptions = [
     { value: 'name', label: 'Name' },
@@ -568,7 +598,8 @@ const AdminCards = () => {
                             <img 
                               src={card.image_url} 
                               alt={card.name}
-                              className="w-full h-48 object-cover rounded-lg border shadow-sm"
+                              className="w-full h-48 object-cover rounded-lg border shadow-sm cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => openImagePreview(card.image_url!, card.name)}
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';
                               }}
@@ -577,7 +608,10 @@ const AdminCards = () => {
                               variant="ghost"
                               size="sm"
                               className="absolute top-2 right-2 bg-white/80 hover:bg-white"
-                              onClick={() => copyToClipboard(card.image_url!, 'Image URL')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(card.image_url!, 'Image URL');
+                              }}
                             >
                               <Copy className="h-3 w-3" />
                             </Button>
@@ -933,6 +967,27 @@ const AdminCards = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Image Preview Modal */}
+      <Dialog open={imagePreview.isOpen} onOpenChange={closeImagePreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-4">
+          <DialogHeader>
+            <DialogTitle>
+              {imagePreview.cardName} - Image Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center items-center max-h-[70vh] overflow-hidden">
+            <img 
+              src={imagePreview.imageUrl} 
+              alt={imagePreview.cardName}
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
