@@ -22,11 +22,11 @@ export default function Home() {
                 <Sparkles className="h-4 w-4 text-primary" />
                 <span className="text-sm text-muted-foreground">Premium Trading Cards</span>
               </div>
-              <div className="mb-2">
+              <div className="mb-0">
                 <img 
                   src="/lovable-uploads/50a5d289-3bf2-4ae1-8ce6-29bf56bcfca3.png" 
                   alt="Traders of Time Logo" 
-                  className="h-40 md:h-56 lg:h-64 mx-auto"
+                  className="h-64 md:h-80 lg:h-96 mx-auto"
                 />
               </div>
               <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">
