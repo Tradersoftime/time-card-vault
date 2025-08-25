@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Plus, Search, Edit, Trash2, QrCode, ExternalLink, Copy, Eye, EyeOff } from 'lucide-react';
 import QRCode from 'qrcode';
+import { ImageUpload } from '@/components/ImageUpload';
 
 interface CardData {
   id: string;
@@ -680,14 +681,35 @@ const AdminCards = () => {
                       onChange={(e) => setFormData({ ...formData, trader_value: e.target.value })}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="image_url">Image URL</Label>
-                    <Input
-                      id="image_url"
-                      value={formData.image_url}
-                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                    />
+                </div>
+                
+                {/* Image Upload Section */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <Label>Upload Image</Label>
+                      <ImageUpload
+                        onImageUploaded={(url) => setFormData({ ...formData, image_url: url })}
+                        currentImageUrl={formData.image_url}
+                        cardCode={formData.code}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="image_url">Or Enter Image URL</Label>
+                      <Input
+                        id="image_url"
+                        value={formData.image_url}
+                        onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                        placeholder="https://example.com/image.jpg"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Upload an image or paste an external URL
+                      </p>
+                    </div>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="current_target">Redirect URL</Label>
                     <Input
