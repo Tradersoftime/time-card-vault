@@ -1066,7 +1066,8 @@ const AdminCards = () => {
           </DialogContent>
         </Dialog>
       </div>
-    );
+    </div>
+  );
 };
 
 export default AdminCards;
