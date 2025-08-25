@@ -104,6 +104,36 @@ export type Database = {
         }
         Relationships: []
       }
+      image_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          filename: string
+          id: string
+          public_url: string
+          storage_path: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          filename: string
+          id?: string
+          public_url: string
+          storage_path: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          filename?: string
+          id?: string
+          public_url?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -477,6 +507,10 @@ export type Database = {
           user_email: string
           user_id: string
         }[]
+      }
+      resolve_image_code: {
+        Args: { p_code: string }
+        Returns: string
       }
     }
     Enums: {

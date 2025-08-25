@@ -6,8 +6,9 @@ import JSZip from "jszip";
 import Papa from "papaparse";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, Copy, Download, Edit, Eye } from "lucide-react";
+import { ChevronRight, Copy, Download, Edit, Eye, Image as ImageIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ImageLibraryView } from '@/components/ImageLibraryView';
 
 /* ---------------- Types ---------------- */
 
@@ -196,6 +197,7 @@ export default function AdminQR() {
   // Image Code Mapping
   const [imageMappings, setImageMappings] = useState<ImageMapping[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [showImageLibrary, setShowImageLibrary] = useState(false);
 
   // Edit redirect
   const [editCode, setEditCode] = useState("");
@@ -347,10 +349,21 @@ export default function AdminQR() {
     const newMappings: ImageMapping[] = [];
 
     try {
+      // Get the next available code number
+      const { data: existingCodes } = await supabase
+        .from('image_codes')
+        .select('code')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      const lastCode = existingCodes?.[0]?.code || 'a0';
+      const lastNumber = parseInt(lastCode.replace(/[a-z]/g, '')) || 0;
+      let nextNumber = lastNumber + 1;
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const extension = file.name.split('.').pop() || 'jpg';
-        const imageCode = `a${imageMappings.length + i + 1}`;
+        const imageCode = `a${nextNumber + i}`;
         const fileName = `batch-${timestamp}/${imageCode}.${extension}`;
 
         const { data, error } = await supabase.storage
@@ -366,6 +379,23 @@ export default function AdminQR() {
           .from('card-images')
           .getPublicUrl(fileName);
 
+        // Store in database for persistence
+        const { data: user } = await supabase.auth.getUser();
+        const { error: dbError } = await supabase
+          .from('image_codes')
+          .insert({
+            code: imageCode,
+            storage_path: fileName,
+            public_url: publicUrl,
+            filename: file.name,
+            created_by: user.user?.id
+          });
+
+        if (dbError) {
+          console.error('Database error:', dbError);
+          continue;
+        }
+
         newMappings.push({
           code: imageCode,
           url: publicUrl,
@@ -374,7 +404,7 @@ export default function AdminQR() {
       }
 
       setImageMappings(prev => [...prev, ...newMappings]);
-      setMsg(`✅ Uploaded ${newMappings.length} images with codes ${newMappings.map(m => m.code).join(', ')}`);
+      setMsg(`✅ Uploaded ${newMappings.length} images with codes ${newMappings.map(m => m.code).join(', ')} and saved to database`);
     } catch (error) {
       setMsg('Error uploading images');
     } finally {
@@ -457,22 +487,23 @@ export default function AdminQR() {
     Papa.parse<CsvRow>(f, {
       header: true,
       skipEmptyLines: true,
-      complete: (res) => {
+      complete: async (res) => {
         if (res.errors?.length) {
           setCsvErrors(res.errors.map((er) => `Row ${er.row}: ${er.message}`));
         }
-        ingestCsv(res.data);
+        await ingestCsv(res.data);
       },
     });
     e.currentTarget.value = ""; // reset input
   }
 
-  function validateAndNormalize(rows: CsvRow[]): { ok: CardUpsert[]; errors: string[] } {
+  async function validateAndNormalize(rows: CsvRow[]): Promise<{ ok: CardUpsert[]; errors: string[] }> {
     const errors: string[] = [];
     const ok: CardUpsert[] = [];
     const seen = new Set<string>();
 
-    rows.forEach((r, idx) => {
+    for (let idx = 0; idx < rows.length; idx++) {
+      const r = rows[idx];
       const line = idx + 2; // header = line 1
       const codeRaw = norm(r.code ?? "");
       if (!codeRaw) {
@@ -506,11 +537,32 @@ export default function AdminQR() {
       const imageCode = r.image_code ? norm(r.image_code) : undefined;
       
       if (imageCode && !imageUrl) {
-        const mapping = imageMappings.find(m => m.code === imageCode);
-        if (mapping) {
-          imageUrl = mapping.url;
+        // Try to resolve from database first
+        const { data: resolvedUrl } = await supabase
+          .rpc('resolve_image_code', { p_code: imageCode });
+        
+        if (resolvedUrl) {
+          imageUrl = resolvedUrl;
         } else {
-          errors.push(`Line ${line}: image code "${imageCode}" not found in uploaded mappings`);
+          // Fallback to local mappings
+          const mapping = imageMappings.find(m => m.code === imageCode);
+          if (mapping) {
+            imageUrl = mapping.url;
+          } else {
+            errors.push(`Line ${line}: image code "${imageCode}" not found in database or local mappings`);
+          }
+        }
+      }
+      
+      // Handle short codes in image_url field (like a1, a2)
+      if (imageUrl && !imageUrl.startsWith('http') && /^[a-z]\d+$/.test(imageUrl)) {
+        const { data: resolvedUrl } = await supabase
+          .rpc('resolve_image_code', { p_code: imageUrl });
+        
+        if (resolvedUrl) {
+          imageUrl = resolvedUrl;
+        } else {
+          errors.push(`Line ${line}: image code "${imageUrl}" not found in database`);
         }
       }
 
@@ -535,13 +587,13 @@ export default function AdminQR() {
       if (b !== undefined) row.is_active = b;
 
       ok.push(row);
-    });
+    }
 
     return { ok, errors };
   }
 
-  function ingestCsv(data: CsvRow[]) {
-    const { ok, errors } = validateAndNormalize(data);
+  async function ingestCsv(data: CsvRow[]) {
+    const { ok, errors } = await validateAndNormalize(data);
     setCsvRows(ok);
     setCsvErrors(errors);
     setMsg(
@@ -551,16 +603,16 @@ export default function AdminQR() {
     );
   }
 
-  function handleCsvPaste() {
+  async function handleCsvPaste() {
     setCsvErrors([]);
     Papa.parse<CsvRow>(csvText, {
       header: true,
       skipEmptyLines: true,
-      complete: (res) => {
+      complete: async (res) => {
         if (res.errors?.length) {
           setCsvErrors(res.errors.map((er) => `Row ${er.row}: ${er.message}`));
         }
-        ingestCsv(res.data);
+        await ingestCsv(res.data);
       },
     });
   }
@@ -674,9 +726,21 @@ export default function AdminQR() {
 
       {/* Image Upload & Mapping */}
       <section className="card-premium rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">Image Upload & Mapping</h2>
-        <div className="text-sm text-muted-foreground">
-          Upload multiple images and assign codes (a1, a2, a3...) for use in CSV import.
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Image Upload & Mapping</h2>
+            <div className="text-sm text-muted-foreground">
+              Upload multiple images and assign codes (a1, a2, a3...) for use in CSV import.
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowImageLibrary(!showImageLibrary)}
+          >
+            <ImageIcon className="h-4 w-4 mr-2" />
+            {showImageLibrary ? 'Hide' : 'View'} Library
+          </Button>
         </div>
         
         <div className="space-y-3">
@@ -691,6 +755,12 @@ export default function AdminQR() {
           
           {uploadingImages && (
             <div className="text-sm text-muted-foreground">Uploading images...</div>
+          )}
+
+          {showImageLibrary && (
+            <div className="border rounded-lg p-4 bg-muted/10">
+              <ImageLibraryView />
+            </div>
           )}
           
           {imageMappings.length > 0 && (
