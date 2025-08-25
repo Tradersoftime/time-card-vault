@@ -321,7 +321,7 @@ export default function AdminQR() {
             suit: "Unknown",
             rank: "Unknown", 
             era: "Unknown",
-            status: "draft",
+            status: "unprinted",
             is_active: true,
             time_value: 0
           })
