@@ -16,7 +16,7 @@ type Row = {
   era: string | null;
   image_url: string | null;
   rarity: string | null;
-  trader_value: string | null;
+  trader_value: string | null; // numeric-looking string (e.g., "120" or "$120")
   time_value: number | null;
   is_pending: boolean;
   is_credited: boolean;
@@ -65,11 +65,17 @@ export default function MyCards() {
     setLoading(false);
   }
 
+  // ---- Helpers for parsing/formatting trader_value ----
+  const toNum = (v?: string | null) =>
+    Number(String(v ?? "0").replace(/[^0-9.\-]/g, "")) || 0;
+
+  const formatNum = (n: number) => n.toLocaleString();
+
   // Search and sort functions
   const filterCards = (cards: Row[]) => {
     if (!searchTerm) return cards;
     const term = searchTerm.toLowerCase();
-    return cards.filter(card => 
+    return cards.filter(card =>
       (card.name?.toLowerCase().includes(term)) ||
       (card.era?.toLowerCase().includes(term)) ||
       (card.suit?.toLowerCase().includes(term)) ||
@@ -82,7 +88,7 @@ export default function MyCards() {
   const sortCards = (cards: Row[]) => {
     return [...cards].sort((a, b) => {
       let aValue: any, bValue: any;
-      
+
       switch (sortBy) {
         case 'name':
           aValue = a.name?.toLowerCase() || '';
@@ -109,8 +115,8 @@ export default function MyCards() {
           bValue = b.time_value || 0;
           break;
         case 'trader_value':
-          aValue = parseFloat(a.trader_value || '0');
-          bValue = parseFloat(b.trader_value || '0');
+          aValue = toNum(a.trader_value);
+          bValue = toNum(b.trader_value);
           break;
         case 'claimed_at':
         default:
@@ -118,7 +124,7 @@ export default function MyCards() {
           bValue = new Date(b.claimed_at).getTime();
           break;
       }
-      
+
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -132,13 +138,22 @@ export default function MyCards() {
   const pending = useMemo(() => processCards(rows.filter(r => r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
   const credited = useMemo(() => processCards(rows.filter(r => r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
 
-  // Totals
+  // Totals (TIME)
   const timeOf = (list: Row[]) => list.reduce((s, r) => s + (r.time_value ?? 0), 0);
   const totalCards = rows.length;
   const totalTimeAll = timeOf(rows);
   const totalTimeCredited = timeOf(credited);
   const totalTimeReady = timeOf(ready);
   const totalTimePending = timeOf(pending);
+
+  // NEW: Top 52 by trader_value across the whole collection
+  const top52 = useMemo(() => {
+    // Sort all owned cards by trader_value desc, take first 52
+    const sorted = [...rows].sort((a, b) => toNum(b.trader_value) - toNum(a.trader_value));
+    const slice = sorted.slice(0, 52);
+    const sum = slice.reduce((s, r) => s + toNum(r.trader_value), 0);
+    return { total: sum, count: slice.length };
+  }, [rows]);
 
   // Selection helpers (only for "ready")
   function toggle(cardId: string) {
@@ -243,6 +258,25 @@ export default function MyCards() {
             <div className="text-3xl font-bold text-foreground">{totalTimePending.toFixed(2)}</div>
             <div className="text-sm text-muted-foreground">Pending TIME</div>
             <div className="text-xs text-muted-foreground">{pending.length} card{pending.length === 1 ? "" : "s"}</div>
+          </div>
+        </div>
+
+        {/* NEW: Top 52 Trader Value (full-width card under main stats) */}
+        <div className="glass-panel p-6 rounded-2xl border border-primary/20">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+            <div>
+              <div className="text-sm text-muted-foreground">Best possible lineup</div>
+              <div className="text-2xl font-semibold text-foreground">Top 52 Trader Value</div>
+              <div className="text-xs text-muted-foreground">
+                Highest 52 cards by Trader Value from your entire collection
+              </div>
+            </div>
+            <div className="text-3xl font-extrabold text-primary">
+              {formatNum(top52.total)}
+              <span className="ml-2 text-xs font-medium text-muted-foreground align-super">
+                ({top52.count} of 52)
+              </span>
+            </div>
           </div>
         </div>
 
@@ -457,6 +491,7 @@ export default function MyCards() {
   );
 }
 
+// (Unused now, but keeping here if you reference Stat elsewhere)
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="border rounded-xl p-3">
