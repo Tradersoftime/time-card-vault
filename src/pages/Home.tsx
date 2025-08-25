@@ -24,7 +24,7 @@ export default function Home() {
               </div>
               <div className="mb-0">
                 <img 
-                  src="/lovable-uploads/50a5d289-3bf2-4ae1-8ce6-29bf56bcfca3.png" 
+                  src="/lovable-uploads/09c93ea6-6572-412b-b429-94bd6942b856.png" 
                   alt="Traders of Time Logo" 
                   className="h-64 md:h-80 lg:h-96 mx-auto"
                 />
