@@ -477,6 +477,9 @@ export default function Admin() {
           <Link to="/admin/qr" className="border rounded px-3 py-1">
             QR Generator
           </Link>
+          <Link to="/admin/cards" className="border rounded px-3 py-1">
+            Card Management
+          </Link>
           <button
             onClick={() => {
               loadPending();
