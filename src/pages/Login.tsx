@@ -104,7 +104,7 @@ export default function Login() {
             <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary-glow rounded-full flex items-center justify-center mx-auto mb-4">
               <CreditCard className="h-8 w-8 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold mb-2">Welcome to TOT Cards</h1>
+            <h1 className="text-2xl font-bold mb-2">Welcome to ToT Cards</h1>
             <p className="text-muted-foreground">
               Sign in with your email to access your collection
             </p>

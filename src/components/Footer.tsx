@@ -12,7 +12,7 @@ export function Footer() {
               <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary-glow rounded-lg flex items-center justify-center">
                 <CreditCard className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold gradient-text">TOT Cards</span>
+              <span className="text-xl font-bold gradient-text">ToT Cards</span>
             </Link>
             <p className="text-sm text-muted-foreground max-w-xs">
               Premium trading card collection platform. Scan, collect, and redeem exclusive cards across eras of history.
@@ -73,7 +73,7 @@ export function Footer() {
 
         <div className="border-t border-border mt-8 pt-8 flex flex-col sm:flex-row justify-between items-center">
           <p className="text-sm text-muted-foreground">
-            © 2024 TOT Cards. All rights reserved.
+            © 2024 ToT Cards. All rights reserved.
           </p>
           <p className="text-sm text-muted-foreground">
             Built with premium design and care
