@@ -40,8 +40,11 @@ type CardUpsert = {
   era?: string | null;
   rarity?: string | null;
   trader_value?: string | null;
+  time_value?: number | null;
   image_url?: string | null;
+  description?: string | null;
   current_target?: string | null;
+  status?: string | null;
   is_active?: boolean;
 };
 
@@ -131,11 +134,11 @@ function RecentCardsPanel() {
                       <div className="flex gap-2">
                         <a
                           className="border rounded px-2 py-0.5 text-xs"
-                          href={`/r/${encodeURIComponent(r.code)}`}
+                          href={`/claim/${encodeURIComponent(r.code)}`}
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Open /r/{r.code}
+                          Open /claim/{r.code}
                         </a>
                         {r.image_url && (
                           <a
@@ -195,7 +198,7 @@ export default function AdminQR() {
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
   const [csvBusy, setCsvBusy] = useState(false);
 
-  const baseUrl = useMemo(() => `${window.location.origin}/r/`, []);
+  const baseUrl = useMemo(() => `${window.location.origin}/claim/`, []);
 
   useEffect(() => {
     (async () => {
@@ -314,7 +317,12 @@ export default function AdminQR() {
 
     // Save to DB as active bare cards
     setSaving(true);
-    const rows = codes.map((code) => ({ code, is_active: true }));
+    const rows = codes.map((code) => ({ 
+      code, 
+      is_active: true, 
+      status: 'active',
+      time_value: 0
+    }));
     const { error } = await supabase
       .from("cards")
       .upsert(rows, { onConflict: "code", ignoreDuplicates: true });
@@ -446,17 +454,37 @@ export default function AdminQR() {
       }
       seen.add(code.toLowerCase());
 
+      // Validate required fields for complete cards
+      const name = r.name ? norm(r.name) : undefined;
+      const suit = r.suit ? norm(r.suit) : undefined;
+      const rank = r.rank ? norm(r.rank) : undefined;
+      const era = r.era ? norm(r.era) : undefined;
+
+      // If any card details are provided, warn about missing required fields
+      if ((name || suit || rank || era) && (!name || !suit || !rank || !era)) {
+        if (!name) errors.push(`Line ${line}: missing name (required for complete cards)`);
+        if (!suit) errors.push(`Line ${line}: missing suit (required for complete cards)`);
+        if (!rank) errors.push(`Line ${line}: missing rank (required for complete cards)`);
+        if (!era) errors.push(`Line ${line}: missing era (required for complete cards)`);
+      }
+
       const row: CardUpsert = {
         code,
-        name: r.name ? norm(r.name) : undefined,
-        suit: r.suit ? norm(r.suit) : undefined,
-        rank: r.rank ? norm(r.rank) : undefined,
-        era: r.era ? norm(r.era) : undefined,
+        name,
+        suit,
+        rank,
+        era,
         rarity: r.rarity ? norm(r.rarity) : undefined,
         trader_value: r.trader_value ? norm(r.trader_value) : undefined,
+        time_value: r.time_value ? Number(r.time_value) || 0 : 0,
         image_url: r.image_url ? norm(r.image_url) : undefined,
+        description: r.description ? norm(r.description) : undefined,
         current_target: r.current_target ? norm(r.current_target) : undefined,
+        status: r.status ? norm(r.status) : 'active',
+        is_active: true, // Default to active
       };
+      
+      // Override is_active if explicitly provided
       const b = parseBool((r as any).is_active);
       if (b !== undefined) row.is_active = b;
 
@@ -623,8 +651,12 @@ export default function AdminQR() {
         <div className="text-sm text-muted-foreground">
           Required column: <code className="bg-muted px-1 rounded">code</code>. Optional:{" "}
           <code className="bg-muted px-1 rounded">
-            name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active
+            name,suit,rank,era,rarity,trader_value,time_value,description,image_url,current_target,status,is_active
           </code>
+          <br />
+          <span className="text-xs mt-1 block">
+            For complete cards, provide: name, suit, rank, era. Default time_value: 0, status: 'active'
+          </span>
         </div>
 
         <div className="flex flex-col md:flex-row gap-3">
@@ -645,8 +677,8 @@ export default function AdminQR() {
         <textarea
           value={csvText}
           onChange={(e) => setCsvText(e.target.value)}
-          placeholder={`code,name,suit,rank,era,rarity,trader_value,image_url,current_target,is_active
-TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,https://your-site/trader/ada,true`}
+          placeholder={`code,name,suit,rank,era,rarity,trader_value,time_value,description,image_url,current_target,status,is_active
+TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,10,Famous mathematician and programmer,https://.../ada.png,https://your-site/trader/ada,active,true`}
           rows={6}
           className="w-full glass-panel border border-border rounded px-2 py-1 font-mono text-xs text-foreground placeholder:text-muted-foreground"
         />
@@ -692,6 +724,8 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
                     <th className="py-1 pr-3 text-foreground">rank</th>
                     <th className="py-1 pr-3 text-foreground">era</th>
                     <th className="py-1 pr-3 text-foreground">rarity</th>
+                    <th className="py-1 pr-3 text-foreground">time_value</th>
+                    <th className="py-1 pr-3 text-foreground">status</th>
                     <th className="py-1 pr-3 text-foreground">is_active</th>
                   </tr>
                 </thead>
@@ -704,6 +738,8 @@ TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,https://.../ada.png,
                       <td className="py-1 pr-3 text-foreground">{r.rank ?? "—"}</td>
                       <td className="py-1 pr-3 text-foreground">{r.era ?? "—"}</td>
                       <td className="py-1 pr-3 text-foreground">{r.rarity ?? "—"}</td>
+                      <td className="py-1 pr-3 text-foreground">{r.time_value ?? 0}</td>
+                      <td className="py-1 pr-3 text-foreground">{r.status ?? "active"}</td>
                       <td className="py-1 pr-3 text-foreground">{String(r.is_active ?? "")}</td>
                     </tr>
                   ))}
