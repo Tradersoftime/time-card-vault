@@ -11,12 +11,12 @@ type Row = {
   claimed_at: string;
   card_id: string;
   name: string | null;
-  suit: string | null;
-  rank: string | null;
+  suit: string | null;  // e.g., "Hearts", "♥", "H"
+  rank: string | null;  // e.g., "2","10","J","Q","K","A","Ace","Jack"
   era: string | null;
   image_url: string | null;
   rarity: string | null;
-  trader_value: string | null; // numeric-looking string (e.g., "120" or "$120")
+  trader_value: string | null; // numeric-like string
   time_value: number | null;
   is_pending: boolean;
   is_credited: boolean;
@@ -68,10 +68,38 @@ export default function MyCards() {
   // ---- Helpers for parsing/formatting trader_value ----
   const toNum = (v?: string | null) =>
     Number(String(v ?? "0").replace(/[^0-9.\-]/g, "")) || 0;
-
   const formatNum = (n: number) => n.toLocaleString();
 
-  // Search and sort functions
+  // ---- Suit / Rank normalization ----
+  const SUITS = ["clubs", "diamonds", "hearts", "spades"] as const;
+  type SuitKey = typeof SUITS[number];
+
+  function normSuit(s?: string | null): SuitKey | null {
+    if (!s) return null;
+    const x = s.toString().trim().toLowerCase();
+    if (/^c(lubs)?$|^♣$/.test(x)) return "clubs";
+    if (/^d(iamonds)?$|^♦$/.test(x)) return "diamonds";
+    if (/^h(earts)?$|^♥$/.test(x)) return "hearts";
+    if (/^s(pades)?$|^♠$/.test(x)) return "spades";
+    return null;
+  }
+
+  const RANKS = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"] as const; // order not used for calc, but canonical list
+  type RankKey = typeof RANKS[number];
+
+  function normRank(r?: string | null): RankKey | null {
+    if (!r) return null;
+    const x = r.toString().trim().toLowerCase();
+    if (x === "a" || x === "ace" || x === "1") return "A"; // treat Ace like A
+    if (x === "k" || x === "king") return "K";
+    if (x === "q" || x === "queen") return "Q";
+    if (x === "j" || x === "jack") return "J";
+    if (x === "10" || x === "ten") return "10";
+    if (/^[2-9]$/.test(x)) return x.toUpperCase() as RankKey;
+    return null;
+  }
+
+  // Search & Sort
   const filterCards = (cards: Row[]) => {
     if (!searchTerm) return cards;
     const term = searchTerm.toLowerCase();
@@ -88,43 +116,20 @@ export default function MyCards() {
   const sortCards = (cards: Row[]) => {
     return [...cards].sort((a, b) => {
       let aValue: any, bValue: any;
-
       switch (sortBy) {
-        case 'name':
-          aValue = a.name?.toLowerCase() || '';
-          bValue = b.name?.toLowerCase() || '';
-          break;
-        case 'era':
-          aValue = a.era?.toLowerCase() || '';
-          bValue = b.era?.toLowerCase() || '';
-          break;
-        case 'suit':
-          aValue = a.suit?.toLowerCase() || '';
-          bValue = b.suit?.toLowerCase() || '';
-          break;
-        case 'rank':
-          aValue = a.rank?.toLowerCase() || '';
-          bValue = b.rank?.toLowerCase() || '';
-          break;
-        case 'rarity':
-          aValue = a.rarity?.toLowerCase() || '';
-          bValue = b.rarity?.toLowerCase() || '';
-          break;
-        case 'time_value':
-          aValue = a.time_value || 0;
-          bValue = b.time_value || 0;
-          break;
-        case 'trader_value':
-          aValue = toNum(a.trader_value);
-          bValue = toNum(b.trader_value);
-          break;
+        case 'name': aValue = a.name?.toLowerCase() || ''; bValue = b.name?.toLowerCase() || ''; break;
+        case 'era': aValue = a.era?.toLowerCase() || ''; bValue = b.era?.toLowerCase() || ''; break;
+        case 'suit': aValue = a.suit?.toLowerCase() || ''; bValue = b.suit?.toLowerCase() || ''; break;
+        case 'rank': aValue = a.rank?.toLowerCase() || ''; bValue = b.rank?.toLowerCase() || ''; break;
+        case 'rarity': aValue = a.rarity?.toLowerCase() || ''; bValue = b.rarity?.toLowerCase() || ''; break;
+        case 'time_value': aValue = a.time_value || 0; bValue = b.time_value || 0; break;
+        case 'trader_value': aValue = toNum(a.trader_value); bValue = toNum(b.trader_value); break;
         case 'claimed_at':
         default:
           aValue = new Date(a.claimed_at).getTime();
           bValue = new Date(b.claimed_at).getTime();
           break;
       }
-
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -133,12 +138,12 @@ export default function MyCards() {
 
   const processCards = (cards: Row[]) => sortCards(filterCards(cards));
 
-  // Groups with search and sort applied
+  // Groups
   const ready = useMemo(() => processCards(rows.filter(r => !r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
   const pending = useMemo(() => processCards(rows.filter(r => r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
   const credited = useMemo(() => processCards(rows.filter(r => r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
 
-  // Totals (TIME)
+  // TIME totals
   const timeOf = (list: Row[]) => list.reduce((s, r) => s + (r.time_value ?? 0), 0);
   const totalCards = rows.length;
   const totalTimeAll = timeOf(rows);
@@ -146,19 +151,43 @@ export default function MyCards() {
   const totalTimeReady = timeOf(ready);
   const totalTimePending = timeOf(pending);
 
-  // NEW: Top 52 by trader_value across the whole collection
-  const top52 = useMemo(() => {
-    // Sort all owned cards by trader_value desc, take first 52
-    const sorted = [...rows].sort((a, b) => toNum(b.trader_value) - toNum(a.trader_value));
-    const slice = sorted.slice(0, 52);
-    const sum = slice.reduce((s, r) => s + toNum(r.trader_value), 0);
-    return { total: sum, count: slice.length };
+  // NEW: Best Full Deck (52) — one per (rank × suit), pick highest Trader Value per slot
+  const bestDeck52 = useMemo(() => {
+    // slot -> best card
+    type SlotKey = `${RankKey}-${SuitKey}`;
+    const best: Record<SlotKey, { value: number; row: Row }> = {} as any;
+
+    for (const r of rows) {
+      const rank = normRank(r.rank);
+      const suit = normSuit(r.suit);
+      if (!rank || !suit) continue;
+
+      const key = `${rank}-${suit}` as SlotKey;
+      const val = toNum(r.trader_value);
+      const prev = best[key];
+      if (!prev || val > prev.value) {
+        best[key] = { value: val, row: r };
+      }
+    }
+
+    // Sum all filled slots (max 52)
+    let total = 0;
+    let count = 0;
+    for (const rank of RANKS) {
+      for (const suit of SUITS) {
+        const key = `${rank}-${suit}` as SlotKey;
+        if (best[key]) {
+          total += best[key].value;
+          count += 1;
+        }
+      }
+    }
+
+    return { total, count }; // count may be < 52 if some slots missing
   }, [rows]);
 
   // Selection helpers (only for "ready")
-  function toggle(cardId: string) {
-    setSelected(s => ({ ...s, [cardId]: !s[cardId] }));
-  }
+  function toggle(cardId: string) { setSelected(s => ({ ...s, [cardId]: !s[cardId] })); }
   function selectAllReady() {
     const next: Record<string, boolean> = {};
     ready.forEach(r => { next[r.card_id] = true; });
@@ -176,7 +205,6 @@ export default function MyCards() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user) { setMsg("Not signed in."); return; }
 
-      // Create a new redemption header
       const { data: redRow, error: redErr } = await supabase
         .from("redemptions")
         .insert({ user_id: userData.user.id })
@@ -185,7 +213,6 @@ export default function MyCards() {
 
       if (redErr || !redRow?.id) { setMsg(redErr?.message || "Could not create redemption."); return; }
 
-      // Attach cards; ignore duplicates (already submitted by anyone)
       const payload = chosen.map(card_id => ({ redemption_id: redRow.id, card_id }));
       const { data: inserted, error: upsertErr } = await supabase
         .from("redemption_cards")
@@ -208,7 +235,6 @@ export default function MyCards() {
       if (added === 0) setMsg("⚠️ Already submitted or redeemed.");
       else setMsg(`✅ Submitted ${added} card${added === 1 ? "" : "s"} for TIME review${skipped > 0 ? ` (${skipped} already submitted)` : ""}!`);
 
-      // Clear only those we actually submitted
       const nextSel = { ...selected };
       (inserted || []).forEach((row: any) => { nextSel[row.card_id] = false; });
       setSelected(nextSel);
@@ -241,19 +267,16 @@ export default function MyCards() {
             <div className="text-sm text-muted-foreground">Collection TIME</div>
             <div className="text-xs text-muted-foreground">{totalCards} card{totalCards === 1 ? "" : "s"}</div>
           </div>
-          
           <div className="glass-panel p-6 rounded-2xl">
             <div className="text-3xl font-bold text-foreground">{totalTimeCredited.toFixed(2)}</div>
             <div className="text-sm text-muted-foreground">Credited TIME</div>
             <div className="text-xs text-muted-foreground">{credited.length} card{credited.length === 1 ? "" : "s"}</div>
           </div>
-          
           <div className="glass-panel p-6 rounded-2xl glow-primary">
             <div className="text-3xl font-bold text-primary">{totalTimeReady.toFixed(2)}</div>
             <div className="text-sm text-muted-foreground">Ready to Claim</div>
             <div className="text-xs text-muted-foreground">{ready.length} card{ready.length === 1 ? "" : "s"}</div>
           </div>
-          
           <div className="glass-panel p-6 rounded-2xl">
             <div className="text-3xl font-bold text-foreground">{totalTimePending.toFixed(2)}</div>
             <div className="text-sm text-muted-foreground">Pending TIME</div>
@@ -261,20 +284,20 @@ export default function MyCards() {
           </div>
         </div>
 
-        {/* NEW: Top 52 Trader Value (full-width card under main stats) */}
+        {/* NEW: Best Full Deck (52) */}
         <div className="glass-panel p-6 rounded-2xl border border-primary/20">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
             <div>
-              <div className="text-sm text-muted-foreground">Best possible lineup</div>
-              <div className="text-2xl font-semibold text-foreground">Top 52 Trader Value</div>
+              <div className="text-sm text-muted-foreground">One per rank × suit</div>
+              <div className="text-2xl font-semibold text-foreground">Best Full Deck (52) — Trader Value</div>
               <div className="text-xs text-muted-foreground">
-                Highest 52 cards by Trader Value from your entire collection
+                Picks the highest Trader Value for each slot (2–10, J, Q, K, A × ♣ ♦ ♥ ♠) from your collection
               </div>
             </div>
             <div className="text-3xl font-extrabold text-primary">
-              {formatNum(top52.total)}
+              {formatNum(bestDeck52.total)}
               <span className="ml-2 text-xs font-medium text-muted-foreground align-super">
-                ({top52.count} of 52)
+                ({bestDeck52.count} of 52)
               </span>
             </div>
           </div>
@@ -286,16 +309,14 @@ export default function MyCards() {
           </div>
         )}
 
-        {/* Search and Sort Controls */}
+        {/* Filter & Sort */}
         <div className="glass-panel p-6 rounded-2xl">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-1">Filter & Sort Collection</h3>
               <p className="text-sm text-muted-foreground">Search and organize your cards</p>
             </div>
-            
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              {/* Search */}
               <div className="relative flex-1 sm:min-w-[300px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -305,8 +326,6 @@ export default function MyCards() {
                   className="pl-10 bg-background/50 border-primary/20 focus:border-primary"
                 />
               </div>
-              
-              {/* Sort */}
               <div className="flex gap-2">
                 <Select value={sortBy} onValueChange={setSortBy}>
                   <SelectTrigger className="w-[180px] bg-background/50 border-primary/20">
@@ -323,7 +342,6 @@ export default function MyCards() {
                     <SelectItem value="trader_value">Trader Value</SelectItem>
                   </SelectContent>
                 </Select>
-                
                 <Button
                   variant="outline"
                   size="sm"
@@ -336,29 +354,25 @@ export default function MyCards() {
               </div>
             </div>
           </div>
-          
-          {/* Results Summary */}
           {searchTerm && (
             <div className="mt-4 pt-4 border-t border-primary/20">
               <div className="text-sm text-muted-foreground">
                 Search results: <span className="text-primary font-medium">{ready.length + pending.length + credited.length}</span> cards found
-                {searchTerm && (
-                  <span className="ml-2">
-                    for "<span className="text-foreground font-medium">{searchTerm}</span>"
-                    <button 
-                      onClick={() => setSearchTerm("")}
-                      className="ml-2 text-primary hover:text-primary/80 text-xs underline"
-                    >
-                      Clear
-                    </button>
-                  </span>
-                )}
+                <span className="ml-2">
+                  for "<span className="text-foreground font-medium">{searchTerm}</span>"
+                  <button 
+                    onClick={() => setSearchTerm("")}
+                    className="ml-2 text-primary hover:text-primary/80 text-xs underline"
+                  >
+                    Clear
+                  </button>
+                </span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Unsubmitted (Ready for TIME) */}
+        {/* Ready */}
         <div className="glass-panel p-6 rounded-2xl">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
             <div>
@@ -386,7 +400,6 @@ export default function MyCards() {
               </button>
             </div>
           </div>
-
           {ready.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No unsubmitted cards.</div>
           ) : (
@@ -397,23 +410,17 @@ export default function MyCards() {
                   <div
                     key={r.card_id}
                     className={`glass-panel p-4 rounded-xl cursor-pointer transition-all transform hover:scale-105 ${
-                      checked
-                        ? 'border-2 border-primary glow-primary bg-primary/5'
-                        : 'hover:bg-muted/10'
+                      checked ? 'border-2 border-primary glow-primary bg-primary/5' : 'hover:bg-muted/10'
                     }`}
                     onClick={() => toggle(r.card_id)}
                   >
                     <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
-                      {r.image_url && (
-                        <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
-                      )}
+                      {r.image_url && (<img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />)}
                     </div>
                     <div className="space-y-1">
                       <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
                       <div className="text-sm text-muted-foreground">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}
-                      </div>
+                      <div className="text-xs text-muted-foreground">Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}</div>
                       <div className="text-sm font-medium text-primary">TIME: {r.time_value ?? 0}</div>
                       <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
                       <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-primary/20 text-primary border border-primary/30 glow-primary">
@@ -427,7 +434,7 @@ export default function MyCards() {
           )}
         </div>
 
-        {/* Submitted (Pending TIME) */}
+        {/* Pending */}
         <div className="glass-panel p-6 rounded-2xl">
           <h2 className="text-2xl font-semibold text-foreground mb-4">Submitted (Pending TIME)</h2>
           {pending.length === 0 ? (
@@ -437,9 +444,7 @@ export default function MyCards() {
               {pending.map((r) => (
                 <div key={r.card_id} className="glass-panel p-4 rounded-xl hover:bg-muted/5 transition-colors">
                   <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
-                    {r.image_url && (
-                      <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
-                    )}
+                    {r.image_url && (<img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />)}
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
@@ -457,7 +462,7 @@ export default function MyCards() {
           )}
         </div>
 
-        {/* Claimed (Credited) */}
+        {/* Credited */}
         <div className="glass-panel p-6 rounded-2xl">
           <h2 className="text-2xl font-semibold text-foreground mb-4">Claimed Cards</h2>
           {credited.length === 0 ? (
@@ -467,9 +472,7 @@ export default function MyCards() {
               {credited.map((r) => (
                 <div key={r.card_id} className="glass-panel p-4 rounded-xl hover:bg-muted/5 transition-colors glow-primary">
                   <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
-                    {r.image_url && (
-                      <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
-                    )}
+                    {r.image_url && (<img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />)}
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
@@ -487,17 +490,6 @@ export default function MyCards() {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// (Unused now, but keeping here if you reference Stat elsewhere)
-function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
-  return (
-    <div className="border rounded-xl p-3">
-      <div className="text-xs opacity-70">{label}</div>
-      <div className="text-2xl font-semibold">{value}</div>
-      {sub && <div className="text-xs opacity-60">{sub}</div>}
     </div>
   );
 }
