@@ -16,7 +16,7 @@ type Row = {
   era: string | null;
   image_url: string | null;
   rarity: string | null;
-  trader_value: string | null;  // numeric text
+  trader_value: string | null; // numeric text
   time_value: number | null;
   is_pending: boolean;
   is_credited: boolean;
@@ -26,6 +26,9 @@ type Row = {
 
 const RARITY_ORDER = ["Degen", "Trader", "Investor", "Market Maker", "Whale"] as const;
 type RarityName = typeof RARITY_ORDER[number];
+
+const DECK_RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"] as const;
+const DECK_SUITS = ["Spades","Hearts","Clubs","Diamonds"] as const;
 
 function prettyRarity(r?: string | null): string {
   if (!r) return "—";
@@ -39,7 +42,7 @@ function prettyRarity(r?: string | null): string {
 function rarityRank(r?: string | null): number {
   const p = prettyRarity(r);
   const idx = RARITY_ORDER.indexOf(p as RarityName);
-  return idx === -1 ? -1 : idx; // -1 sorts before Degen if unknown; adjust if needed
+  return idx === -1 ? -1 : idx;
 }
 
 function toNum(s?: string | null): number {
@@ -47,12 +50,11 @@ function toNum(s?: string | null): number {
   const n = Number(String(s).replace(/[^0-9.\-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
-
 function formatNum(n: number): string {
   return Number(n).toLocaleString();
 }
 
-function canonicalSuit(s?: string | null): "Spades" | "Hearts" | "Clubs" | "Diamonds" | "—" {
+function canonicalSuit(s?: string | null): typeof DECK_SUITS[number] | "—" {
   if (!s) return "—";
   const v = s.trim().toLowerCase();
   if (v.startsWith("spa")) return "Spades";
@@ -61,7 +63,17 @@ function canonicalSuit(s?: string | null): "Spades" | "Hearts" | "Clubs" | "Diam
   if (v.startsWith("dia")) return "Diamonds";
   return "—";
 }
-
+function canonRank(r?: string | null): typeof DECK_RANKS[number] | null {
+  if (!r) return null;
+  const v = r.trim().toLowerCase();
+  if (v === "a" || v === "ace") return "A";
+  if (v === "k" || v === "king") return "K";
+  if (v === "q" || v === "queen") return "Q";
+  if (v === "j" || v === "jack") return "J";
+  if (v === "10" || v === "t" || v === "ten") return "10";
+  if (/^[2-9]$/.test(v)) return v.toUpperCase() as any;
+  return null;
+}
 function humanRank(r?: string | null): string {
   if (!r) return "—";
   const v = r.trim().toUpperCase();
@@ -69,9 +81,8 @@ function humanRank(r?: string | null): string {
   if (v === "K") return "King";
   if (v === "Q") return "Queen";
   if (v === "J") return "Jack";
-  return r; // 2..10 or custom stays as-is
+  return r;
 }
-
 function rankOfSuit(rank?: string | null, suit?: string | null): string {
   const s = canonicalSuit(suit);
   const rr = humanRank(rank);
@@ -79,6 +90,30 @@ function rankOfSuit(rank?: string | null, suit?: string | null): string {
   if (s === "—") return rr;
   if (rr === "—") return s;
   return `${rr} of ${s}`;
+}
+
+/** Build the best 52-card deck by bucket (rank × suit), picking the highest TLV in each bucket. */
+function buildBestDeck52(all: Row[]) {
+  const bestByBucket = new Map<string, Row>();
+  for (const row of all) {
+    const s = canonicalSuit(row.suit);
+    const r = canonRank(row.rank);
+    if (s === "—" || !r) continue; // only valid buckets
+    const key = `${s}|${r}`;
+    const curr = bestByBucket.get(key);
+    if (!curr || toNum(row.trader_value) > toNum(curr.trader_value)) {
+      bestByBucket.set(key, row);
+    }
+  }
+  const chosen: Row[] = [];
+  for (const s of DECK_SUITS) {
+    for (const r of DECK_RANKS) {
+      const hit = bestByBucket.get(`${s}|${r}`);
+      if (hit) chosen.push(hit);
+    }
+  }
+  const totalTLV = chosen.reduce((sum, c) => sum + toNum(c.trader_value), 0);
+  return { chosen, totalTLV };
 }
 
 /* ---------------- page ---------------- */
@@ -175,9 +210,9 @@ export default function MyCards() {
   const processCards = (cards: Row[]) => sortCards(filterCards(cards));
 
   // Groups (with search + sort)
-  const ready   = useMemo(() => processCards(rows.filter(r => !r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
-  const pending = useMemo(() => processCards(rows.filter(r =>  r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
-  const credited= useMemo(() => processCards(rows.filter(r =>  r.is_credited)),                  [rows, searchTerm, sortBy, sortDirection]);
+  const ready    = useMemo(() => processCards(rows.filter(r => !r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
+  const pending  = useMemo(() => processCards(rows.filter(r =>  r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
+  const credited = useMemo(() => processCards(rows.filter(r =>  r.is_credited)),                  [rows, searchTerm, sortBy, sortDirection]);
 
   // Totals
   const timeOf = (list: Row[]) => list.reduce((s, r) => s + (r.time_value ?? 0), 0);
@@ -186,6 +221,9 @@ export default function MyCards() {
   const totalTimeCredited  = timeOf(credited);
   const totalTimeReady     = timeOf(ready);
   const totalTimePending   = timeOf(pending);
+
+  // Best 52-card deck (by buckets rank×suit; highest TLV each bucket)
+  const { chosen: deck52, totalTLV: deck52TLV } = useMemo(() => buildBestDeck52(rows), [rows]);
 
   // Selection helpers (only for "ready")
   function toggle(cardId: string) {
@@ -265,7 +303,7 @@ export default function MyCards() {
           </h1>
           <p className="text-muted-foreground">Manage your trading cards and submit them for TIME rewards</p>
         </div>
-
+        
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="glass-panel p-6 rounded-2xl glow-primary">
@@ -273,23 +311,42 @@ export default function MyCards() {
             <div className="text-sm text-muted-foreground">Collection TIME</div>
             <div className="text-xs text-muted-foreground">{totalCards} card{totalCards === 1 ? "" : "s"}</div>
           </div>
-
+          
           <div className="glass-panel p-6 rounded-2xl">
             <div className="text-3xl font-bold text-foreground">{totalTimeCredited.toFixed(2)}</div>
             <div className="text-sm text-muted-foreground">Credited TIME</div>
             <div className="text-xs text-muted-foreground">{credited.length} card{credited.length === 1 ? "" : "s"}</div>
           </div>
-
+          
           <div className="glass-panel p-6 rounded-2xl glow-primary">
             <div className="text-3xl font-bold text-primary">{totalTimeReady.toFixed(2)}</div>
             <div className="text-sm text-muted-foreground">Ready to Claim</div>
             <div className="text-xs text-muted-foreground">{ready.length} card{ready.length === 1 ? "" : "s"}</div>
           </div>
-
+          
           <div className="glass-panel p-6 rounded-2xl">
             <div className="text-3xl font-bold text-foreground">{totalTimePending.toFixed(2)}</div>
             <div className="text-sm text-muted-foreground">Pending TIME</div>
             <div className="text-xs text-muted-foreground">{pending.length} card{pending.length === 1 ? "" : "s"}</div>
+          </div>
+        </div>
+
+        {/* Best Deck (52) TLV */}
+        <div className="glass-panel p-6 rounded-2xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-semibold text-foreground">
+                {formatNum(deck52TLV)} TLV
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Best 52-Card Deck TLV (using {deck52.length}/52 slots)
+              </div>
+            </div>
+            {deck52.length < 52 && (
+              <div className="text-xs text-muted-foreground">
+                Missing {52 - deck52.length} rank×suit slot{52 - deck52.length === 1 ? "" : "s"}
+              </div>
+            )}
           </div>
         </div>
 
@@ -306,7 +363,7 @@ export default function MyCards() {
               <h3 className="text-lg font-semibold text-foreground mb-1">Filter & Sort Collection</h3>
               <p className="text-sm text-muted-foreground">Search and organize your cards</p>
             </div>
-
+            
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               {/* Search */}
               <div className="relative flex-1 sm:min-w-[300px]">
@@ -318,11 +375,11 @@ export default function MyCards() {
                   className="pl-10 bg-background/50 border-primary/20 focus:border-primary"
                 />
               </div>
-
+              
               {/* Sort */}
               <div className="flex gap-2">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[180px] bg-background/50 border-primary/20">
+                  <SelectTrigger className="w-[200px] bg-background/50 border-primary/20">
                     <SelectValue placeholder="Sort by..." />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-primary/20">
@@ -333,22 +390,23 @@ export default function MyCards() {
                     <SelectItem value="rank">Rank</SelectItem>
                     <SelectItem value="rarity">Rarity</SelectItem>
                     <SelectItem value="time_value">TIME Value</SelectItem>
-                    <SelectItem value="trader_value">Trader Leverage</SelectItem>
+                    <SelectItem value="trader_value">Trader Leverage (TLV)</SelectItem>
                   </SelectContent>
                 </Select>
+                
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                  onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
                   className="px-3 bg-background/50 border-primary/20 hover:bg-primary/10"
-                  title={`Sort ${sortDirection === "asc" ? "Ascending" : "Descending"}`}
+                  title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
                 >
-                  <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === "desc" ? "rotate-180" : ""}`} />
+                  <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} />
                 </Button>
               </div>
             </div>
           </div>
-
+          
           {/* Results Summary */}
           {searchTerm && (
             <div className="mt-4 pt-4 border-t border-primary/20">
@@ -357,7 +415,7 @@ export default function MyCards() {
                 {searchTerm && (
                   <span className="ml-2">
                     for "<span className="text-foreground font-medium">{searchTerm}</span>"
-                    <button
+                    <button 
                       onClick={() => setSearchTerm("")}
                       className="ml-2 text-primary hover:text-primary/80 text-xs underline"
                     >
@@ -409,7 +467,7 @@ export default function MyCards() {
                   <div
                     key={r.card_id}
                     className={`glass-panel p-4 rounded-xl cursor-pointer transition-all transform hover:scale-105 ${
-                      checked ? "border-2 border-primary glow-primary bg-primary/5" : "hover:bg-muted/10"
+                      checked ? 'border-2 border-primary glow-primary bg-primary/5' : 'hover:bg-muted/10'
                     }`}
                     onClick={() => toggle(r.card_id)}
                   >
@@ -420,11 +478,9 @@ export default function MyCards() {
                     </div>
                     <div className="space-y-1">
                       <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}
-                      </div>
+                      <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
                       <div className="text-sm text-muted-foreground">{rankOfSuit(r.rank, r.suit)}</div>
-                      <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} LVG</div>
+                      <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
                       <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
                       <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
                       <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-primary/20 text-primary border border-primary/30 glow-primary">
@@ -454,11 +510,9 @@ export default function MyCards() {
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}
-                    </div>
+                    <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
                     <div className="text-sm text-muted-foreground">{rankOfSuit(r.rank, r.suit)}</div>
-                    <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} LVG</div>
+                    <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
                     <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
                     <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
                     <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
@@ -487,11 +541,9 @@ export default function MyCards() {
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}
-                    </div>
+                    <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
                     <div className="text-sm text-muted-foreground">{rankOfSuit(r.rank, r.suit)}</div>
-                    <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} LVG</div>
+                    <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
                     <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
                     <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
                     <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
