@@ -16,7 +16,7 @@ type Row = {
   era: string | null;
   image_url: string | null;
   rarity: string | null;
-  trader_value: string | null; // numeric text
+  trader_value: string | null; // numeric as text
   time_value: number | null;
   is_pending: boolean;
   is_credited: boolean;
@@ -83,16 +83,29 @@ function humanRank(r?: string | null): string {
   if (v === "J") return "Jack";
   return r;
 }
-function rankOfSuit(rank?: string | null, suit?: string | null): string {
+
+/** Suit glyph (♠ ♥ ♣ ♦). Hearts/Diamonds get a subtle red tint. */
+function SuitGlyph({ suit }: { suit?: string | null }) {
   const s = canonicalSuit(suit);
-  const rr = humanRank(rank);
-  if (s === "—" && rr === "—") return "—";
-  if (s === "—") return rr;
-  if (rr === "—") return s;
-  return `${rr} of ${s}`;
+  const glyph = s === "Spades" ? "♠" : s === "Hearts" ? "♥" : s === "Clubs" ? "♣" : s === "Diamonds" ? "♦" : "";
+  const cls = s === "Hearts" || s === "Diamonds" ? "text-red-500" : "text-foreground";
+  return glyph ? <span className={cls} aria-label={s} title={s}>{glyph}</span> : <span>—</span>;
 }
 
-/** Build the best 52-card deck by bucket (rank × suit), picking the highest TLV in each bucket. */
+/** Rank + suit icon (no "of"), e.g., "Jack ♠" */
+function RankSuit({ rank, suit }: { rank?: string | null; suit?: string | null }) {
+  const r = humanRank(rank);
+  const s = canonicalSuit(suit);
+  if (r === "—" && s === "—") return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="text-sm text-muted-foreground">
+      {r}{" "}
+      <SuitGlyph suit={s} />
+    </span>
+  );
+}
+
+/** Best 52-card deck by rank×suit with highest TLV per bucket */
 function buildBestDeck52(all: Row[]) {
   const bestByBucket = new Map<string, Row>();
   for (const row of all) {
@@ -479,7 +492,7 @@ export default function MyCards() {
                     <div className="space-y-1">
                       <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
                       <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
-                      <div className="text-sm text-muted-foreground">{rankOfSuit(r.rank, r.suit)}</div>
+                      <RankSuit rank={r.rank} suit={r.suit} />
                       <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
                       <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
                       <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
@@ -511,7 +524,7 @@ export default function MyCards() {
                   <div className="space-y-1">
                     <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
                     <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
-                    <div className="text-sm text-muted-foreground">{rankOfSuit(r.rank, r.suit)}</div>
+                    <RankSuit rank={r.rank} suit={r.suit} />
                     <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
                     <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
                     <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
@@ -542,7 +555,7 @@ export default function MyCards() {
                   <div className="space-y-1">
                     <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
                     <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
-                    <div className="text-sm text-muted-foreground">{rankOfSuit(r.rank, r.suit)}</div>
+                    <RankSuit rank={r.rank} suit={r.suit} />
                     <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
                     <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
                     <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
@@ -560,6 +573,7 @@ export default function MyCards() {
   );
 }
 
+/* (Optional) simple number stat card — unused but kept for parity */
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="border rounded-xl p-3">
