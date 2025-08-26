@@ -65,12 +65,12 @@ export default function MyCards() {
     setLoading(false);
   }
 
-  // ---- Helpers for parsing/formatting trader_value ----
+  // ---- Helpers for numbers / formatting ----
   const toNum = (v?: string | null) =>
     Number(String(v ?? "0").replace(/[^0-9.\-]/g, "")) || 0;
   const formatNum = (n: number) => n.toLocaleString();
 
-  // ---- Suit / Rank normalization ----
+  // ---- Suit / Rank normalization & display ----
   const SUITS = ["clubs", "diamonds", "hearts", "spades"] as const;
   type SuitKey = typeof SUITS[number];
 
@@ -83,20 +83,64 @@ export default function MyCards() {
     if (/^s(pades)?$|^♠$/.test(x)) return "spades";
     return null;
   }
+  const suitLabel: Record<SuitKey, string> = {
+    clubs: "Clubs",
+    diamonds: "Diamonds",
+    hearts: "Hearts",
+    spades: "Spades",
+  };
+  function displaySuit(s?: string | null) {
+    const k = normSuit(s);
+    return k ? suitLabel[k] : (s ?? "—");
+  }
 
-  const RANKS = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"] as const; // order not used for calc, but canonical list
+  const RANKS = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"] as const;
   type RankKey = typeof RANKS[number];
 
   function normRank(r?: string | null): RankKey | null {
     if (!r) return null;
     const x = r.toString().trim().toLowerCase();
-    if (x === "a" || x === "ace" || x === "1") return "A"; // treat Ace like A
+    if (x === "a" || x === "ace" || x === "1") return "A";
     if (x === "k" || x === "king") return "K";
     if (x === "q" || x === "queen") return "Q";
     if (x === "j" || x === "jack") return "J";
     if (x === "10" || x === "ten") return "10";
     if (/^[2-9]$/.test(x)) return x.toUpperCase() as RankKey;
     return null;
+  }
+  function displayRank(r?: string | null) {
+    const k = normRank(r);
+    if (!k) return r ?? "—";
+    if (k === "A") return "Ace";
+    if (k === "K") return "King";
+    if (k === "Q") return "Queen";
+    if (k === "J") return "Jack";
+    return k;
+  }
+
+  // ---- Title case helper (for era/rarity labels) ----
+  function titleCase(s?: string | null) {
+    if (!s) return "";
+    return s
+      .toString()
+      .toLowerCase()
+      .split(/\s+/)
+      .map(w => w ? w[0].toUpperCase() + w.slice(1) : w)
+      .join(" ");
+  }
+
+  // ---- Rarity sort order (least → best) ----
+  // Degen (0), Trader (1), Investor (2), Market Maker (3), Whale (4)
+  function rarityRank(r?: string | null) {
+    const k = (r ?? "").replace(/\s+/g, "").toLowerCase(); // "marketmaker" & "market maker" both map
+    const map: Record<string, number> = {
+      degen: 0,
+      trader: 1,
+      investor: 2,
+      marketmaker: 3,
+      whale: 4,
+    };
+    return k in map ? map[k] : -1; // unknowns before "Degen" when ascending
   }
 
   // Search & Sort
@@ -119,9 +163,9 @@ export default function MyCards() {
       switch (sortBy) {
         case 'name': aValue = a.name?.toLowerCase() || ''; bValue = b.name?.toLowerCase() || ''; break;
         case 'era': aValue = a.era?.toLowerCase() || ''; bValue = b.era?.toLowerCase() || ''; break;
-        case 'suit': aValue = a.suit?.toLowerCase() || ''; bValue = b.suit?.toLowerCase() || ''; break;
-        case 'rank': aValue = a.rank?.toLowerCase() || ''; bValue = b.rank?.toLowerCase() || ''; break;
-        case 'rarity': aValue = a.rarity?.toLowerCase() || ''; bValue = b.rarity?.toLowerCase() || ''; break;
+        case 'suit': aValue = displaySuit(a.suit); bValue = displaySuit(b.suit); break;
+        case 'rank': aValue = displayRank(a.rank); bValue = displayRank(b.rank); break;
+        case 'rarity': aValue = rarityRank(a.rarity); bValue = rarityRank(b.rarity); break;
         case 'time_value': aValue = a.time_value || 0; bValue = b.time_value || 0; break;
         case 'trader_value': aValue = toNum(a.trader_value); bValue = toNum(b.trader_value); break;
         case 'claimed_at':
@@ -151,39 +195,27 @@ export default function MyCards() {
   const totalTimeReady = timeOf(ready);
   const totalTimePending = timeOf(pending);
 
-  // NEW: Best Full Deck (52) — one per (rank × suit), pick highest Trader Value per slot
+  // NEW: Best Full Deck (52)
   const bestDeck52 = useMemo(() => {
-    // slot -> best card
     type SlotKey = `${RankKey}-${SuitKey}`;
     const best: Record<SlotKey, { value: number; row: Row }> = {} as any;
-
     for (const r of rows) {
       const rank = normRank(r.rank);
       const suit = normSuit(r.suit);
       if (!rank || !suit) continue;
-
       const key = `${rank}-${suit}` as SlotKey;
       const val = toNum(r.trader_value);
       const prev = best[key];
-      if (!prev || val > prev.value) {
-        best[key] = { value: val, row: r };
-      }
+      if (!prev || val > prev.value) best[key] = { value: val, row: r };
     }
-
-    // Sum all filled slots (max 52)
-    let total = 0;
-    let count = 0;
+    let total = 0, count = 0;
     for (const rank of RANKS) {
       for (const suit of SUITS) {
         const key = `${rank}-${suit}` as SlotKey;
-        if (best[key]) {
-          total += best[key].value;
-          count += 1;
-        }
+        if (best[key]) { total += best[key].value; count += 1; }
       }
     }
-
-    return { total, count }; // count may be < 52 if some slots missing
+    return { total, count };
   }, [rows]);
 
   // Selection helpers (only for "ready")
@@ -284,7 +316,7 @@ export default function MyCards() {
           </div>
         </div>
 
-        {/* NEW: Best Full Deck (52) */}
+        {/* Best Full Deck (52) */}
         <div className="glass-panel p-6 rounded-2xl border border-primary/20">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
             <div>
@@ -419,9 +451,12 @@ export default function MyCards() {
                     </div>
                     <div className="space-y-1">
                       <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                      <div className="text-sm text-muted-foreground">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
-                      <div className="text-xs text-muted-foreground">Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}</div>
-                      <div className="text-sm font-medium text-primary">TIME: {r.time_value ?? 0}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {titleCase(r.era) || "—"} {r.rarity ? titleCase(r.rarity) : ""}
+                      </div>
+                      <div className="text-sm text-foreground">{displayRank(r.rank)} of {displaySuit(r.suit)}</div>
+                      <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))}</div>
+                      <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
                       <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-primary/20 text-primary border border-primary/30 glow-primary">
                         Ready
@@ -448,9 +483,12 @@ export default function MyCards() {
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                    <div className="text-sm text-muted-foreground">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
-                    <div className="text-xs text-muted-foreground">Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}</div>
-                    <div className="text-sm font-medium text-foreground">TIME: {r.time_value ?? 0}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {titleCase(r.era) || "—"} {r.rarity ? titleCase(r.rarity) : ""}
+                    </div>
+                    <div className="text-sm text-foreground">{displayRank(r.rank)} of {displaySuit(r.suit)}</div>
+                    <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))}</div>
+                    <div className="text-sm text-foreground">{(r.time_value ?? 0).toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
                     <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
                       Pending
@@ -476,9 +514,12 @@ export default function MyCards() {
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                    <div className="text-sm text-muted-foreground">{r.era ?? "—"} • {r.suit ?? "—"} {r.rank ?? "—"}</div>
-                    <div className="text-xs text-muted-foreground">Rarity: {r.rarity ?? "—"} · Value: {r.trader_value ?? "—"}</div>
-                    <div className="text-sm font-medium text-primary">TIME: {r.time_value ?? 0}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {titleCase(r.era) || "—"} {r.rarity ? titleCase(r.rarity) : ""}
+                    </div>
+                    <div className="text-sm text-foreground">{displayRank(r.rank)} of {displaySuit(r.suit)}</div>
+                    <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))}</div>
+                    <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
                     <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
                       Credited
