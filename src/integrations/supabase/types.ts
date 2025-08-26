@@ -61,6 +61,8 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           name: string
+          qr_dark: string | null
+          qr_light: string | null
           rank: string
           rarity: string | null
           status: string
@@ -78,6 +80,8 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           name: string
+          qr_dark?: string | null
+          qr_light?: string | null
           rank: string
           rarity?: string | null
           status?: string
@@ -95,6 +99,8 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           name?: string
+          qr_dark?: string | null
+          qr_light?: string | null
           rank?: string
           rarity?: string | null
           status?: string

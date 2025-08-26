@@ -6,7 +6,7 @@ import JSZip from "jszip";
 import Papa from "papaparse";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, Copy, Download, Edit, Eye, Image as ImageIcon } from "lucide-react";
+import { ChevronRight, Copy, Download, Edit, Eye, Image as ImageIcon, Palette, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ImageLibraryView } from '@/components/ImageLibraryView';
 
@@ -27,6 +27,8 @@ type CardRow = {
   redirect_url?: string | null;   // legacy redirect (if your table uses this)
   status: string | null;
   created_at: string;
+  qr_dark?: string | null;
+  qr_light?: string | null;
 };
 
 type CardMinimal = {
@@ -35,6 +37,8 @@ type CardMinimal = {
   is_active?: boolean | null;
   current_target?: string | null;
   redirect_url?: string | null;
+  qr_dark?: string | null;
+  qr_light?: string | null;
 };
 
 type CardUpsert = {
@@ -51,6 +55,8 @@ type CardUpsert = {
   current_target?: string | null;
   status?: string | null;
   is_active?: boolean;
+  qr_dark?: string | null;
+  qr_light?: string | null;
 };
 
 type CsvRow = Partial<CardUpsert> & { code?: string | null; image_code?: string | null };
@@ -59,6 +65,11 @@ type ImageMapping = {
   code: string;
   url: string;
   filename: string;
+};
+
+type QrColors = {
+  dark: string;
+  light: string;
 };
 
 /* ---------------- RecentCardsPanel ---------------- */
@@ -72,7 +83,7 @@ function RecentCardsPanel() {
     const { data, error } = await supabase
       .from("cards")
       .select(
-        "id,code,name,suit,rank,era,rarity,trader_value,time_value,image_url,current_target,redirect_url,status,created_at"
+        "id,code,name,suit,rank,era,rarity,trader_value,time_value,image_url,current_target,redirect_url,status,created_at,qr_dark,qr_light"
       )
       .order("created_at", { ascending: false })
       .limit(25);
@@ -113,6 +124,7 @@ function RecentCardsPanel() {
                 <th className="py-2 pr-3">Value</th>
                 <th className="py-2 pr-3">TIME</th>
                 <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">QR Colors</th>
                 <th className="py-2 pr-3">Redirect</th>
                 <th className="py-2 pr-3">Actions</th>
               </tr>
@@ -132,6 +144,28 @@ function RecentCardsPanel() {
                     <td className="py-2 pr-3">{r.trader_value ?? "—"}</td>
                     <td className="py-2 pr-3">{r.time_value ?? 0}</td>
                     <td className="py-2 pr-3">{r.status ?? "—"}</td>
+                    <td className="py-2 pr-3">
+                      {(r.qr_dark || r.qr_light) ? (
+                        <div className="flex gap-1">
+                          {r.qr_dark && (
+                            <div 
+                              className="w-4 h-4 border border-gray-300 rounded"
+                              style={{ backgroundColor: r.qr_dark }}
+                              title={`Dark: ${r.qr_dark}`}
+                            />
+                          )}
+                          {r.qr_light && (
+                            <div 
+                              className="w-4 h-4 border border-gray-300 rounded"
+                              style={{ backgroundColor: r.qr_light }}
+                              title={`Light: ${r.qr_light}`}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="py-2 pr-3 max-w-[280px] truncate">
                       {redirect ? (
                         <a className="underline" href={redirect} target="_blank" rel="noreferrer">
@@ -188,6 +222,12 @@ export default function AdminQR() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // QR Color state with localStorage persistence
+  const [qrDark, setQrDark] = useState("#000000");
+  const [qrLight, setQrLight] = useState("#FFFFFF");
+  const [qrDarkError, setQrDarkError] = useState("");
+  const [qrLightError, setQrLightError] = useState("");
+
   // Single QR
   const [singleCode, setSingleCode] = useState("");
   const [singleLabel, setSingleLabel] = useState("");
@@ -213,6 +253,37 @@ export default function AdminQR() {
   const [csvBusy, setCsvBusy] = useState(false);
 
   const baseUrl = useMemo(() => `${window.location.origin}/claim/`, []);
+
+  // Load colors from localStorage on mount
+  useEffect(() => {
+    const savedDark = localStorage.getItem("qr_dark");
+    const savedLight = localStorage.getItem("qr_light");
+    if (savedDark) setQrDark(savedDark);
+    if (savedLight) setQrLight(savedLight);
+  }, []);
+
+  // Save colors to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem("qr_dark", qrDark);
+  }, [qrDark]);
+
+  useEffect(() => {
+    localStorage.setItem("qr_light", qrLight);
+  }, [qrLight]);
+
+  const colorsValid = !qrDarkError && !qrLightError && isValidHex(qrDark) && isValidHex(qrLight);
+
+  // Auto-refresh QR preview when colors change
+  useEffect(() => {
+    if (pngDataUrl && singleCode && colorsValid) {
+      const refreshPreview = async () => {
+        const url = baseUrl + encodeURIComponent(singleCode);
+        const dataUrl = await toPNG(url, singleLabel || singleCode);
+        setPngDataUrl(dataUrl);
+      };
+      refreshPreview();
+    }
+  }, [qrDark, qrLight, colorsValid, pngDataUrl, singleCode, singleLabel, baseUrl]);
 
   useEffect(() => {
     (async () => {
@@ -267,17 +338,72 @@ export default function AdminQR() {
     return `${pref}-${block()}-${block()}`;
   }
 
-  async function toPNG(data: string, label?: string) {
+  // Color validation helpers
+  function isValidHex(hex: string): boolean {
+    return /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/.test(hex);
+  }
+
+  function normalizeHex(hex: string): string {
+    if (hex.length === 4) {
+      // Convert #RGB to #RRGGBB
+      return "#" + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+    }
+    return hex.toUpperCase();
+  }
+
+  function pickTextOn(bgHex: string): string {
+    // Simple luminance calculation for text contrast
+    const hex = bgHex.replace('#', '');
+    const r = parseInt(hex.length === 3 ? hex[0] + hex[0] : hex.slice(0, 2), 16);
+    const g = parseInt(hex.length === 3 ? hex[1] + hex[1] : hex.slice(2, 4), 16);
+    const b = parseInt(hex.length === 3 ? hex[2] + hex[2] : hex.slice(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.6 ? '#000000' : '#FFFFFF';
+  }
+
+  function handleColorChange(value: string, type: 'dark' | 'light') {
+    if (type === 'dark') {
+      setQrDark(value);
+      if (!isValidHex(value)) {
+        setQrDarkError("Invalid hex color format (#RGB or #RRGGBB)");
+      } else {
+        setQrDarkError("");
+      }
+    } else {
+      setQrLight(value);
+      if (!isValidHex(value)) {
+        setQrLightError("Invalid hex color format (#RGB or #RRGGBB)");
+      } else {
+        setQrLightError("");
+      }
+    }
+  }
+
+  function resetColors() {
+    setQrDark("#000000");
+    setQrLight("#FFFFFF");
+    setQrDarkError("");
+    setQrLightError("");
+  }
+
+  // Refactored toPNG function with color support
+  async function toPNG(data: string, label?: string, colors?: QrColors): Promise<string> {
+    const qrColors = colors || { dark: qrDark, light: qrLight };
+    
     const qrCanvas = document.createElement("canvas");
     await QRCode.toCanvas(qrCanvas, data, {
       errorCorrectionLevel: "M",
       margin: 2,
       width: 512,
+      color: {
+        dark: normalizeHex(qrColors.dark),
+        light: normalizeHex(qrColors.light)
+      }
     });
 
     if (!label) return qrCanvas.toDataURL("image/png");
 
-    // draw label onto taller canvas
+    // Draw label onto taller canvas with background color
     const pad = 16;
     const fontPx = 32;
     const w = qrCanvas.width;
@@ -286,14 +412,21 @@ export default function AdminQR() {
     out.width = w;
     out.height = h;
     const ctx = out.getContext("2d")!;
-    ctx.fillStyle = "#fff";
+    
+    // Fill entire background with light color
+    ctx.fillStyle = normalizeHex(qrColors.light);
     ctx.fillRect(0, 0, w, h);
+    
+    // Draw QR code
     ctx.drawImage(qrCanvas, 0, 0);
-    ctx.fillStyle = "#000";
+    
+    // Draw label with auto-contrast
+    ctx.fillStyle = pickTextOn(qrColors.light);
     ctx.font = `${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     ctx.fillText(label, w / 2, h - pad);
+    
     return out.toDataURL("image/png");
   }
 
@@ -586,6 +719,28 @@ export default function AdminQR() {
         }
       }
 
+      // Handle QR colors
+      let qrDarkColor: string | undefined;
+      let qrLightColor: string | undefined;
+      
+      if (r.qr_dark) {
+        const color = norm(r.qr_dark);
+        if (isValidHex(color)) {
+          qrDarkColor = normalizeHex(color);
+        } else {
+          errors.push(`Line ${line}: invalid qr_dark color "${color}" (must be #RGB or #RRGGBB)`);
+        }
+      }
+      
+      if (r.qr_light) {
+        const color = norm(r.qr_light);
+        if (isValidHex(color)) {
+          qrLightColor = normalizeHex(color);
+        } else {
+          errors.push(`Line ${line}: invalid qr_light color "${color}" (must be #RGB or #RRGGBB)`);
+        }
+      }
+
       const row: CardUpsert = {
         code,
         name,
@@ -600,6 +755,8 @@ export default function AdminQR() {
         current_target: r.current_target ? norm(r.current_target) : undefined,
         status: r.status ? norm(r.status) : 'active',
         is_active: true, // Default to active
+        qr_dark: qrDarkColor,
+        qr_light: qrLightColor,
       };
       
       // Override is_active if explicitly provided
@@ -659,13 +816,22 @@ export default function AdminQR() {
     }
     const zip = new JSZip();
     const folder = zip.folder("qrs")!;
+    
     for (const r of csvRows) {
       const code = r.code!;
       const url = baseUrl + encodeURIComponent(code);
-      const png = await toPNG(url, code);
+      
+      // Use per-row colors if available, otherwise fall back to global defaults
+      const colors: QrColors = {
+        dark: r.qr_dark || qrDark,
+        light: r.qr_light || qrLight
+      };
+      
+      const png = await toPNG(url, code, colors);
       const base64 = png.split(",")[1];
       folder.file(`${code}.png`, base64, { base64: true });
     }
+    
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -688,6 +854,83 @@ export default function AdminQR() {
         </div>
       )}
 
+      {/* QR Color Controls */}
+      <section className="card-premium rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2 mb-3">
+          <Palette className="w-5 h-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">QR Color Settings (Global Defaults)</h2>
+          <Button
+            onClick={resetColors}
+            variant="ghost"
+            size="sm"
+            className="ml-auto"
+          >
+            <RotateCcw className="w-4 h-4 mr-1" />
+            Reset to defaults
+          </Button>
+        </div>
+        
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">QR Color (dark)</label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="color"
+                value={qrDark}
+                onChange={(e) => handleColorChange(e.target.value, 'dark')}
+                className="w-10 h-8 rounded border border-border cursor-pointer"
+              />
+              <div 
+                className="w-8 h-8 rounded border border-border"
+                style={{ backgroundColor: qrDark }}
+                title={qrDark}
+              />
+              <input
+                type="text"
+                value={qrDark}
+                onChange={(e) => handleColorChange(e.target.value, 'dark')}
+                placeholder="#000000"
+                className="glass-panel border border-border rounded px-2 py-1 text-sm font-mono text-foreground placeholder:text-muted-foreground flex-1"
+              />
+            </div>
+            {qrDarkError && (
+              <div className="text-xs text-destructive">{qrDarkError}</div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Background (light)</label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="color"
+                value={qrLight}
+                onChange={(e) => handleColorChange(e.target.value, 'light')}
+                className="w-10 h-8 rounded border border-border cursor-pointer"
+              />
+              <div 
+                className="w-8 h-8 rounded border border-border"
+                style={{ backgroundColor: qrLight }}
+                title={qrLight}
+              />
+              <input
+                type="text"
+                value={qrLight}
+                onChange={(e) => handleColorChange(e.target.value, 'light')}
+                placeholder="#FFFFFF"
+                className="glass-panel border border-border rounded px-2 py-1 text-sm font-mono text-foreground placeholder:text-muted-foreground flex-1"
+              />
+            </div>
+            {qrLightError && (
+              <div className="text-xs text-destructive">{qrLightError}</div>
+            )}
+          </div>
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          Colors persist across page reloads. CSV import can override colors per card using <code className="bg-muted px-1 rounded">qr_dark</code> and <code className="bg-muted px-1 rounded">qr_light</code> columns.
+        </div>
+      </section>
+
       {/* Single QR */}
       <section className="card-premium rounded-xl p-4 space-y-3">
         <h2 className="text-lg font-semibold text-foreground">Single QR</h2>
@@ -706,7 +949,8 @@ export default function AdminQR() {
           />
           <button
             onClick={buildSingle}
-            className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors"
+            disabled={!colorsValid}
+            className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             Generate QR & Create Card
           </button>
@@ -830,11 +1074,14 @@ export default function AdminQR() {
         <div className="text-sm text-muted-foreground">
           Required column: <code className="bg-muted px-1 rounded">code</code>. Optional:{" "}
           <code className="bg-muted px-1 rounded">
-            name,suit,rank,era,rarity,trader_value,time_value,description,image_url,image_code,current_target,status,is_active
+            name,suit,rank,era,rarity,trader_value,time_value,description,image_url,image_code,current_target,status,is_active,qr_dark,qr_light
           </code>
           <br />
           <span className="text-xs mt-1 block">
             For complete cards, provide: name, suit, rank, era. Use <code className="bg-muted px-1 rounded">image_code</code> (a1, a2...) instead of full URLs. Default time_value: 0, status: 'active'
+          </span>
+          <span className="text-xs mt-1 block">
+            Use <code className="bg-muted px-1 rounded">qr_dark</code> and <code className="bg-muted px-1 rounded">qr_light</code> columns to set custom QR colors per card (#RGB or #RRGGBB format).
           </span>
           {imageMappings.length > 0 && (
             <span className="text-xs mt-1 block text-primary">
