@@ -1,3 +1,5 @@
+import CardManagementNew from "@/pages/CardManagementNew";
+import CardEditMulti from "@/pages/CardEditMulti";
 import Receipt from "./pages/Receipt";
 import AdminQR from "./pages/AdminQR";
 import AdminCards from "./pages/AdminCards";
@@ -40,6 +42,8 @@ const App = () => (
                 <Route path="/claim" element={<ClaimCard />} />
                 <Route path="/me/cards" element={<MyCards />} />
                 <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/cards" element={<CardManagementNew />} />
+                <Route path="/admin/cards/edit" element={<CardEditMulti />} />
                 <Route path="/auth/admin" element={<AdminLogin />} />
                 <Route path="/auth/reset" element={<ResetPassword />} />
                 <Route path="/scan" element={<Scan />} />
