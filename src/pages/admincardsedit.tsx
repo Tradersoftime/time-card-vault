@@ -1,31 +1,70 @@
+// src/pages/AdminCardsEdit.tsx
 import { useEffect, useMemo, useState } from "react";
-import { getCardsByIds, updateCards, Card } from "@/lib/cards";
-import { toPNG, normalizeHex } from "@/lib/qr";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
+/* -------- minimal shared types -------- */
+type Card = {
+  id: string;
+  code: string;
+  redirect_url: string | null;
+  status: string | null;
+  time_value: number | null;
+  image_url: string | null;
+  qr_dark: string | null;
+  qr_light: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+/* -------- tiny data helpers (inline to keep this file self-contained) -------- */
+const COLS = `
+  id, code, redirect_url, status, time_value, image_url,
+  qr_dark, qr_light, created_at, updated_at
+`;
+
+async function getCardsByIds(ids: string[]): Promise<Card[]> {
+  const { data, error } = await supabase.from("cards").select(COLS).in("id", ids);
+  if (error) throw error;
+  return (data || []) as Card[];
+}
+async function updateCards(ids: string[], patch: Partial<Card>) {
+  const { error } = await supabase.from("cards").update(patch).in("id", ids);
+  if (error) throw error;
+}
+
+/* -------- admin check -------- */
 function useIsAdmin() {
   const [ok, setOk] = useState<boolean | null>(null);
   useEffect(() => {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u?.user) { setOk(false); return; }
-      const { data } = await supabase.from("admins").select("user_id").eq("user_id", u.user.id).maybeSingle();
+      const { data } = await supabase
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", u.user.id)
+        .maybeSingle();
       setOk(!!data);
     })();
   }, []);
   return ok;
 }
 
+/* -------- UI -------- */
 export default function AdminCardsEdit() {
   const isAdmin = useIsAdmin();
   const [sp] = useSearchParams();
-  const ids = useMemo(() => (sp.get("ids") || "").split(",").map(s=>s.trim()).filter(Boolean), [sp]);
+  const ids = useMemo(
+    () => (sp.get("ids") || "").split(",").map(s => s.trim()).filter(Boolean),
+    [sp]
+  );
+
   const [rows, setRows] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const nav = useNavigate();
 
-  // Form state + "apply" toggles
+  // form fields + apply toggles
   const [redirect_url, setRedirect] = useState("");
   const [status, setStatus] = useState("");
   const [time_value, setTime] = useState<string>("");
@@ -40,17 +79,17 @@ export default function AdminCardsEdit() {
   const [applyQrDark, setApplyQrDark] = useState(false);
   const [applyQrLight, setApplyQrLight] = useState(false);
 
-  const sampleUrl = `${window.location.origin}/r/${encodeURIComponent(rows[0]?.code || "SAMPLE")}`;
-
   useEffect(() => {
     (async () => {
-      if (!isAdmin) return;
+      if (isAdmin !== true) return;
       if (ids.length === 0) { setLoading(false); return; }
       setLoading(true);
       try {
         const data = await getCardsByIds(ids);
         setRows(data);
-      } catch (e:any) { alert(e.message || String(e)); }
+      } catch (e: any) {
+        alert(e.message || String(e));
+      }
       setLoading(false);
     })();
   }, [ids, isAdmin]);
@@ -60,32 +99,19 @@ export default function AdminCardsEdit() {
     const patch: Partial<Card> = {};
     if (applyRedirect) patch.redirect_url = redirect_url.trim() || null;
     if (applyStatus)   patch.status = status.trim() || null;
-    if (applyTime)     patch.time_value = time_value ? Number(time_value) : null;
+    if (applyTime)     patch.time_value = time_value === "" ? null : Number(time_value);
     if (applyImage)    patch.image_url = image_url.trim() || null;
     if (applyQrDark)   patch.qr_dark  = normalizeHex(qr_dark, "#000000");
     if (applyQrLight)  patch.qr_light = normalizeHex(qr_light, "#ffffff");
-
     if (Object.keys(patch).length === 0) { alert("Toggle at least one field to apply."); return; }
 
     try {
       await updateCards(ids, patch);
       alert(`Saved changes for ${ids.length} card(s).`);
       nav("/admin/cards");
-    } catch (e:any) {
+    } catch (e: any) {
       alert(e.message || String(e));
     }
-  }
-
-  async function previewQR() {
-    const png = await toPNG({
-      data: sampleUrl,
-      label: rows[0]?.code || "SAMPLE",
-      dark: applyQrDark ? qr_dark : (rows[0]?.qr_dark || "#000000"),
-      light: applyQrLight ? qr_light : (rows[0]?.qr_light || "#ffffff"),
-      width: 384
-    });
-    const w = window.open("", "_blank");
-    if (w) w.document.write(`<img src="${png}" style="image-rendering:pixelated;max-width:100%"/>`);
   }
 
   if (isAdmin === null) return <div className="p-6">Loading…</div>;
@@ -94,42 +120,51 @@ export default function AdminCardsEdit() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Bulk Edit Cards</h1>
-      {loading ? (<div>Loading…</div>) : rows.length === 0 ? (
+
+      {loading ? (
+        <div>Loading…</div>
+      ) : rows.length === 0 ? (
         <div className="opacity-70">No cards selected.</div>
       ) : (
         <>
           <div className="text-sm opacity-80">Editing {rows.length} card(s).</div>
 
-          {/* Selected summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {rows.slice(0,8).map(c => (
-              <div key={c.id} className="border rounded p-2 text-xs">
-                <div className="font-mono">{c.code}</div>
-                <div className="truncate">{c.name ?? "—"}</div>
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="inline-block w-4 h-4 rounded border" style={{background: normalizeHex(c.qr_dark || "#000")}}/>
-                  <span className="inline-block w-4 h-4 rounded border" style={{background: normalizeHex(c.qr_light|| "#fff")}}/>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Form */}
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Redirect URL" apply={applyRedirect} setApply={setApplyRedirect}>
-              <input value={redirect_url} onChange={e=>setRedirect(e.target.value)} placeholder="https://example/page" className="border rounded px-2 py-1 w-full"/>
+              <input
+                value={redirect_url}
+                onChange={e=>setRedirect(e.target.value)}
+                placeholder="https://example/page"
+                className="border rounded px-2 py-1 w-full"
+              />
             </Field>
 
             <Field label="Status" apply={applyStatus} setApply={setApplyStatus}>
-              <input value={status} onChange={e=>setStatus(e.target.value)} placeholder="active / inactive / ..." className="border rounded px-2 py-1 w-full"/>
+              <input
+                value={status}
+                onChange={e=>setStatus(e.target.value)}
+                placeholder="active / inactive / …"
+                className="border rounded px-2 py-1 w-full"
+              />
             </Field>
 
             <Field label="TIME value" apply={applyTime} setApply={setApplyTime}>
-              <input type="number" value={time_value} onChange={e=>setTime(e.target.value)} placeholder="e.g. 5" className="border rounded px-2 py-1 w-full"/>
+              <input
+                type="number"
+                value={time_value}
+                onChange={e=>setTime(e.target.value)}
+                placeholder="e.g. 5"
+                className="border rounded px-2 py-1 w-full"
+              />
             </Field>
 
             <Field label="Image URL" apply={applyImage} setApply={setApplyImage}>
-              <input value={image_url} onChange={e=>setImage(e.target.value)} placeholder="https://image.png" className="border rounded px-2 py-1 w-full"/>
+              <input
+                value={image_url}
+                onChange={e=>setImage(e.target.value)}
+                placeholder="https://image.png"
+                className="border rounded px-2 py-1 w-full"
+              />
             </Field>
 
             <Field label="QR Dark" apply={applyQrDark} setApply={setApplyQrDark}>
@@ -148,9 +183,12 @@ export default function AdminCardsEdit() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={previewQR} className="border rounded px-3 py-1">Preview sample QR</button>
-            <button onClick={save} className="border rounded px-3 py-1 bg-primary text-primary-foreground">Save changes</button>
-            <button onClick={()=>history.back()} className="border rounded px-3 py-1">Cancel</button>
+            <button onClick={save} className="border rounded px-3 py-1 bg-primary text-primary-foreground">
+              Save changes
+            </button>
+            <button onClick={()=>history.back()} className="border rounded px-3 py-1">
+              Cancel
+            </button>
           </div>
         </>
       )}
@@ -158,11 +196,19 @@ export default function AdminCardsEdit() {
   );
 }
 
-function Field({label, apply, setApply, children}:{label:string;apply:boolean;setApply:(b:boolean)=>void;children:React.ReactNode}) {
+/* -------- small helpers -------- */
+function Field({
+  label, apply, setApply, children
+}:{
+  label: string;
+  apply: boolean;
+  setApply: (b:boolean)=>void;
+  children: React.ReactNode;
+}) {
   return (
     <div className="border rounded p-3">
       <label className="flex items-center gap-2 mb-2">
-        <input type="checkbox" checked={apply} onChange={e=>setApply(e.target.checked)}/>
+        <input type="checkbox" checked={apply} onChange={e=>setApply(e.target.checked)} />
         <span className="font-medium">{label} (apply to all selected)</span>
       </label>
       {children}
@@ -170,3 +216,11 @@ function Field({label, apply, setApply, children}:{label:string;apply:boolean;se
   );
 }
 
+/* Ensure hex like #RRGGBB; fallback if invalid */
+function normalizeHex(hex?: string | null, fallback = "#000000") {
+  const s = (hex || "").trim();
+  if (!s) return fallback;
+  const withHash = s.startsWith("#") ? s : `#${s}`;
+  const m = withHash.match(/^#([0-9a-fA-F]{6})$/);
+  return m ? `#${m[1].toLowerCase()}` : fallback;
+}
