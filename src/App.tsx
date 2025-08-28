@@ -2,7 +2,6 @@ import AdminCards from "./pages/AdminCards";
 import AdminCardsEdit from "./pages/AdminCardsEdit";
 import Receipt from "./pages/Receipt";
 import AdminQR from "./pages/AdminQR";
-import AdminCards from "./pages/AdminCards";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";

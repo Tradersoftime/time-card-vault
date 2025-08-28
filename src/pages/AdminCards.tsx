@@ -138,7 +138,7 @@ export default function AdminCards() {
             {loading ? (
               <tr><td className="py-4" colSpan={13}>Loading…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td className="py-4" colSpan={13} className="opacity-70">No results.</td></tr>
+              <tr><td className="py-4 opacity-70" colSpan={13}>No results.</td></tr>
             ) : filtered.map(c => (
               <tr key={c.id} className="border-b align-top">
                 <td className="py-2 pr-3"><input type="checkbox" checked={!!selected[c.id]} onChange={()=>setSelected(s=>({...s,[c.id]:!s[c.id]}))}/></td>
