@@ -15,6 +15,8 @@ import QRCode from 'qrcode';
 import { ImageUpload } from '@/components/ImageUpload';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSearchParams } from 'react-router-dom';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkEditCards } from '@/components/BulkEditCards';
 
 interface CardData {
   id: string;
@@ -32,6 +34,8 @@ interface CardData {
   is_active: boolean;
   created_at: string;
   current_target?: string | null;
+  qr_dark?: string | null;
+  qr_light?: string | null;
 }
 
 const AdminCards = () => {
@@ -44,8 +48,9 @@ const AdminCards = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const [qrCodes, setQrCodes] = useState<Map<string, string>>(new Map());
+  const [bulkEditMode, setBulkEditMode] = useState(false);
   
   // Sorting state
   const [sortField, setSortField] = useState<string>(() => 
@@ -94,25 +99,19 @@ const AdminCards = () => {
     const codeParam = searchParams.get('code');
     if (codeParam) {
       setSearchTerm(codeParam);
-      // Auto-expand the card if found after cards are loaded
-      const matchingCard = cards.find(card => card.code.toLowerCase() === codeParam.toLowerCase());
-      if (matchingCard) {
-        setExpandedCards(new Set([matchingCard.id]));
-        loadQRCode(matchingCard);
-      }
     }
   }, [searchParams, cards]);
 
   // Utility functions
-  const generateQRCode = async (code: string): Promise<string> => {
+  const generateQRCode = async (code: string, qrDark?: string | null, qrLight?: string | null): Promise<string> => {
     try {
       const url = `${window.location.origin}/claim/${code}`;
       return await QRCode.toDataURL(url, {
         width: 200,
         margin: 2,
         color: {
-          dark: '#000000',
-          light: '#FFFFFF'
+          dark: qrDark || '#000000',
+          light: qrLight || '#FFFFFF'
         }
       });
     } catch (error) {
@@ -123,7 +122,7 @@ const AdminCards = () => {
 
   const loadQRCode = async (card: CardData) => {
     if (!qrCodes.has(card.id)) {
-      const qrDataUrl = await generateQRCode(card.code);
+      const qrDataUrl = await generateQRCode(card.code, card.qr_dark, card.qr_light);
       setQrCodes(prev => new Map(prev).set(card.id, qrDataUrl));
     }
   };
@@ -137,8 +136,8 @@ const AdminCards = () => {
     });
   };
 
-  const toggleCardExpansion = (cardId: string) => {
-    setExpandedCards(prev => {
+  const toggleCardSelection = (cardId: string) => {
+    setSelectedCards(prev => {
       const newSet = new Set(prev);
       if (newSet.has(cardId)) {
         newSet.delete(cardId);
@@ -149,16 +148,26 @@ const AdminCards = () => {
     });
   };
 
+  const selectAllCards = () => {
+    setSelectedCards(new Set(filteredCards.map(card => card.id)));
+  };
+
+  const deselectAllCards = () => {
+    setSelectedCards(new Set());
+  };
+
   const fetchCards = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('cards')
-        .select('*')
+        .select('*, qr_dark, qr_light')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setCards(data || []);
+      // Load QR codes for all cards
+      (data || []).forEach(card => loadQRCode(card));
     } catch (error) {
       console.error('Error fetching cards:', error);
       toast({
@@ -445,19 +454,71 @@ const AdminCards = () => {
 
         <Tabs defaultValue="list" className="w-full">
           <div className="glass-panel p-4 rounded-2xl mb-6">
-            <TabsList className="grid w-full grid-cols-2 bg-muted/20">
-              <TabsTrigger value="list" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                Card List
-              </TabsTrigger>
-              <TabsTrigger value="form" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                {isEditing ? (selectedCard ? 'Edit Card' : 'Add Card') : 'Card Form'}
-              </TabsTrigger>
+            <TabsList className={`grid w-full ${bulkEditMode ? 'grid-cols-1' : 'grid-cols-2'} bg-muted/20`}>
+              {!bulkEditMode && (
+                <TabsTrigger value="list" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  Card List
+                </TabsTrigger>
+              )}
+              {!bulkEditMode && (
+                <TabsTrigger value="form" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  {isEditing ? (selectedCard ? 'Edit Card' : 'Add Card') : 'Card Form'}
+                </TabsTrigger>
+              )}
+              {bulkEditMode && (
+                <div className="text-center py-2 text-primary font-medium">
+                  Bulk Edit Mode
+                </div>
+              )}
             </TabsList>
           </div>
 
-          <TabsContent value="list" className="space-y-4">
-            <div className="glass-panel p-6 rounded-2xl">
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+          {bulkEditMode ? (
+            <BulkEditCards
+              cards={filteredCards.filter(card => selectedCards.has(card.id))}
+              onSave={() => {
+                setBulkEditMode(false);
+                setSelectedCards(new Set());
+                fetchCards();
+              }}
+              onCancel={() => {
+                setBulkEditMode(false);
+                setSelectedCards(new Set());
+              }}
+            />
+          ) : (
+            <TabsContent value="list" className="space-y-4">
+              <div className="glass-panel p-6 rounded-2xl">
+                {/* Multi-select controls */}
+                {selectedCards.size > 0 && (
+                  <div className="mb-4 p-4 bg-primary/10 rounded-lg border border-primary/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-foreground font-medium">
+                        {selectedCards.size} card{selectedCards.size !== 1 ? 's' : ''} selected
+                      </span>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={deselectAllCards}
+                          className="border-primary/20"
+                        >
+                          Deselect All
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => setBulkEditMode(true)}
+                          className="bg-primary text-primary-foreground"
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Selected
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
                     <Search className="h-4 w-4 text-muted-foreground" />
@@ -499,7 +560,7 @@ const AdminCards = () => {
                   </div>
                 </div>
                 
-                {/* Status Filter Tabs */}
+                 {/* Status Filter Tabs */}
                 <div className="flex items-center gap-1 p-1 bg-muted/20 rounded-lg">
                   <Button
                     variant={statusFilter === 'all' ? 'default' : 'ghost'}
@@ -526,47 +587,84 @@ const AdminCards = () => {
                     Draft ({statusCounts.draft})
                   </Button>
                 </div>
+                
+                {/* Select All/None Controls */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllCards}
+                    className="border-primary/20 text-xs"
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={deselectAllCards}
+                    className="border-primary/20 text-xs"
+                  >
+                    Select None
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-6">
                 {filteredCards.map((card) => {
-                  const isExpanded = expandedCards.has(card.id);
+                  const isSelected = selectedCards.has(card.id);
                   return (
-                    <div key={card.id} className="glass-panel p-6 rounded-xl hover:shadow-lg transition-all duration-300 border border-primary/10">
+                    <div key={card.id} className={`glass-panel p-6 rounded-xl hover:shadow-lg transition-all duration-300 border ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-primary/10'}`}>
                       <div className="flex justify-between items-start mb-4">
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold text-foreground mb-2">{card.name}</h3>
-                          <div className="flex gap-2 flex-wrap mb-3">
-                            <Badge 
-                              variant="secondary" 
-                              className="cursor-pointer bg-primary/10 text-primary hover:bg-primary/20" 
-                              onClick={() => copyToClipboard(card.code, 'Card Code')}
-                            >
-                              {card.code} <Copy className="h-3 w-3 ml-1" />
-                            </Badge>
-                            <Badge variant={card.is_active ? "default" : "destructive"} className="glow-primary">
-                              {card.status}
-                            </Badge>
-                            {(card.status === 'draft' || card.name === 'Unknown') && (
-                              <Badge variant="outline" className="bg-accent/20 text-accent border-accent/30">
-                                Draft
+                        <div className="flex items-start gap-3 flex-1">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleCardSelection(card.id)}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold text-foreground mb-2">{card.name}</h3>
+                            <div className="flex gap-2 flex-wrap mb-3">
+                              <Badge 
+                                variant="secondary" 
+                                className="cursor-pointer bg-primary/10 text-primary hover:bg-primary/20" 
+                                onClick={() => copyToClipboard(card.code, 'Card Code')}
+                              >
+                                {card.code} <Copy className="h-3 w-3 ml-1" />
                               </Badge>
-                            )}
-                            {card.rarity && <Badge variant="outline" className="border-primary/30">{card.rarity}</Badge>}
+                              <Badge variant={card.is_active ? "default" : "destructive"} className="glow-primary">
+                                {card.status}
+                              </Badge>
+                              {(card.status === 'draft' || card.name === 'Unknown') && (
+                                <Badge variant="outline" className="bg-accent/20 text-accent border-accent/30">
+                                  Draft
+                                </Badge>
+                              )}
+                              {card.rarity && <Badge variant="outline" className="border-primary/30">{card.rarity}</Badge>}
+                              {(card.qr_dark || card.qr_light) && (
+                                <Badge variant="outline" className="border-primary/30 flex items-center gap-1">
+                                  <div className="flex gap-1">
+                                    {card.qr_dark && (
+                                      <div 
+                                        className="w-3 h-3 border border-gray-300 rounded"
+                                        style={{ backgroundColor: card.qr_dark }}
+                                        title={`Dark: ${card.qr_dark}`}
+                                      />
+                                    )}
+                                    {card.qr_light && (
+                                      <div 
+                                        className="w-3 h-3 border border-gray-300 rounded"
+                                        style={{ backgroundColor: card.qr_light }}
+                                        title={`Light: ${card.qr_light}`}
+                                      />
+                                    )}
+                                  </div>
+                                  Custom QR
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              toggleCardExpansion(card.id);
-                              if (!isExpanded) loadQRCode(card);
-                            }}
-                            className="hover:bg-primary/10"
-                          >
-                            {isExpanded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -652,7 +750,7 @@ const AdminCards = () => {
                         {/* QR Code Column */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">QR Code</h4>
-                          {isExpanded && qrCodes.has(card.id) ? (
+                          {qrCodes.has(card.id) ? (
                             <div className="relative">
                               <img 
                                 src={qrCodes.get(card.id)} 
@@ -671,101 +769,100 @@ const AdminCards = () => {
                           ) : (
                             <div className="w-full h-48 bg-muted/20 rounded-lg flex flex-col items-center justify-center text-muted-foreground border border-primary/10">
                               <QrCode className="h-12 w-12 mb-2" />
-                              <span className="text-xs">Click expand to view</span>
+                              <span className="text-xs">Loading QR code...</span>
                             </div>
                           )}
                         </div>
                       </div>
 
-                      {/* Extended Info (when expanded) */}
-                      {isExpanded && (
-                        <div className="mt-6 pt-6 border-t border-primary/20 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-3">
-                              <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">URLs & Links</h4>
-                              <div className="space-y-2 text-sm">
+                      {/* Extended Info (always visible) */}
+                      <div className="mt-6 pt-6 border-t border-primary/20 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">URLs & Links</h4>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="font-medium text-muted-foreground">Claim URL:</span>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <code className="bg-muted/20 px-2 py-1 rounded text-xs flex-1 border border-primary/10">
+                                    {window.location.origin}/claim/{card.code}
+                                  </code>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
+                                    className="hover:bg-primary/10"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              {card.current_target && (
                                 <div>
-                                  <span className="font-medium text-muted-foreground">Claim URL:</span>
+                                  <span className="font-medium text-muted-foreground">Redirect URL:</span>
                                   <div className="flex items-center gap-2 mt-1">
                                     <code className="bg-muted/20 px-2 py-1 rounded text-xs flex-1 border border-primary/10">
-                                      {window.location.origin}/claim/{card.code}
+                                      {card.current_target}
                                     </code>
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
+                                      onClick={() => copyToClipboard(card.current_target!, 'Redirect URL')}
                                       className="hover:bg-primary/10"
                                     >
                                       <Copy className="h-3 w-3" />
                                     </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => window.open(card.current_target!, '_blank')}
+                                      className="hover:bg-primary/10"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Button>
                                   </div>
                                 </div>
-                                {card.current_target && (
-                                  <div>
-                                    <span className="font-medium text-muted-foreground">Redirect URL:</span>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <code className="bg-muted/20 px-2 py-1 rounded text-xs flex-1 border border-primary/10">
-                                        {card.current_target}
-                                      </code>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => copyToClipboard(card.current_target!, 'Redirect URL')}
-                                        className="hover:bg-primary/10"
-                                      >
-                                        <Copy className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => window.open(card.current_target!, '_blank')}
-                                        className="hover:bg-primary/10"
-                                      >
-                                        <ExternalLink className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="space-y-3">
-                              <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">Metadata</h4>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="font-medium text-muted-foreground">Card ID:</span>
-                                  <code className="text-xs bg-muted/20 px-1 rounded border border-primary/10">{card.id}</code>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="font-medium text-muted-foreground">Created:</span>
-                                  <span className="text-foreground">{new Date(card.created_at).toLocaleDateString()}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="font-medium text-muted-foreground">Active:</span>
-                                  <Badge variant={card.is_active ? "default" : "destructive"} className="text-xs">
-                                    {card.is_active ? 'Yes' : 'No'}
-                                  </Badge>
-                                </div>
-                              </div>
+                              )}
                             </div>
                           </div>
 
-                          {card.description && (
-                            <div className="space-y-2">
-                              <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">Description</h4>
-                              <p className="text-sm text-muted-foreground bg-muted/20 p-3 rounded-lg border border-primary/10">
-                                {card.description}
-                              </p>
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">Metadata</h4>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="font-medium text-muted-foreground">Card ID:</span>
+                                <code className="text-xs bg-muted/20 px-1 rounded border border-primary/10">{card.id}</code>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium text-muted-foreground">Created:</span>
+                                <span className="text-foreground">{new Date(card.created_at).toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium text-muted-foreground">Active:</span>
+                                <Badge variant={card.is_active ? "default" : "destructive"} className="text-xs">
+                                  {card.is_active ? 'Yes' : 'No'}
+                                </Badge>
+                              </div>
                             </div>
-                          )}
+                          </div>
                         </div>
-                      )}
+
+                        {card.description && (
+                          <div className="space-y-2">
+                            <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">Description</h4>
+                            <p className="text-sm text-muted-foreground bg-muted/20 p-3 rounded-lg border border-primary/10">
+                              {card.description}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          </TabsContent>
+              </div>
+            </TabsContent>
+          )}
 
           <TabsContent value="form">
             <div className="glass-panel p-8 rounded-2xl">
