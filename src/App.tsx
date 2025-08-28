@@ -1,3 +1,5 @@
+import AdminCards from "./pages/AdminCards";
+import AdminCardsEdit from "./pages/AdminCardsEdit";
 import Receipt from "./pages/Receipt";
 import AdminQR from "./pages/AdminQR";
 import AdminCards from "./pages/AdminCards";
@@ -21,6 +23,7 @@ import AdminLogin from "./pages/AdminLogin";
 import ResetPassword from "./pages/ResetPassword";
 import Scan from "./pages/Scan";
 import NotFound from "./pages/NotFound";
+
 
 const queryClient = new QueryClient();
 
