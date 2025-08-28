@@ -1,7 +1,6 @@
-import AdminCards from "./pages/AdminCards";
-import AdminCardsEdit from "./pages/AdminCardsEdit";
 import Receipt from "./pages/Receipt";
 import AdminQR from "./pages/AdminQR";
+import AdminCards from "./pages/AdminCards";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,7 +21,6 @@ import AdminLogin from "./pages/AdminLogin";
 import ResetPassword from "./pages/ResetPassword";
 import Scan from "./pages/Scan";
 import NotFound from "./pages/NotFound";
-
 
 const queryClient = new QueryClient();
 
@@ -48,8 +46,6 @@ const App = () => (
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/admin/cards" element={<AdminCards />} />
                 <Route path="/receipt/:id" element={<Receipt />} />
-                <Route path="/admin/cards" element={<AdminCards />} />
-                <Route path="/admin/cards/edit" element={<AdminCardsEdit />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
