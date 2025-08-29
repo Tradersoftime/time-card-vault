@@ -2,11 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-
-// --- TS helper for BarcodeDetector without extra deps ---
-declare global {
-  interface Window { BarcodeDetector?: any; }
-}
+import { Html5QrcodeScanner, Html5QrcodeScannerState, Html5QrcodeScanType } from "html5-qrcode";
 
 type LogItem = {
   id: string;
@@ -29,30 +25,24 @@ type LogItem = {
 export default function Scan() {
   const navigate = useNavigate();
 
-  // camera / decoding state
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const trackRef = useRef<MediaStreamTrack | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const detectorRef = useRef<any | null>(null);
+  // scanner state
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const scannerElementRef = useRef<HTMLDivElement | null>(null);
+  const processingRef = useRef<boolean>(false);
 
   // UI state
   const [error, setError] = useState<string | null>(null);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [running, setRunning] = useState(true);
-
-  // advanced camera features
-  const [supportsDetector, setSupportsDetector] = useState<boolean>(false);
-  const [supportsTorch, setSupportsTorch] = useState<boolean>(false);
-  const [supportsZoom, setSupportsZoom] = useState<boolean>(false);
-  const [zoom, setZoom] = useState<number>(1);
-  const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number }>({ min: 1, max: 1, step: 0.1 });
-  const [torchOn, setTorchOn] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [lastScannedCode, setLastScannedCode] = useState<string>("");
+  const [cooldownActive, setCooldownActive] = useState(false);
+  const [cooldownTimer, setCooldownTimer] = useState(0);
 
   // live log
   const [log, setLog] = useState<LogItem[]>([]);
   const cooldownRef = useRef<Record<string, number>>({});
-  const COOLDOWN_MS = 1500;
+  const globalCooldownRef = useRef<number>(0);
+  const COOLDOWN_MS = 3000; // 3 second cooldown for same code
+  const GLOBAL_COOLDOWN_MS = 1000; // 1 second between any scans
 
   // Ensure signed in
   useEffect(() => {
@@ -103,9 +93,17 @@ export default function Scan() {
 
   function shouldProcess(code: string) {
     const t = now();
+    
+    // Global cooldown check
+    if (t - globalCooldownRef.current < GLOBAL_COOLDOWN_MS) return false;
+    
+    // Code-specific cooldown check
     const last = cooldownRef.current[code] ?? 0;
     if (t - last < COOLDOWN_MS) return false;
-    cooldownRef.current[code] = t;
+    
+    // If processing another scan, don't allow new ones
+    if (processingRef.current) return false;
+    
     return true;
   }
 
@@ -150,200 +148,218 @@ export default function Scan() {
   }
 
   async function claim(code: string) {
-    // session may expire mid-scan
-    const { data: u } = await supabase.auth.getUser();
-    if (!u?.user) { navigate("/auth/login?next=/scan", { replace: true }); return; }
+    // Set processing flag to prevent concurrent scans
+    processingRef.current = true;
+    const t = now();
+    
+    try {
+      // session may expire mid-scan
+      const { data: u } = await supabase.auth.getUser();
+      if (!u?.user) { navigate("/auth/login?next=/scan", { replace: true }); return; }
 
-    const { data, error } = await supabase.rpc("claim_card_and_log", {
-      p_code: code,
-      p_source: "scan",
-    });
+      const { data, error } = await supabase.rpc("claim_card_and_log", {
+        p_code: code,
+        p_source: "scan",
+      });
 
-    if (error) {
-      const item: LogItem = {
-        id: crypto.randomUUID(),
-        ts: now(),
-        code,
-        status: "error",
-        message: error.message || "Error claiming card",
-      };
-      feedback(item.status);
-      pushLog(item);
-      return;
-    }
+      if (error) {
+        const item: LogItem = {
+          id: crypto.randomUUID(),
+          ts: now(),
+          code,
+          status: "error",
+          message: error.message || "Error claiming card",
+        };
+        feedback(item.status);
+        pushLog(item);
+        return;
+      }
 
-    if (data?.ok) {
-      const status: LogItem["status"] = data.already_owner ? "already_owner" : "claimed";
-      const card = data.card_id ? await fetchCardById(data.card_id) : undefined;
+      if (data?.ok) {
+        const status: LogItem["status"] = data.already_owner ? "already_owner" : "claimed";
+        const card = data.card_id ? await fetchCardById(data.card_id) : undefined;
+        const item: LogItem = {
+          id: crypto.randomUUID(),
+          ts: now(),
+          code,
+          status,
+          message: status === "claimed" ? "Added to your collection" : "Already in your collection",
+          card,
+        };
+        feedback(item.status);
+        pushLog(item);
+        return;
+      }
+
+      // not ok → map
+      let status: LogItem["status"] = "error";
+      let message = "Something went wrong.";
+      switch (data?.error) {
+        case "not_found":      status = "not_found";      message = "Card not found."; break;
+        case "owned_by_other": status = "owned_by_other"; message = "Already claimed by another user."; break;
+        case "blocked":        status = "blocked";        message = "Your account is blocked from claiming cards."; break;
+        case "not_signed_in":  navigate("/auth/login?next=/scan", { replace: true }); return;
+      }
+
+      const card = status === "owned_by_other" ? undefined : await fetchCardByCodeLike(code);
       const item: LogItem = {
         id: crypto.randomUUID(),
         ts: now(),
         code,
         status,
-        message: status === "claimed" ? "Added to your collection" : "Already in your collection",
+        message,
         card,
       };
       feedback(item.status);
       pushLog(item);
-      return;
+    } finally {
+      // Update cooldowns and processing flag
+      cooldownRef.current[code] = t;
+      globalCooldownRef.current = t;
+      processingRef.current = false;
+      
+      // Start visual cooldown feedback
+      setLastScannedCode(code);
+      setCooldownActive(true);
+      
+      // Countdown timer for visual feedback
+      let timeLeft = COOLDOWN_MS / 1000;
+      setCooldownTimer(timeLeft);
+      
+      const countdownInterval = setInterval(() => {
+        timeLeft -= 0.1;
+        setCooldownTimer(Math.max(0, timeLeft));
+        
+        if (timeLeft <= 0) {
+          clearInterval(countdownInterval);
+          setCooldownActive(false);
+          setLastScannedCode("");
+        }
+      }, 100);
     }
-
-    // not ok → map
-    let status: LogItem["status"] = "error";
-    let message = "Something went wrong.";
-    switch (data?.error) {
-      case "not_found":      status = "not_found";      message = "Card not found."; break;
-      case "owned_by_other": status = "owned_by_other"; message = "Already claimed by another user."; break;
-      case "blocked":        status = "blocked";        message = "Your account is blocked from claiming cards."; break;
-      case "not_signed_in":  navigate("/auth/login?next=/scan", { replace: true }); return;
-    }
-
-    const card = status === "owned_by_other" ? undefined : await fetchCardByCodeLike(code);
-    const item: LogItem = {
-      id: crypto.randomUUID(),
-      ts: now(),
-      code,
-      status,
-      message,
-      card,
-    };
-    feedback(item.status);
-    pushLog(item);
   }
 
-  /* ---------- High-res camera setup with zoom/torch ---------- */
+  /* ---------- Html5QrcodeScanner setup ---------- */
 
-  useEffect(() => {
-    setSupportsDetector(!!window.BarcodeDetector);
-    if (window.BarcodeDetector) {
-      detectorRef.current = new window.BarcodeDetector({ formats: ["qr_code"] });
+  const handleScanSuccess = useCallback(async (decodedText: string) => {
+    const code = extractCode(decodedText);
+    if (code && shouldProcess(code)) {
+      await claim(code);
     }
   }, []);
 
-  useEffect(() => {
-    startCamera();
-    return () => stopCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleScanError = useCallback((errorMessage: string) => {
+    // Ignore frequent scanning errors to avoid spam
   }, []);
 
-  async function startCamera() {
-    stopCamera();
-    setError(null);
-    setCameraReady(false);
+  useEffect(() => {
+    if (!scannerElementRef.current) return;
 
-    const constraints: MediaStreamConstraints = {
-      video: {
-        facingMode: { ideal: "environment" as any },
-        width: { ideal: 2560, max: 3840 },
-        height: { ideal: 1440, max: 2160 },
-        frameRate: { ideal: 60 },
+    const config = {
+      fps: 30, // Balanced for performance and accuracy
+      qrbox: { width: 280, height: 280 }, // Focused scanning area
+      aspectRatio: 1.0,
+      disableFlip: false,
+      videoConstraints: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920, max: 2560 },
+        height: { ideal: 1080, max: 1440 },
       },
-      audio: false,
+      supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
     };
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
+      const scanner = new Html5QrcodeScanner(
+        "qr-scanner-container",
+        config,
+        false // verbose logging
+      );
 
-      const video = videoRef.current!;
-      video.srcObject = stream;
-      await video.play();
-
-      const [track] = stream.getVideoTracks();
-      trackRef.current = track;
-
-      const caps = track.getCapabilities ? track.getCapabilities() : ({} as any);
-
-      // Continuous autofocus
-      if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) {
-        try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" as any }] as any }); } catch { /* ignore */ }
-      }
-
-      // Zoom
-      if (caps.zoom && (caps.zoom.min !== undefined || typeof caps.zoom === "number")) {
-        const min = caps.zoom.min ?? 1;
-        const max = caps.zoom.max ?? Math.max(1, Number(caps.zoom) || 1);
-        const step = caps.zoom.step ?? 0.1;
-        setSupportsZoom(max > min);
-        setZoomRange({ min, max, step });
-        // start at ~60% of range to help tiny QRs
-        const start = Math.min(max, Math.max(min, min + (max - min) * 0.6));
-        try { await track.applyConstraints({ advanced: [{ zoom: start }] as any }); setZoom(start); } catch { setSupportsZoom(false); }
-      } else {
-        setSupportsZoom(false);
-      }
-
-      // Torch
-      setSupportsTorch(!!caps.torch);
-
-      setCameraReady(true);
-      setRunning(true);
-      loop();
-    } catch (e: any) {
-      setError(e?.message || String(e));
+      scannerRef.current = scanner;
+      scanner.render(handleScanSuccess, handleScanError);
+      setIsScanning(true);
+      setError(null);
+    } catch (err: any) {
+      setError(`Scanner initialization failed: ${err.message}`);
     }
-  }
 
-  function stopCamera() {
-    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-    trackRef.current?.stop();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    trackRef.current = null;
-  }
+    return () => {
+      if (scannerRef.current) {
+        try {
+          if (scannerRef.current.getState() === Html5QrcodeScannerState.SCANNING ||
+              scannerRef.current.getState() === Html5QrcodeScannerState.PAUSED) {
+            scannerRef.current.clear();
+          }
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        scannerRef.current = null;
+      }
+      setIsScanning(false);
+    };
+  }, [handleScanSuccess, handleScanError]);
 
-  async function setTorch(on: boolean) {
-    const track = trackRef.current;
-    if (!track) return;
-    try {
-      await track.applyConstraints({ advanced: [{ torch: on } as any] as any });
-      setTorchOn(on);
-    } catch {
-      setSupportsTorch(false);
-      setError("Torch not supported on this device/camera.");
+  const pauseScanning = useCallback(() => {
+    if (scannerRef.current && scannerRef.current.getState() === Html5QrcodeScannerState.SCANNING) {
+      scannerRef.current.pause(true);
     }
-  }
+  }, []);
 
-  async function setZoomLevel(z: number) {
-    const track = trackRef.current;
-    if (!track) return;
-    try { await track.applyConstraints({ advanced: [{ zoom: z }] as any }); setZoom(z); }
-    catch { setSupportsZoom(false); }
-  }
+  const resumeScanning = useCallback(() => {
+    if (scannerRef.current && scannerRef.current.getState() === Html5QrcodeScannerState.PAUSED) {
+      scannerRef.current.resume();
+    }
+  }, []);
 
-  /* ---------- Decode loop ---------- */
+  const restartScanning = useCallback(() => {
+    if (scannerRef.current) {
+      try {
+        scannerRef.current.clear();
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    
+    // Force re-render by updating key
+    setTimeout(() => {
+      if (scannerElementRef.current) {
+        const config = {
+          fps: 30,
+          qrbox: { width: 280, height: 280 },
+          aspectRatio: 1.0,
+          disableFlip: false,
+          videoConstraints: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920, max: 2560 },
+            height: { ideal: 1080, max: 1440 },
+          },
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+        };
 
-  function loop() {
-    if (!running) return;
-    rafRef.current = requestAnimationFrame(tick);
-  }
+        try {
+          const scanner = new Html5QrcodeScanner(
+            "qr-scanner-container",
+            config,
+            false
+          );
 
-  async function tick() {
-    try {
-      const video = videoRef.current;
-      const detector = detectorRef.current;
-      if (video && detector && video.readyState >= 2) {
-        const barcodes = await detector.detect(video);
-        if (barcodes?.length) {
-          const first = barcodes.find((b: any) => !!b.rawValue) || barcodes[0];
-          const raw = String(first.rawValue || "").trim();
-          const code = extractCode(raw);
-          if (code && shouldProcess(code)) await claim(code);
+          scannerRef.current = scanner;
+          scanner.render(handleScanSuccess, handleScanError);
+          setError(null);
+        } catch (err: any) {
+          setError(`Scanner restart failed: ${err.message}`);
         }
       }
-    } catch {
-      // ignore per-frame errors
-    } finally {
-      loop();
-    }
-  }
+    }, 100);
+  }, [handleScanSuccess, handleScanError]);
 
   /* ---------- UI ---------- */
 
   const tips = useMemo(() => [
-    "Use the rear camera and good, even light.",
-    "If the QR is tiny, increase the camera Zoom.",
-    "Turn on Torch in low light for faster focus.",
+    "Hold your device steady and align the QR code within the scanning area.",
+    "Ensure good lighting - use device torch if needed.",
+    "Wait 3 seconds between scans to avoid duplicates.",
+    "The scanner works best with clear, high-contrast QR codes.",
   ], []);
 
   function StatusPill({ s }: { s: LogItem["status"] }) {
@@ -380,71 +396,65 @@ export default function Scan() {
           {/* Camera */}
           <div className="space-y-4">
             <div className="glass-panel p-6 rounded-2xl glow-primary">
-              <div className="aspect-square bg-black rounded-xl overflow-hidden border border-primary/20 relative">
-                <video
-                  ref={videoRef}
-                  playsInline
-                  muted
-                  autoPlay
-                  className="w-full h-full object-cover"
-                />
-                {/* guide box */}
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="w-40 h-40 border-2 border-emerald-400/80 rounded-md"></div>
+              {/* Scanner Container */}
+              <div 
+                id="qr-scanner-container" 
+                ref={scannerElementRef}
+                className="w-full bg-black rounded-xl overflow-hidden border border-primary/20"
+              />
+
+              {/* Cooldown Indicator */}
+              {cooldownActive && (
+                <div className="mt-4 glass-panel p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-primary">
+                      Cooldown active for: {lastScannedCode}
+                    </span>
+                    <span className="text-sm font-mono text-primary">
+                      {cooldownTimer.toFixed(1)}s
+                    </span>
+                  </div>
+                  <div className="mt-2 w-full bg-primary/20 rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-100"
+                      style={{ width: `${(cooldownTimer / (COOLDOWN_MS / 1000)) * 100}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Controls */}
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <button
                   className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
                   onClick={() => {
-                    if (running) { setRunning(false); }
-                    else { setRunning(true); loop(); }
+                    if (scannerRef.current?.getState() === Html5QrcodeScannerState.SCANNING) {
+                      pauseScanning();
+                    } else if (scannerRef.current?.getState() === Html5QrcodeScannerState.PAUSED) {
+                      resumeScanning();
+                    }
                   }}
+                  disabled={!isScanning}
                 >
-                  {running ? "Pause" : "Resume"}
+                  {scannerRef.current?.getState() === Html5QrcodeScannerState.SCANNING ? "Pause" : "Resume"}
                 </button>
                 <button
                   className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
-                  onClick={() => startCamera()}
+                  onClick={restartScanning}
                 >
-                  Restart (hi-res)
+                  Restart Scanner
                 </button>
 
-                {supportsTorch && (
-                  <button
-                    className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
-                    onClick={() => setTorch(!torchOn)}
-                  >
-                    {torchOn ? "Torch Off" : "Torch On"}
-                  </button>
-                )}
-
-                {supportsZoom && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs opacity-70">Zoom</span>
-                    <input
-                      type="range"
-                      min={zoomRange.min}
-                      max={zoomRange.max}
-                      step={zoomRange.step}
-                      value={zoom}
-                      onChange={(e) => setZoomLevel(Number(e.target.value))}
-                    />
-                    <span className="text-xs tabular-nums">{zoom.toFixed(2)}×</span>
-                  </div>
-                )}
-
                 <span className="ml-auto text-xs opacity-60">
-                  {cameraReady ? "Camera ready" : "Starting…"} {supportsDetector ? "• Fast decode" : "• Add fallback for older browsers"}
+                  {isScanning ? "High-quality scanner active" : "Initializing scanner..."}
+                  {processingRef.current && " • Processing..."}
                 </span>
               </div>
             </div>
 
-            {!cameraReady && (
+            {!isScanning && !error && (
               <div className="glass-panel p-4 rounded-lg text-center">
-                <div className="text-sm text-muted-foreground">Initializing camera… If asked, please allow camera access.</div>
+                <div className="text-sm text-muted-foreground">Initializing high-quality scanner… Please allow camera access when prompted.</div>
               </div>
             )}
             {error && (
