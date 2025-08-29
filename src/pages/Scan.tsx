@@ -36,6 +36,8 @@ export default function Scan() {
   const [lastScannedCode, setLastScannedCode] = useState<string>("");
   const [cooldownActive, setCooldownActive] = useState(false);
   const [cooldownTimer, setCooldownTimer] = useState(0);
+  const [tinyQrMode, setTinyQrMode] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // live log
   const [log, setLog] = useState<LogItem[]>([]);
@@ -256,16 +258,25 @@ export default function Scan() {
     if (!scannerElementRef.current) return;
 
     const config = {
-      fps: 30, // Balanced for performance and accuracy
-      qrbox: { width: 280, height: 280 }, // Focused scanning area
+      fps: tinyQrMode ? 60 : 30, // Higher FPS for tiny codes
+      qrbox: tinyQrMode ? { width: 150, height: 150 } : { width: 280, height: 280 }, // Smaller box for tiny codes
       aspectRatio: 1.0,
       disableFlip: false,
       videoConstraints: {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1920, max: 2560 },
-        height: { ideal: 1080, max: 1440 },
+        width: { ideal: tinyQrMode ? 3840 : 1920, max: tinyQrMode ? 7680 : 2560 }, // 4K-8K for tiny codes
+        height: { ideal: tinyQrMode ? 2160 : 1080, max: tinyQrMode ? 4320 : 1440 },
+        focusMode: { ideal: "continuous" },
+        zoom: { min: 1, max: 10, ideal: zoomLevel },
+        torch: true,
       },
       supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true
+      },
+      rememberLastUsedCamera: true,
+      showTorchButtonIfSupported: true,
+      showZoomSliderIfSupported: true,
     };
 
     try {
@@ -324,16 +335,25 @@ export default function Scan() {
     setTimeout(() => {
       if (scannerElementRef.current) {
         const config = {
-          fps: 30,
-          qrbox: { width: 280, height: 280 },
+          fps: tinyQrMode ? 60 : 30,
+          qrbox: tinyQrMode ? { width: 150, height: 150 } : { width: 280, height: 280 },
           aspectRatio: 1.0,
           disableFlip: false,
           videoConstraints: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1920, max: 2560 },
-            height: { ideal: 1080, max: 1440 },
+            width: { ideal: tinyQrMode ? 3840 : 1920, max: tinyQrMode ? 7680 : 2560 },
+            height: { ideal: tinyQrMode ? 2160 : 1080, max: tinyQrMode ? 4320 : 1440 },
+            focusMode: { ideal: "continuous" },
+            zoom: { min: 1, max: 10, ideal: zoomLevel },
+            torch: true,
           },
           supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          },
+          rememberLastUsedCamera: true,
+          showTorchButtonIfSupported: true,
+          showZoomSliderIfSupported: true,
         };
 
         try {
@@ -356,11 +376,11 @@ export default function Scan() {
   /* ---------- UI ---------- */
 
   const tips = useMemo(() => [
-    "Hold your device steady and align the QR code within the scanning area.",
-    "Ensure good lighting - use device torch if needed.",
+    tinyQrMode ? "TINY QR MODE: Move closer to the code and hold steady." : "Hold your device steady and align the QR code within the scanning area.",
+    tinyQrMode ? "For phone screens: Adjust brightness and avoid glare/reflections." : "Ensure good lighting - use device torch if needed.",
     "Wait 3 seconds between scans to avoid duplicates.",
-    "The scanner works best with clear, high-contrast QR codes.",
-  ], []);
+    tinyQrMode ? "Use zoom controls below to get closer to tiny codes." : "The scanner works best with clear, high-contrast QR codes.",
+  ], [tinyQrMode]);
 
   function StatusPill({ s }: { s: LogItem["status"] }) {
     const map: Record<LogItem["status"], string> = {
@@ -423,6 +443,46 @@ export default function Scan() {
                 </div>
               )}
 
+              {/* Tiny QR Mode Toggle */}
+              <div className="mt-4 glass-panel p-3 rounded-lg bg-accent/10 border border-accent/20">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium text-foreground">Tiny QR Mode</label>
+                  <button
+                    onClick={() => {
+                      setTinyQrMode(!tinyQrMode);
+                      setTimeout(() => restartScanning(), 100);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      tinyQrMode ? 'bg-primary' : 'bg-secondary'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      tinyQrMode ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                
+                {tinyQrMode && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Digital Zoom: {zoomLevel}x</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="3"
+                        step="0.1"
+                        value={zoomLevel}
+                        onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
+                        className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
+                      />
+                    </div>
+                    <div className="text-xs text-accent">
+                      📱 Optimized for tiny QR codes from phone screens and small cards
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Controls */}
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <button
@@ -446,7 +506,7 @@ export default function Scan() {
                 </button>
 
                 <span className="ml-auto text-xs opacity-60">
-                  {isScanning ? "High-quality scanner active" : "Initializing scanner..."}
+                  {isScanning ? (tinyQrMode ? "Tiny QR scanner active" : "High-quality scanner active") : "Initializing scanner..."}
                   {processingRef.current && " • Processing..."}
                 </span>
               </div>
@@ -454,7 +514,9 @@ export default function Scan() {
 
             {!isScanning && !error && (
               <div className="glass-panel p-4 rounded-lg text-center">
-                <div className="text-sm text-muted-foreground">Initializing high-quality scanner… Please allow camera access when prompted.</div>
+                <div className="text-sm text-muted-foreground">
+                  Initializing {tinyQrMode ? 'tiny QR' : 'high-quality'} scanner… Please allow camera access when prompted.
+                </div>
               </div>
             )}
             {error && (
