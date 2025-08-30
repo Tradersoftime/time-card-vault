@@ -34,7 +34,7 @@ export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, c
         return 'bg-red-500/20 text-red-400 border-red-500/30';
       case 'clubs':
       case 'spades':
-        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+        return 'bg-green-500/20 text-green-400 border-green-500/30';
       default:
         return 'bg-primary/20 text-primary border-primary/30';
     }

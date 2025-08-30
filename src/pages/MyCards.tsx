@@ -84,11 +84,12 @@ function humanRank(r?: string | null): string {
   return r;
 }
 
-/** Suit glyph (♠ ♥ ♣ ♦). Hearts/Diamonds get a subtle red tint. */
+/** Suit glyph (♠ ♥ ♣ ♦). Hearts/Diamonds red, Spades/Clubs green. */
 function SuitGlyph({ suit }: { suit?: string | null }) {
   const s = canonicalSuit(suit);
   const glyph = s === "Spades" ? "♠" : s === "Hearts" ? "♥" : s === "Clubs" ? "♣" : s === "Diamonds" ? "♦" : "";
-  const cls = s === "Hearts" || s === "Diamonds" ? "text-red-500" : "text-foreground";
+  const cls = s === "Hearts" || s === "Diamonds" ? "text-red-500 text-lg font-bold" : 
+             s === "Spades" || s === "Clubs" ? "text-green-500 text-lg font-bold" : "text-foreground text-lg";
   return glyph ? <span className={cls} aria-label={s} title={s}>{glyph}</span> : <span>—</span>;
 }
 
