@@ -11,7 +11,7 @@ export default function Home() {
       {/* Hero Section */}
       <section 
         className="relative bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url(/lovable-uploads/fd3ac9fb-0846-4c6c-ad60-7b85ec63ad29.png)` }}
+        style={{ backgroundImage: `url(/lovable-uploads/4ca94ec6-031f-41b1-a293-f2059cda8cd1.png)` }}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-background/95 via-background/80 to-background/95"></div>
         <div className="relative container mx-auto px-4 pt-20 pb-32">
