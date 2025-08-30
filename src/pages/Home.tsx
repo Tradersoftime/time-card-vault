@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { CreditCard, Scan, Sparkles } from 'lucide-react';
-import heroImage from '@/assets/hero-cards.jpg';
+import heroImage from '@/assets/hero-vintage-background.jpg';
 
 export default function Home() {
   const { user } = useAuth();

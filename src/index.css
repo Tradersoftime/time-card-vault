@@ -18,12 +18,12 @@
     --popover: 240 5% 6%;
     --popover-foreground: 0 0% 98%;
 
-    /* Gold Primary with Cyan Glow */
-    --primary: 43 96% 56%;
-    --primary-foreground: 240 10% 3.9%;
-    --primary-glow: 180 100% 50%;
+    /* Warm Bronze Primary with Copper Glow */
+    --primary: 30 65% 45%;
+    --primary-foreground: 0 0% 98%;
+    --primary-glow: 25 75% 35%;
 
-    --secondary: 240 3.7% 15.9%;
+    --secondary: 25 45% 25%;
     --secondary-foreground: 0 0% 98%;
 
     --muted: 240 3.7% 15.9%;
@@ -40,7 +40,7 @@
 
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
-    --ring: 43 96% 56%;
+    --ring: 30 65% 45%;
 
     --radius: 0.75rem;
 
@@ -50,18 +50,18 @@
     --glass-shadow: 0 8px 32px 0 hsla(240, 10%, 3.9%, 0.37);
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(43 96% 56%) 0%, hsl(180 100% 50%) 100%);
-    --gradient-card: linear-gradient(145deg, hsl(240 5% 6%) 0%, hsl(240 3.7% 15.9%) 100%);
-    --gradient-hero: linear-gradient(180deg, hsl(240 10% 3.9%) 0%, hsl(240 8% 8%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(30 65% 45%) 0%, hsl(25 75% 35%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(25 35% 15%) 0%, hsl(25 45% 25%) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(25 35% 8%) 0%, hsl(25 45% 18%) 100%);
 
     /* Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     /* Shadows */
-    --shadow-soft: 0 4px 6px -1px hsla(240, 10%, 3.9%, 0.1);
-    --shadow-glow: 0 0 20px hsla(43, 96%, 56%, 0.3);
-    --shadow-cyan-glow: 0 0 30px hsla(180, 100%, 50%, 0.2);
+    --shadow-soft: 0 4px 6px -1px hsla(25, 35%, 8%, 0.1);
+    --shadow-glow: 0 0 20px hsla(30, 65%, 45%, 0.3);
+    --shadow-bronze-glow: 0 0 30px hsla(25, 75%, 35%, 0.2);
 
     --radius: 0.75rem;
 
@@ -93,9 +93,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
 
-    --primary: 43 96% 56%;
+    --primary: 30 65% 45%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 180 100% 50%;
+    --primary-glow: 25 75% 35%;
 
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
@@ -114,7 +114,7 @@
 
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
-    --ring: 43 96% 56%;
+    --ring: 30 65% 45%;
 
     --glass-bg: 0 0% 100% / 0.8;
     --glass-border: 240 5.9% 90% / 0.5;
@@ -183,8 +183,8 @@
     box-shadow: var(--shadow-glow);
   }
 
-  .glow-cyan {
-    box-shadow: var(--shadow-cyan-glow);
+  .glow-bronze {
+    box-shadow: var(--shadow-bronze-glow);
   }
 
   /* Interactive Elements */
