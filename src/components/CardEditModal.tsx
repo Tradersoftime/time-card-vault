@@ -198,13 +198,13 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                       </SelectItem>
                       <SelectItem value="Clubs">
                         <span className="flex items-center gap-2">
-                          <span className="text-green-500 text-lg font-bold">♣</span>
+                          <span className="text-success text-lg font-bold">♣</span>
                           Clubs
                         </span>
                       </SelectItem>
                       <SelectItem value="Spades">
                         <span className="flex items-center gap-2">
-                          <span className="text-green-500 text-lg font-bold">♠</span>
+                          <span className="text-success text-lg font-bold">♠</span>
                           Spades
                         </span>
                       </SelectItem>
