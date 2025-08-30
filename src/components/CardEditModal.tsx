@@ -184,10 +184,30 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                       <SelectValue placeholder="Select suit" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Hearts">Hearts</SelectItem>
-                      <SelectItem value="Diamonds">Diamonds</SelectItem>
-                      <SelectItem value="Clubs">Clubs</SelectItem>
-                      <SelectItem value="Spades">Spades</SelectItem>
+                      <SelectItem value="Hearts">
+                        <span className="flex items-center gap-2">
+                          <span className="text-red-500 text-lg font-bold">♥</span>
+                          Hearts
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="Diamonds">
+                        <span className="flex items-center gap-2">
+                          <span className="text-red-500 text-lg font-bold">♦</span>
+                          Diamonds
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="Clubs">
+                        <span className="flex items-center gap-2">
+                          <span className="text-green-500 text-lg font-bold">♣</span>
+                          Clubs
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="Spades">
+                        <span className="flex items-center gap-2">
+                          <span className="text-green-500 text-lg font-bold">♠</span>
+                          Spades
+                        </span>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
