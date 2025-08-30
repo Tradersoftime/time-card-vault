@@ -438,17 +438,14 @@ const AdminCards = () => {
         {/* Main Content */}
         {viewMode === 'grid' ? (
           <div className="glass-panel p-6 rounded-2xl">
-            <div className={cn(
-              "grid gap-4",
-              cardSize === 'sm' && "grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8",
-              cardSize === 'md' && "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
-              cardSize === 'lg' && "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
-            )}>
+            <div className="grid gap-4 justify-items-center" style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize === 'sm' ? '160px' : cardSize === 'md' ? '200px' : '250px'}, 1fr))`
+            }}>
               {filteredCards.map(card => (
                 <AdminTradingCard
                   key={card.id}
                   card={card}
-                  size={cardSize}
+                  baseWidth={cardSize === 'sm' ? 160 : cardSize === 'md' ? 200 : 250}
                   isSelected={selectedCards.has(card.id)}
                   onSelect={toggleCardSelection}
                   onEdit={handleEditCard}

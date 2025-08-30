@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useImageDimensions, calculateCardDimensions } from '@/hooks/useImageDimensions';
 
 interface TradingCardProps {
   card: {
@@ -12,16 +13,18 @@ interface TradingCardProps {
     description?: string;
     is_claimed?: boolean;
   };
-  size?: 'sm' | 'md' | 'lg';
+  baseWidth?: number;
   showClaimedBadge?: boolean;
   className?: string;
 }
 
-export function TradingCard({ card, size = 'md', showClaimedBadge = false, className }: TradingCardProps) {
-  const sizeClasses = {
-    sm: 'w-32 h-44',
-    md: 'w-48 h-64',
-    lg: 'w-64 h-80'
+export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, className }: TradingCardProps) {
+  const { aspectRatio, loading } = useImageDimensions(card.image_url);
+  const { width, height } = calculateCardDimensions(aspectRatio, baseWidth);
+  
+  const cardStyle = {
+    width: `${width}px`,
+    height: `${height}px`,
   };
 
   const getSuitColor = (suit: string) => {
@@ -50,11 +53,13 @@ export function TradingCard({ card, size = 'md', showClaimedBadge = false, class
   };
 
   return (
-    <div className={cn(
-      'card-premium rounded-xl p-4 relative overflow-hidden interactive group',
-      sizeClasses[size],
-      className
-    )}>
+    <div 
+      className={cn(
+        'card-premium rounded-xl p-4 relative overflow-hidden interactive group',
+        className
+      )}
+      style={cardStyle}
+    >
       {/* Claimed Badge */}
       {showClaimedBadge && card.is_claimed && (
         <div className="absolute top-2 right-2 z-10">
@@ -72,7 +77,8 @@ export function TradingCard({ card, size = 'md', showClaimedBadge = false, class
             <img 
               src={card.image_url} 
               alt={card.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
+              style={{ opacity: loading ? 0.5 : 1 }}
             />
           ) : (
             <div className="text-4xl font-bold text-muted-foreground/50">
@@ -94,7 +100,7 @@ export function TradingCard({ card, size = 'md', showClaimedBadge = false, class
             </Badge>
           </div>
           
-          {card.description && size === 'lg' && (
+          {card.description && baseWidth >= 250 && (
             <p className="text-xs text-muted-foreground line-clamp-2">
               {card.description}
             </p>

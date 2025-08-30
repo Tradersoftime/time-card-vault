@@ -158,7 +158,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
             <img 
               src={preview} 
               alt="Card preview"
-              className="w-full h-32 object-cover rounded"
+              className="w-full h-64 object-contain rounded"
             />
           </div>
           {imageCode && (

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Edit, QrCode, Eye, Download, AlertTriangle } from 'lucide-react';
+import { useImageDimensions, calculateCardDimensions } from '@/hooks/useImageDimensions';
 
 interface CardData {
   id: string;
@@ -31,7 +32,7 @@ interface AdminTradingCardProps {
   onEdit: (card: CardData) => void;
   onViewQR: (card: CardData) => void;
   onViewImage?: (imageUrl: string, cardName: string) => void;
-  size?: 'sm' | 'md' | 'lg';
+  baseWidth?: number;
   className?: string;
 }
 
@@ -42,13 +43,15 @@ export function AdminTradingCard({
   onEdit,
   onViewQR,
   onViewImage,
-  size = 'md',
+  baseWidth = 200,
   className
 }: AdminTradingCardProps) {
-  const sizeClasses = {
-    sm: 'w-32 h-44',
-    md: 'w-48 h-64',
-    lg: 'w-56 h-72'
+  const { aspectRatio, loading } = useImageDimensions(card.image_url);
+  const { width, height } = calculateCardDimensions(aspectRatio, baseWidth);
+  
+  const cardStyle = {
+    width: `${width}px`,
+    height: `${height}px`,
   };
 
   const getSuitColor = (suit: string) => {
@@ -107,12 +110,14 @@ export function AdminTradingCard({
   const hasCustomQR = card.qr_dark !== '#000000' || card.qr_light !== '#FFFFFF';
 
   return (
-    <div className={cn(
-      'card-premium rounded-xl p-3 relative overflow-hidden interactive group cursor-pointer',
-      sizeClasses[size],
-      isSelected && 'ring-2 ring-primary glow-primary',
-      className
-    )}>
+    <div 
+      className={cn(
+        'card-premium rounded-xl p-3 relative overflow-hidden interactive group cursor-pointer',
+        isSelected && 'ring-2 ring-primary glow-primary',
+        className
+      )}
+      style={cardStyle}
+    >
       {/* Selection Checkbox */}
       <div className="absolute top-2 left-2 z-20">
         <Checkbox
@@ -157,7 +162,8 @@ export function AdminTradingCard({
             <img 
               src={card.image_url} 
               alt={card.name}
-              className="w-full h-full object-cover cursor-pointer"
+              className="w-full h-full object-contain cursor-pointer"
+              style={{ opacity: loading ? 0.5 : 1 }}
               onClick={(e) => {
                 e.stopPropagation();
                 onViewImage?.(card.image_url!, card.name);
@@ -193,7 +199,7 @@ export function AdminTradingCard({
             </Badge>
           )}
 
-          {size === 'lg' && card.description && (
+          {baseWidth >= 250 && card.description && (
             <p className="text-xs text-muted-foreground line-clamp-2">
               {card.description}
             </p>
