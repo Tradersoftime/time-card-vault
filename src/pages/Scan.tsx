@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Html5QrcodeScanner, Html5QrcodeScannerState, Html5QrcodeScanType } from "html5-qrcode";
+import { Scanner } from "@yudiel/react-qr-scanner";
 
 type LogItem = {
   id: string;
@@ -26,25 +26,23 @@ export default function Scan() {
   const navigate = useNavigate();
 
   // scanner state
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-  const scannerElementRef = useRef<HTMLDivElement | null>(null);
   const processingRef = useRef<boolean>(false);
 
   // UI state
   const [error, setError] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
+  const [isScanning, setIsScanning] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
   const [lastScannedCode, setLastScannedCode] = useState<string>("");
   const [cooldownActive, setCooldownActive] = useState(false);
   const [cooldownTimer, setCooldownTimer] = useState(0);
-  const [tinyQrMode, setTinyQrMode] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [scanMode, setScanMode] = useState<"card" | "screen">("card");
 
   // live log
   const [log, setLog] = useState<LogItem[]>([]);
   const cooldownRef = useRef<Record<string, number>>({});
   const globalCooldownRef = useRef<number>(0);
-  const COOLDOWN_MS = 3000; // 3 second cooldown for same code
-  const GLOBAL_COOLDOWN_MS = 1000; // 1 second between any scans
+  const COOLDOWN_MS = 2000; // 2 second cooldown for same code
+  const GLOBAL_COOLDOWN_MS = 500; // 0.5 second between any scans
 
   // Ensure signed in
   useEffect(() => {
@@ -241,144 +239,38 @@ export default function Scan() {
     }
   }
 
-  /* ---------- Html5QrcodeScanner setup ---------- */
-
-  const handleScanSuccess = useCallback(async (decodedText: string) => {
-    const code = extractCode(decodedText);
+  /* ---------- QR Scanner handlers ---------- */
+  const handleScan = useCallback(async (result: any) => {
+    if (!result || isPaused) return;
+    
+    const text = result[0]?.rawValue || result;
+    const code = extractCode(text);
     if (code && shouldProcess(code)) {
       await claim(code);
     }
-  }, []);
+  }, [isPaused]);
 
-  const handleScanError = useCallback((errorMessage: string) => {
-    // Ignore frequent scanning errors to avoid spam
-  }, []);
-
-  useEffect(() => {
-    if (!scannerElementRef.current) return;
-
-    const config = {
-      fps: tinyQrMode ? 60 : 30, // Higher FPS for tiny codes
-      qrbox: tinyQrMode ? { width: 150, height: 150 } : { width: 280, height: 280 }, // Smaller box for tiny codes
-      aspectRatio: 1.0,
-      disableFlip: false,
-      videoConstraints: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: tinyQrMode ? 3840 : 1920, max: tinyQrMode ? 7680 : 2560 }, // 4K-8K for tiny codes
-        height: { ideal: tinyQrMode ? 2160 : 1080, max: tinyQrMode ? 4320 : 1440 },
-        focusMode: { ideal: "continuous" },
-        torch: true,
-      },
-      supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true
-      },
-      rememberLastUsedCamera: true,
-      showTorchButtonIfSupported: true,
-      showZoomSliderIfSupported: true,
-    };
-
-    try {
-      const scanner = new Html5QrcodeScanner(
-        "qr-scanner-container",
-        config,
-        false // verbose logging
-      );
-
-      scannerRef.current = scanner;
-      scanner.render(handleScanSuccess, handleScanError);
-      setIsScanning(true);
-      setError(null);
-    } catch (err: any) {
-      setError(`Scanner initialization failed: ${err.message}`);
+  const handleError = useCallback((error: any) => {
+    // Only set error for significant issues, not common scanning noise
+    if (error?.name === "NotAllowedError") {
+      setError("Camera access denied. Please enable camera permissions.");
+    } else if (error?.name === "NotFoundError") {
+      setError("No camera found. Please connect a camera.");
     }
-
-    return () => {
-      if (scannerRef.current) {
-        try {
-          if (scannerRef.current.getState() === Html5QrcodeScannerState.SCANNING ||
-              scannerRef.current.getState() === Html5QrcodeScannerState.PAUSED) {
-            scannerRef.current.clear();
-          }
-        } catch (e) {
-          // Ignore cleanup errors
-        }
-        scannerRef.current = null;
-      }
-      setIsScanning(false);
-    };
-  }, [handleScanSuccess, handleScanError]);
-
-  const pauseScanning = useCallback(() => {
-    if (scannerRef.current && scannerRef.current.getState() === Html5QrcodeScannerState.SCANNING) {
-      scannerRef.current.pause(true);
-    }
+    // Ignore other scanning errors to avoid spam
   }, []);
-
-  const resumeScanning = useCallback(() => {
-    if (scannerRef.current && scannerRef.current.getState() === Html5QrcodeScannerState.PAUSED) {
-      scannerRef.current.resume();
-    }
-  }, []);
-
-  const restartScanning = useCallback(() => {
-    if (scannerRef.current) {
-      try {
-        scannerRef.current.clear();
-      } catch (e) {
-        // Ignore errors
-      }
-    }
-    
-    // Force re-render by updating key
-    setTimeout(() => {
-      if (scannerElementRef.current) {
-        const config = {
-          fps: tinyQrMode ? 60 : 30,
-          qrbox: tinyQrMode ? { width: 150, height: 150 } : { width: 280, height: 280 },
-          aspectRatio: 1.0,
-          disableFlip: false,
-          videoConstraints: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: tinyQrMode ? 3840 : 1920, max: tinyQrMode ? 7680 : 2560 },
-            height: { ideal: tinyQrMode ? 2160 : 1080, max: tinyQrMode ? 4320 : 1440 },
-            focusMode: { ideal: "continuous" },
-            torch: true,
-          },
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          },
-          rememberLastUsedCamera: true,
-          showTorchButtonIfSupported: true,
-          showZoomSliderIfSupported: true,
-        };
-
-        try {
-          const scanner = new Html5QrcodeScanner(
-            "qr-scanner-container",
-            config,
-            false
-          );
-
-          scannerRef.current = scanner;
-          scanner.render(handleScanSuccess, handleScanError);
-          setError(null);
-        } catch (err: any) {
-          setError(`Scanner restart failed: ${err.message}`);
-        }
-      }
-    }, 100);
-  }, [handleScanSuccess, handleScanError]);
 
   /* ---------- UI ---------- */
-
   const tips = useMemo(() => [
-    tinyQrMode ? "TINY QR MODE: Move closer to the code and hold steady." : "Hold your device steady and align the QR code within the scanning area.",
-    tinyQrMode ? "For phone screens: Adjust brightness and avoid glare/reflections." : "Ensure good lighting - use device torch if needed.",
-    "Wait 3 seconds between scans to avoid duplicates.",
-    tinyQrMode ? "Use zoom controls below to get closer to tiny codes." : "The scanner works best with clear, high-contrast QR codes.",
-  ], [tinyQrMode]);
+    scanMode === "card" 
+      ? "Hold your device 4-8 inches from the card QR code" 
+      : "Point the camera at QR codes on screens or larger surfaces",
+    "Ensure good lighting - tap the torch button if needed",
+    "Wait 2 seconds between scans to avoid duplicates",
+    scanMode === "card" 
+      ? "For small QR codes, move closer and hold steady" 
+      : "The scanner works best with clear, high-contrast QR codes",
+  ], [scanMode]);
 
   function StatusPill({ s }: { s: LogItem["status"] }) {
     const map: Record<LogItem["status"], string> = {
@@ -414,12 +306,84 @@ export default function Scan() {
           {/* Camera */}
           <div className="space-y-4">
             <div className="glass-panel p-6 rounded-2xl glow-primary">
+              {/* Scanner Mode Toggle */}
+              <div className="mb-4 glass-panel p-3 rounded-lg bg-accent/10 border border-accent/20">
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setScanMode("card")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      scanMode === "card" 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-secondary/50 text-secondary-foreground hover:bg-secondary'
+                    }`}
+                  >
+                    📱 Physical Cards
+                  </button>
+                  <button
+                    onClick={() => setScanMode("screen")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      scanMode === "screen" 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-secondary/50 text-secondary-foreground hover:bg-secondary'
+                    }`}
+                  >
+                    🖥️ Screen Codes
+                  </button>
+                </div>
+              </div>
+
               {/* Scanner Container */}
-              <div 
-                id="qr-scanner-container" 
-                ref={scannerElementRef}
-                className="w-full bg-black rounded-xl overflow-hidden border border-primary/20"
-              />
+              <div className="relative w-full aspect-square bg-black rounded-xl overflow-hidden border border-primary/20">
+                {isScanning && !isPaused && (
+                  <Scanner
+                    onScan={handleScan}
+                    onError={handleError}
+                    constraints={{
+                      facingMode: "environment",
+                      width: scanMode === "card" ? { ideal: 1920, max: 3840 } : { ideal: 1280, max: 1920 },
+                      height: scanMode === "card" ? { ideal: 1080, max: 2160 } : { ideal: 720, max: 1080 }
+                    }}
+                    scanDelay={300}
+                    allowMultiple={false}
+                    styles={{
+                      container: { 
+                        width: "100%", 
+                        height: "100%",
+                        position: "relative"
+                      },
+                      video: { 
+                        width: "100%", 
+                        height: "100%",
+                        objectFit: "cover"
+                      }
+                    }}
+                  />
+                )}
+                
+                {/* Overlay for scan area indicator */}
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute inset-4 border-2 border-primary/60 rounded-lg flex items-center justify-center">
+                    <div 
+                      className={`border-2 border-primary rounded-lg bg-primary/5 ${
+                        scanMode === "card" ? "w-32 h-32" : "w-48 h-48"
+                      }`}
+                      style={{
+                        boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5)",
+                      }}
+                    >
+                      <div className="w-full h-full flex items-center justify-center text-primary text-xs font-medium">
+                        {scanMode === "card" ? "Small QR" : "Large QR"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {isPaused && (
+                  <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+                    <div className="text-white text-lg font-medium">Scanner Paused</div>
+                  </div>
+                )}
+              </div>
 
               {/* Cooldown Indicator */}
               {cooldownActive && (
@@ -441,82 +405,22 @@ export default function Scan() {
                 </div>
               )}
 
-              {/* Tiny QR Mode Toggle */}
-              <div className="mt-4 glass-panel p-3 rounded-lg bg-accent/10 border border-accent/20">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-foreground">Tiny QR Mode</label>
-                  <button
-                    onClick={() => {
-                      setTinyQrMode(!tinyQrMode);
-                      setTimeout(() => restartScanning(), 100);
-                    }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      tinyQrMode ? 'bg-primary' : 'bg-secondary'
-                    }`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      tinyQrMode ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-                
-                {tinyQrMode && (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Digital Zoom: {zoomLevel}x</label>
-                      <input
-                        type="range"
-                        min="1"
-                        max="3"
-                        step="0.1"
-                        value={zoomLevel}
-                        onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
-                        className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
-                      />
-                    </div>
-                    <div className="text-xs text-accent">
-                      📱 Optimized for tiny QR codes from phone screens and small cards
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* Controls */}
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <button
                   className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
-                  onClick={() => {
-                    if (scannerRef.current?.getState() === Html5QrcodeScannerState.SCANNING) {
-                      pauseScanning();
-                    } else if (scannerRef.current?.getState() === Html5QrcodeScannerState.PAUSED) {
-                      resumeScanning();
-                    }
-                  }}
-                  disabled={!isScanning}
+                  onClick={() => setIsPaused(!isPaused)}
                 >
-                  {scannerRef.current?.getState() === Html5QrcodeScannerState.SCANNING ? "Pause" : "Resume"}
-                </button>
-                <button
-                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
-                  onClick={restartScanning}
-                >
-                  Restart Scanner
+                  {isPaused ? "Resume" : "Pause"}
                 </button>
 
                 <span className="ml-auto text-xs opacity-60">
-                  {isScanning ? (tinyQrMode ? "Tiny QR scanner active" : "High-quality scanner active") : "Initializing scanner..."}
+                  {isScanning ? `${scanMode === "card" ? "Card" : "Screen"} scanner active` : "Initializing scanner..."}
                   {processingRef.current && " • Processing..."}
                 </span>
               </div>
             </div>
 
-            {!isScanning && !error && (
-              <div className="glass-panel p-4 rounded-lg text-center">
-                <div className="text-sm text-muted-foreground">
-                  Initializing {tinyQrMode ? 'tiny QR' : 'high-quality'} scanner… Please allow camera access when prompted.
-                </div>
-              </div>
-            )}
             {error && (
               <div className="glass-panel p-4 rounded-lg border-l-4 border-l-destructive">
                 <div className="text-sm text-destructive">{error}</div>
