@@ -25,7 +25,7 @@ export default function Home() {
                 <img 
                   src="/lovable-uploads/a9b256ac-b242-4242-a766-6c5c851c39d9.png" 
                   alt="Traders of Time Logo" 
-                  className="h-40 md:h-56 lg:h-64 mx-auto"
+                  className="h-64 md:h-80 lg:h-96 mx-auto"
                 />
               </div>
               <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">
