@@ -194,33 +194,80 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
 
                 <div className="space-y-2">
                   <Label htmlFor="rank">Rank *</Label>
-                  <Input
-                    id="rank"
-                    value={formData.rank}
-                    onChange={(e) => setFormData(prev => ({ ...prev, rank: e.target.value }))}
-                    required
-                  />
+                  <Select value={formData.rank} onValueChange={(value) => setFormData(prev => ({ ...prev, rank: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select rank" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">2</SelectItem>
+                      <SelectItem value="3">3</SelectItem>
+                      <SelectItem value="4">4</SelectItem>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="6">6</SelectItem>
+                      <SelectItem value="7">7</SelectItem>
+                      <SelectItem value="8">8</SelectItem>
+                      <SelectItem value="9">9</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="Jack">Jack</SelectItem>
+                      <SelectItem value="Queen">Queen</SelectItem>
+                      <SelectItem value="King">King</SelectItem>
+                      <SelectItem value="Ace">Ace</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="era">Era *</Label>
-                  <Input
-                    id="era"
-                    value={formData.era}
-                    onChange={(e) => setFormData(prev => ({ ...prev, era: e.target.value }))}
-                    required
-                  />
+                  <Select value={formData.era} onValueChange={(value) => setFormData(prev => ({ ...prev, era: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select era" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Prehistoric" className="bg-amber-800/20 text-amber-700 border-amber-800/30">
+                        🦕 Prehistoric
+                      </SelectItem>
+                      <SelectItem value="Ancient" className="bg-yellow-400/20 text-yellow-300 border-yellow-400/30">
+                        🏛️ Ancient
+                      </SelectItem>
+                      <SelectItem value="Medieval" className="bg-red-800/20 text-red-600 border-red-800/30">
+                        ⚔️ Medieval
+                      </SelectItem>
+                      <SelectItem value="Modern" className="bg-slate-900/20 text-slate-300 border-slate-900/30">
+                        🏢 Modern
+                      </SelectItem>
+                      <SelectItem value="Future" className="bg-teal-500/20 text-teal-400 border-teal-500/30">
+                        🚀 Future
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="rarity">Rarity</Label>
-                  <Input
-                    id="rarity"
-                    value={formData.rarity}
-                    onChange={(e) => setFormData(prev => ({ ...prev, rarity: e.target.value }))}
-                  />
+                  <Select value={formData.rarity} onValueChange={(value) => setFormData(prev => ({ ...prev, rarity: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select rarity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Degen" className="bg-black/20 text-slate-100 border-black/30">
+                        🗑️ Degen
+                      </SelectItem>
+                      <SelectItem value="Trader" className="bg-slate-300/20 text-slate-400 border-slate-300/30">
+                        📈 Trader
+                      </SelectItem>
+                      <SelectItem value="Investor" className="bg-amber-600/20 text-amber-500 border-amber-600/30">
+                        💼 Investor
+                      </SelectItem>
+                      <SelectItem value="Market Maker" className="bg-rose-400/20 text-rose-300 border-rose-400/30">
+                        🏦 Market Maker
+                      </SelectItem>
+                      <SelectItem value="Whale" className="bg-yellow-400/20 text-yellow-300 border-yellow-400/30">
+                        🐋 Whale
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

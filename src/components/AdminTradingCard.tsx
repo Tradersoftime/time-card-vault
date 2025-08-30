@@ -65,15 +65,37 @@ export function AdminTradingCard({
   };
 
   const getEraColor = (era: string) => {
-    const colors = [
-      'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      'bg-green-500/20 text-green-400 border-green-500/30',
-      'bg-purple-500/20 text-purple-400 border-purple-500/30',
-      'bg-orange-500/20 text-orange-400 border-orange-500/30',
-      'bg-pink-500/20 text-pink-400 border-pink-500/30',
-    ];
-    const index = era.length % colors.length;
-    return colors[index];
+    switch (era.toLowerCase()) {
+      case 'prehistoric':
+        return 'bg-amber-800/20 text-amber-700 border-amber-800/30';
+      case 'ancient':
+        return 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30';
+      case 'medieval':
+        return 'bg-red-800/20 text-red-600 border-red-800/30';
+      case 'modern':
+        return 'bg-slate-900/20 text-slate-300 border-slate-900/30';
+      case 'future':
+        return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
+      default:
+        return 'bg-primary/20 text-primary border-primary/30';
+    }
+  };
+
+  const getRarityColor = (rarity: string) => {
+    switch (rarity?.toLowerCase()) {
+      case 'degen':
+        return 'bg-black/20 text-slate-100 border-black/30';
+      case 'trader':
+        return 'bg-slate-300/20 text-slate-400 border-slate-300/30';
+      case 'investor':
+        return 'bg-amber-600/20 text-amber-500 border-amber-600/30';
+      case 'market maker':
+        return 'bg-rose-400/20 text-rose-300 border-rose-400/30';
+      case 'whale':
+        return 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30';
+      default:
+        return 'bg-primary/20 text-primary border-primary/30';
+    }
   };
 
   const getStatusColor = (status: string, isActive: boolean) => {
@@ -166,7 +188,7 @@ export function AdminTradingCard({
           </div>
           
           {card.rarity && (
-            <Badge variant="outline" className="text-xs bg-purple-500/20 text-purple-400 border-purple-500/30">
+            <Badge variant="outline" className={cn("text-xs", getRarityColor(card.rarity))}>
               {card.rarity}
             </Badge>
           )}
