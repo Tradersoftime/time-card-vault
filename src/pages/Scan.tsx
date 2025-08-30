@@ -267,7 +267,6 @@ export default function Scan() {
         width: { ideal: tinyQrMode ? 3840 : 1920, max: tinyQrMode ? 7680 : 2560 }, // 4K-8K for tiny codes
         height: { ideal: tinyQrMode ? 2160 : 1080, max: tinyQrMode ? 4320 : 1440 },
         focusMode: { ideal: "continuous" },
-        zoom: { min: 1, max: 10, ideal: zoomLevel },
         torch: true,
       },
       supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
@@ -344,7 +343,6 @@ export default function Scan() {
             width: { ideal: tinyQrMode ? 3840 : 1920, max: tinyQrMode ? 7680 : 2560 },
             height: { ideal: tinyQrMode ? 2160 : 1080, max: tinyQrMode ? 4320 : 1440 },
             focusMode: { ideal: "continuous" },
-            zoom: { min: 1, max: 10, ideal: zoomLevel },
             torch: true,
           },
           supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
