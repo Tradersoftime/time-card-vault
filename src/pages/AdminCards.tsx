@@ -6,11 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, LayoutGrid, List, QrCode, Eye, Filter, ArrowUpDown } from 'lucide-react';
+import { Loader2, Search, LayoutGrid, List, QrCode, Eye, Filter, ArrowUpDown, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSearchParams } from 'react-router-dom';
 import { AdminTradingCard } from '@/components/AdminTradingCard';
 import { CardEditModal } from '@/components/CardEditModal';
+import { CardCreateModal } from '@/components/CardCreateModal';
 import { CSVOperations } from '@/components/CSVOperations';
 import { QRCodePreview } from '@/components/QRCodePreview';
 import { ImageDownloadButton } from '@/components/ImageDownloadButton';
@@ -59,6 +60,7 @@ const AdminCards = () => {
   
   // Modal states
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState('');
@@ -162,6 +164,7 @@ const AdminCards = () => {
 
   const handleModalClose = () => {
     setShowEditModal(false);
+    setShowCreateModal(false);
     setShowQRModal(false);
     setShowImageModal(false);
     setSelectedCard(null);
@@ -307,6 +310,13 @@ const AdminCards = () => {
               <p className="text-muted-foreground">Visual card management with CSV operations and modal editing</p>
             </div>
             <div className="flex gap-2">
+              <Button 
+                onClick={() => setShowCreateModal(true)}
+                className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add New Card
+              </Button>
               <CSVOperations 
                 selectedCards={filteredCards.filter(card => selectedCards.has(card.id))}
                 onImportComplete={fetchCards}
@@ -471,6 +481,12 @@ const AdminCards = () => {
         <CardEditModal
           card={selectedCard}
           isOpen={showEditModal}
+          onClose={handleModalClose}
+          onSave={handleSaveCard}
+        />
+
+        <CardCreateModal
+          isOpen={showCreateModal}
           onClose={handleModalClose}
           onSave={handleSaveCard}
         />

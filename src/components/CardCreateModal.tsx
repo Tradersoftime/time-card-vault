@@ -1,48 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ImageUpload } from '@/components/ImageUpload';
 import { QRCodePreview } from '@/components/QRCodePreview';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 
-interface CardData {
-  id: string;
-  code: string;
-  name: string;
-  suit: string;
-  rank: string;
-  era: string;
-  rarity: string | null;
-  time_value: number;
-  trader_value: string | null;
-  image_url: string | null;
-  description: string | null;
-  status: string;
-  is_active: boolean;
-  created_at: string;
-  current_target?: string | null;
-  qr_dark?: string | null;
-  qr_light?: string | null;
-}
-
-interface CardEditModalProps {
-  card: CardData | null;
+interface CardCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
 }
 
-export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalProps) {
+export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    code: '',
     name: '',
     suit: '',
     rank: '',
@@ -52,43 +31,57 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
     trader_value: '',
     image_url: '',
     description: '',
-    status: 'active',
-    is_active: true,
+    status: 'draft',
+    is_active: false,
     current_target: '',
     qr_dark: '#000000',
     qr_light: '#FFFFFF'
   });
 
-  useEffect(() => {
-    if (card) {
-      setFormData({
-        name: card.name,
-        suit: card.suit,
-        rank: card.rank,
-        era: card.era,
-        rarity: card.rarity || '',
-        time_value: card.time_value,
-        trader_value: card.trader_value || '',
-        image_url: card.image_url || '',
-        description: card.description || '',
-        status: card.status,
-        is_active: card.is_active,
-        current_target: card.current_target || '',
-        qr_dark: card.qr_dark || '#000000',
-        qr_light: card.qr_light || '#FFFFFF'
-      });
-    }
-  }, [card]);
+  const generateCardCode = () => {
+    const timestamp = Date.now().toString().slice(-8);
+    const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+    return `CARD-${timestamp}-${random}`;
+  };
+
+  const resetForm = () => {
+    setFormData({
+      code: generateCardCode(),
+      name: '',
+      suit: '',
+      rank: '',
+      era: '',
+      rarity: '',
+      time_value: 0,
+      trader_value: '',
+      image_url: '',
+      description: '',
+      status: 'draft',
+      is_active: false,
+      current_target: '',
+      qr_dark: '#000000',
+      qr_light: '#FFFFFF'
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!card) return;
+    
+    if (!formData.name || !formData.suit || !formData.rank || !formData.era) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields (Name, Suit, Rank, Era)",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('cards')
-        .update({
+        .insert({
+          code: formData.code,
           name: formData.name,
           suit: formData.suit,
           rank: formData.rank,
@@ -104,22 +97,24 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
           qr_dark: formData.qr_dark || null,
           qr_light: formData.qr_light || null
         })
-        .eq('id', card.id);
+        .select()
+        .single();
 
       if (error) throw error;
       
       toast({
         title: "Success",
-        description: `Card "${formData.name}" updated successfully`,
+        description: `Card "${formData.name}" created successfully`,
       });
       
+      resetForm();
       onSave();
       onClose();
-    } catch (error) {
-      console.error('Error saving card:', error);
+    } catch (error: any) {
+      console.error('Error creating card:', error);
       toast({
         title: "Error",
-        description: "Failed to save card",
+        description: error.message || "Failed to create card",
         variant: "destructive",
       });
     } finally {
@@ -135,43 +130,57 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
     }));
   };
 
-  if (!card) return null;
+  const handleOpen = () => {
+    if (isOpen && !formData.code) {
+      resetForm();
+    }
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (open) handleOpen();
+      else onClose();
+    }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Edit Card: {card.name}
-            <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">
-              Code: {card.code}
-            </Badge>
+            <Plus className="h-5 w-5" />
+            Create New Card
           </DialogTitle>
         </DialogHeader>
-
-        {card.is_active && (
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-yellow-500">Active Card Warning</p>
-              <p className="text-muted-foreground">
-                This card is active and users may be relying on its data for authentication. 
-                Changes will be reflected immediately.
-              </p>
-            </div>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Left Column */}
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="code">Card Code *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="code"
+                    value={formData.code}
+                    onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
+                    placeholder="CARD-12345-ABCD"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setFormData(prev => ({ ...prev, code: generateCardCode() }))}
+                  >
+                    Generate
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Unique identifier for this card</p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="name">Card Name *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter card name"
                   required
                 />
               </div>
@@ -184,10 +193,10 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                       <SelectValue placeholder="Select suit" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Hearts">Hearts</SelectItem>
-                      <SelectItem value="Diamonds">Diamonds</SelectItem>
-                      <SelectItem value="Clubs">Clubs</SelectItem>
-                      <SelectItem value="Spades">Spades</SelectItem>
+                      <SelectItem value="Hearts">♥️ Hearts</SelectItem>
+                      <SelectItem value="Diamonds">♦️ Diamonds</SelectItem>
+                      <SelectItem value="Clubs">♣️ Clubs</SelectItem>
+                      <SelectItem value="Spades">♠️ Spades</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -208,10 +217,10 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                       <SelectItem value="8">8</SelectItem>
                       <SelectItem value="9">9</SelectItem>
                       <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="Jack">Jack</SelectItem>
-                      <SelectItem value="Queen">Queen</SelectItem>
-                      <SelectItem value="King">King</SelectItem>
-                      <SelectItem value="Ace">Ace</SelectItem>
+                      <SelectItem value="Jack">🤴 Jack</SelectItem>
+                      <SelectItem value="Queen">👸 Queen</SelectItem>
+                      <SelectItem value="King">👑 King</SelectItem>
+                      <SelectItem value="Ace">🃏 Ace</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -299,8 +308,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -323,6 +332,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   rows={3}
+                  placeholder="Describe this card..."
                 />
               </div>
             </div>
@@ -334,15 +344,14 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                 <ImageUpload
                   onImageUploaded={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
                   currentImageUrl={formData.image_url}
-                  cardCode={card.code}
-                  className="h-80"
+                  cardCode={formData.code}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label>QR Code Preview</Label>
                 <QRCodePreview
-                  code={card.code}
+                  code={formData.code}
                   qrDark={formData.qr_dark}
                   qrLight={formData.qr_light}
                   onColorChange={handleColorChange}
@@ -379,7 +388,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
               className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground"
             >
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save Changes
+              Create Card
             </Button>
           </div>
         </form>
