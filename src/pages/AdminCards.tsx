@@ -17,6 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useSearchParams } from 'react-router-dom';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BulkEditCards } from '@/components/BulkEditCards';
+import { QRCodePreview } from '@/components/QRCodePreview';
+import { ImageDownloadButton } from '@/components/ImageDownloadButton';
 
 interface CardData {
   id: string;
@@ -85,7 +87,9 @@ const AdminCards = () => {
     description: '',
     status: 'active',
     is_active: true,
-    current_target: ''
+    current_target: '',
+    qr_dark: '#000000',
+    qr_light: '#FFFFFF'
   });
 
   useEffect(() => {
@@ -251,7 +255,9 @@ const AdminCards = () => {
       description: '',
       status: 'active',
       is_active: true,
-      current_target: ''
+      current_target: '',
+      qr_dark: '#000000',
+      qr_light: '#FFFFFF'
     });
     setSelectedCard(null);
     setIsEditing(false);
@@ -272,7 +278,9 @@ const AdminCards = () => {
       description: card.description || '',
       status: card.status,
       is_active: card.is_active,
-      current_target: card.current_target || ''
+      current_target: card.current_target || '',
+      qr_dark: card.qr_dark || '#000000',
+      qr_light: card.qr_light || '#FFFFFF'
     });
     setIsEditing(true);
   };
@@ -297,7 +305,9 @@ const AdminCards = () => {
             description: formData.description || null,
             status: formData.status,
             is_active: formData.is_active,
-            current_target: formData.current_target || null
+            current_target: formData.current_target || null,
+            qr_dark: formData.qr_dark || null,
+            qr_light: formData.qr_light || null
           })
           .eq('id', selectedCard.id);
 
@@ -324,7 +334,9 @@ const AdminCards = () => {
             description: formData.description || null,
             status: formData.status,
             is_active: formData.is_active,
-            current_target: formData.current_target || null
+            current_target: formData.current_target || null,
+            qr_dark: formData.qr_dark || null,
+            qr_light: formData.qr_light || null
           }]);
 
         if (error) throw error;
@@ -728,17 +740,26 @@ const AdminCards = () => {
                                   (e.target as HTMLImageElement).style.display = 'none';
                                 }}
                               />
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="absolute top-2 right-2 bg-background/80 hover:bg-background border border-primary/20"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  copyToClipboard(card.image_url!, 'Image URL');
-                                }}
-                              >
-                                <Copy className="h-3 w-3" />
-                              </Button>
+                              <div className="absolute top-2 right-2 flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="bg-background/80 hover:bg-background border border-primary/20"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    copyToClipboard(card.image_url!, 'Image URL');
+                                  }}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                                <ImageDownloadButton
+                                  imageUrl={card.image_url}
+                                  filename={`${card.code}-image.jpg`}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="bg-background/80 hover:bg-background border border-primary/20"
+                                />
+                              </div>
                             </div>
                           ) : (
                             <div className="w-full h-48 bg-muted/20 rounded-lg flex items-center justify-center text-muted-foreground border border-primary/10">
@@ -750,28 +771,13 @@ const AdminCards = () => {
                         {/* QR Code Column */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm uppercase tracking-wide text-primary">QR Code</h4>
-                          {qrCodes.has(card.id) ? (
-                            <div className="relative">
-                              <img 
-                                src={qrCodes.get(card.id)} 
-                                alt={`QR Code for ${card.name}`}
-                                className="w-full max-w-48 mx-auto border border-primary/20 rounded-lg shadow-lg bg-white p-2"
-                              />
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="absolute top-2 right-2 bg-background/80 hover:bg-background border border-primary/20"
-                                onClick={() => copyToClipboard(`${window.location.origin}/claim/${card.code}`, 'Claim URL')}
-                              >
-                                <Copy className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="w-full h-48 bg-muted/20 rounded-lg flex flex-col items-center justify-center text-muted-foreground border border-primary/10">
-                              <QrCode className="h-12 w-12 mb-2" />
-                              <span className="text-xs">Loading QR code...</span>
-                            </div>
-                          )}
+                          <QRCodePreview
+                            code={card.code}
+                            qrDark={card.qr_dark}
+                            qrLight={card.qr_light}
+                            size={200}
+                            className="max-w-48 mx-auto"
+                          />
                         </div>
                       </div>
 
@@ -883,14 +889,17 @@ const AdminCards = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {/* QR Code Preview */}
                       <div className="space-y-2">
-                        <h4 className="font-medium text-sm text-foreground">QR Code</h4>
-                        <div className="bg-white p-4 rounded-lg border border-primary/20 shadow-sm">
-                          <img 
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/claim/${formData.code}`)}`}
-                            alt="QR Code Preview"
-                            className="w-full max-w-48 mx-auto"
-                          />
-                        </div>
+                        <h4 className="font-medium text-sm text-foreground">QR Code Preview</h4>
+                        <QRCodePreview
+                          code={formData.code}
+                          qrDark={formData.qr_dark}
+                          qrLight={formData.qr_light}
+                          onColorChange={(dark, light) => {
+                            setFormData(prev => ({ ...prev, qr_dark: dark, qr_light: light }));
+                          }}
+                          showColorControls={true}
+                          size={180}
+                        />
                       </div>
                       
                       {/* Image Preview */}

@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Save, X, ArrowLeft } from 'lucide-react';
+import { Save, X, ArrowLeft, Palette } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { QRCodePreview } from '@/components/QRCodePreview';
 
 interface CardData {
   id: string;
@@ -262,6 +263,57 @@ export const BulkEditCards = ({ cards, onSave, onCancel }: BulkEditCardsProps) =
                   value={(getCardValue(card, 'current_target') as string) || ''}
                   onChange={(e) => updateCard(card.id, 'current_target', e.target.value || null)}
                   className="bg-background/50 border-primary/20"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`qr_dark-${card.id}`}>QR Dark Color</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={(getCardValue(card, 'qr_dark') as string) || '#000000'}
+                      onChange={(e) => updateCard(card.id, 'qr_dark', e.target.value)}
+                      className="w-12 h-8 p-1 border rounded"
+                    />
+                    <Input
+                      id={`qr_dark-${card.id}`}
+                      value={(getCardValue(card, 'qr_dark') as string) || '#000000'}
+                      onChange={(e) => updateCard(card.id, 'qr_dark', e.target.value || null)}
+                      placeholder="#000000"
+                      className="bg-background/50 border-primary/20"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor={`qr_light-${card.id}`}>QR Light Color</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={(getCardValue(card, 'qr_light') as string) || '#FFFFFF'}
+                      onChange={(e) => updateCard(card.id, 'qr_light', e.target.value)}
+                      className="w-12 h-8 p-1 border rounded"
+                    />
+                    <Input
+                      id={`qr_light-${card.id}`}
+                      value={(getCardValue(card, 'qr_light') as string) || '#FFFFFF'}
+                      onChange={(e) => updateCard(card.id, 'qr_light', e.target.value || null)}
+                      placeholder="#FFFFFF"
+                      className="bg-background/50 border-primary/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>QR Code Preview</Label>
+                <QRCodePreview
+                  code={card.code}
+                  qrDark={(getCardValue(card, 'qr_dark') as string) || '#000000'}
+                  qrLight={(getCardValue(card, 'qr_light') as string) || '#FFFFFF'}
+                  size={150}
+                  className="max-w-48"
                 />
               </div>
 
