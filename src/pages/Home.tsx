@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { CreditCard, Scan, Sparkles } from 'lucide-react';
-import heroImage from '@/assets/hero-vintage-background.jpg';
 
 export default function Home() {
   const { user } = useAuth();
@@ -12,7 +11,7 @@ export default function Home() {
       {/* Hero Section */}
       <section 
         className="relative bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url(${heroImage})` }}
+        style={{ backgroundImage: `url(/lovable-uploads/fd3ac9fb-0846-4c6c-ad60-7b85ec63ad29.png)` }}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-background/95 via-background/80 to-background/95"></div>
         <div className="relative container mx-auto px-4 pt-20 pb-32">
