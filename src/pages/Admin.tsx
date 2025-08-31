@@ -355,6 +355,29 @@ export default function Admin() {
     await loadPending();
   }
 
+  const rejectRedemption = async (redemptionId: string, adminNotes?: string) => {
+    if (!confirm("Reject this entire redemption?")) return;
+    
+    try {
+      const { data, error } = await supabase.rpc('admin_reject_redemption', {
+        p_redemption_id: redemptionId,
+        p_admin_notes: adminNotes || 'Rejected by admin'
+      });
+
+      if (error) throw error;
+
+      if (data?.ok) {
+        setToolMsg("Redemption rejected");
+        loadPending();
+      } else {
+        throw new Error('Failed to reject redemption');
+      }
+    } catch (error) {
+      console.error('Error rejecting redemption:', error);
+      setToolMsg("Failed to reject redemption");
+    }
+  };
+
   /* ---- Group pending by user_id ---- */
   const pendingGroups = useMemo<Record<string, PendingRedemption[]>>(() => {
     const map: Record<string, PendingRedemption[]> = {};
