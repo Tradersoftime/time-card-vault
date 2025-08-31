@@ -468,6 +468,12 @@ export default function MyCards() {
               >
                 Submit Selected for TIME
               </button>
+              <button
+                onClick={() => navigate('/my-redemptions')}
+                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm font-medium"
+              >
+                View Redemption History
+              </button>
             </div>
           </div>
 

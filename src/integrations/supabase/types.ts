@@ -432,6 +432,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      admin_reject_redemption: {
+        Args: { p_admin_notes?: string; p_redemption_id: string }
+        Returns: Json
+      }
       admin_scan_events: {
         Args: { p_limit?: number }
         Returns: {
@@ -517,6 +521,26 @@ export type Database = {
       resolve_image_code: {
         Args: { p_code: string }
         Returns: string
+      }
+      resubmit_rejected_cards: {
+        Args: { p_card_ids: string[]; p_original_redemption_id: string }
+        Returns: Json
+      }
+      user_redemption_history: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          admin_notes: string
+          approved_cards: number
+          cards: Json
+          credited_amount: number
+          credited_at: string
+          id: string
+          pending_cards: number
+          rejected_cards: number
+          status: string
+          submitted_at: string
+          total_cards: number
+        }[]
       }
     }
     Enums: {

@@ -712,7 +712,7 @@ export default function Admin() {
                                 Credit Selected
                               </button>
                               <button 
-                                onClick={() => rejectAll(r)} 
+                                onClick={() => rejectRedemption(r.id)} 
                                 className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors font-medium"
                               >
                                 Reject All
