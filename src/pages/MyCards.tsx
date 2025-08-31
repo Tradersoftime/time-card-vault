@@ -552,50 +552,52 @@ export default function MyCards() {
             </CardHeader>
             <CardContent>
               {readyCards.length > 0 ? (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {readyCards.map((row) => (
-                    <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={selectedCards.includes(row.card_id || '')}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedCards([...selectedCards, row.card_id || '']);
-                            } else {
-                              setSelectedCards(selectedCards.filter(id => id !== row.card_id));
-                            }
-                          }}
-                        />
-                        {row.image_url && (
-                          <img 
-                            src={row.image_url} 
-                            alt={row.name || "Card"} 
-                            className="w-12 h-16 object-cover rounded"
-                          />
-                        )}
-                        <div>
-                          <div className="font-medium">{row.name || "Unknown Card"}</div>
-                          <div className="text-sm text-muted-foreground">
-                            <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
+                    <div key={row.card_id} className="flex items-center gap-3 p-4 border rounded-lg">
+                      <Checkbox
+                        checked={selectedCards.includes(row.card_id || '')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedCards([...selectedCards, row.card_id || '']);
+                          } else {
+                            setSelectedCards(selectedCards.filter(id => id !== row.card_id));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          {row.image_url && (
+                            <img 
+                              src={row.image_url} 
+                              alt={row.name || "Card"} 
+                              className="w-12 h-16 object-cover rounded"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <div className="font-medium">{row.name || "Unknown Card"}</div>
+                            <div className="text-sm text-muted-foreground">
+                              <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <Badge variant="outline" className="mb-1">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="text-xs">
                             {formatNum(toNum(row.trader_value))} TLV
                           </Badge>
-                          <div className="text-sm font-medium">
-                            {formatNum(row.time_value || 0)} TIME
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium">
+                              {formatNum(row.time_value || 0)} TIME
+                            </div>
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleSubmitCard(row.card_id || '')}
+                              disabled={submitting}
+                            >
+                              Submit
+                            </Button>
                           </div>
                         </div>
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleSubmitCard(row.card_id || '')}
-                          disabled={submitting}
-                        >
-                          Submit
-                        </Button>
                       </div>
                     </div>
                   ))}
@@ -618,30 +620,28 @@ export default function MyCards() {
             </CardHeader>
             <CardContent>
               {pendingCards.length > 0 ? (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {pendingCards.map((row) => (
-                    <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                      <div className="flex items-center gap-3">
-                        {row.image_url && (
-                          <img 
-                            src={row.image_url} 
-                            alt={row.name || "Card"} 
-                            className="w-12 h-16 object-cover rounded"
-                          />
-                        )}
-                        <div>
-                          <div className="font-medium">{row.name || "Unknown Card"}</div>
-                          <div className="text-sm text-muted-foreground">
-                            <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
-                          </div>
+                    <div key={row.card_id} className="flex items-center gap-3 p-4 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                      {row.image_url && (
+                        <img 
+                          src={row.image_url} 
+                          alt={row.name || "Card"} 
+                          className="w-12 h-16 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <div className="font-medium">{row.name || "Unknown Card"}</div>
+                        <div className="text-sm text-muted-foreground">
+                          <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="secondary" className="mb-1">
-                          {formatNum(toNum(row.trader_value))} TLV
-                        </Badge>
-                        <div className="text-sm">
-                          {formatNum(row.time_value || 0)} TIME (Pending)
+                        <div className="flex items-center justify-between mt-2">
+                          <Badge variant="secondary" className="text-xs">
+                            {formatNum(toNum(row.trader_value))} TLV
+                          </Badge>
+                          <div className="text-sm">
+                            {formatNum(row.time_value || 0)} TIME
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -665,10 +665,10 @@ export default function MyCards() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {rejectedCards.map((row) => (
-                    <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg bg-red-50 dark:bg-red-900/20">
-                      <div className="flex items-center gap-3">
+                    <div key={row.card_id} className="p-4 border rounded-lg bg-red-50 dark:bg-red-900/20">
+                      <div className="flex items-center gap-3 mb-3">
                         {row.image_url && (
                           <img 
                             src={row.image_url} 
@@ -676,28 +676,26 @@ export default function MyCards() {
                             className="w-12 h-16 object-cover rounded"
                           />
                         )}
-                        <div>
+                        <div className="flex-1">
                           <div className="font-medium">{row.name || "Unknown Card"}</div>
                           <div className="text-sm text-muted-foreground">
                             <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
                           </div>
-                          {row.admin_notes && (
-                            <div className="text-sm text-destructive mt-1">
-                              Reason: {row.admin_notes}
-                            </div>
-                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right mr-3">
-                          <Badge variant="destructive" className="mb-1">
-                            Rejected
-                          </Badge>
-                          <div className="text-sm">
-                            {formatNum(row.time_value || 0)} TIME
-                          </div>
+                      
+                      {row.admin_notes && (
+                        <div className="p-2 bg-red-100 dark:bg-red-800/50 border border-red-200 dark:border-red-700 rounded mb-3">
+                          <div className="text-sm text-red-800 dark:text-red-200 font-medium">Rejection Reason:</div>
+                          <div className="text-sm text-red-700 dark:text-red-300">{row.admin_notes}</div>
                         </div>
-                        <div className="flex flex-col gap-2">
+                      )}
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                          {formatNum(toNum(row.trader_value))} TLV • {formatNum(row.time_value || 0)} TIME
+                        </div>
+                        <div className="flex gap-2">
                           <Button 
                             size="sm" 
                             variant="outline"
@@ -711,7 +709,6 @@ export default function MyCards() {
                             variant="ghost"
                             onClick={() => handleAcceptRejection(row.redemption_id || '')}
                           >
-                            <CheckCircle className="h-4 w-4 mr-1" />
                             Accept
                           </Button>
                         </div>
@@ -733,30 +730,28 @@ export default function MyCards() {
             </CardHeader>
             <CardContent>
               {creditedCards.length > 0 ? (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {creditedCards.map((row) => (
-                    <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg bg-green-50 dark:bg-green-900/20">
-                      <div className="flex items-center gap-3">
-                        {row.image_url && (
-                          <img 
-                            src={row.image_url} 
-                            alt={row.name || "Card"} 
-                            className="w-12 h-16 object-cover rounded"
-                          />
-                        )}
-                        <div>
-                          <div className="font-medium">{row.name || "Unknown Card"}</div>
-                          <div className="text-sm text-muted-foreground">
-                            <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
-                          </div>
+                    <div key={row.card_id} className="flex items-center gap-3 p-4 border rounded-lg bg-green-50 dark:bg-green-900/20">
+                      {row.image_url && (
+                        <img 
+                          src={row.image_url} 
+                          alt={row.name || "Card"} 
+                          className="w-12 h-16 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <div className="font-medium">{row.name || "Unknown Card"}</div>
+                        <div className="text-sm text-muted-foreground">
+                          <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="default" className="mb-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                          {formatNum(toNum(row.trader_value))} TLV
-                        </Badge>
-                        <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-                          {formatNum(row.credited_amount || row.time_value || 0)} TIME ✓
+                        <div className="flex items-center justify-between mt-2">
+                          <Badge variant="default" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                            {formatNum(toNum(row.trader_value))} TLV
+                          </Badge>
+                          <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                            {formatNum(row.credited_amount || row.time_value || 0)} TIME ✓
+                          </div>
                         </div>
                       </div>
                     </div>
