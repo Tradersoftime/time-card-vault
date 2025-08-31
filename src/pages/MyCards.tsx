@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const DECK_SUITS = ["Clubs", "Diamonds", "Hearts", "Spades"];
 const DECK_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
@@ -137,6 +138,7 @@ export default function MyCards() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedCards, setSelectedCards] = useState<string[]>([]);
 
   // Search and sort
   const [searchTerm, setSearchTerm] = useState("");
@@ -268,6 +270,63 @@ export default function MyCards() {
     } catch (err: any) {
       console.error('Error submitting card:', err);
       toast.error(`Failed to submit card: ${err.message}`);
+    }
+  };
+
+  const handleSubmitSelected = async () => {
+    if (selectedCards.length === 0) {
+      toast.error("Please select at least one card");
+      return;
+    }
+
+    setSubmitting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const cardId of selectedCards) {
+        try {
+          const { data, error } = await supabase.rpc('submit_card_for_redemption', {
+            p_card_id: cardId
+          });
+          
+          if (error) throw error;
+          
+          if (data.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (err) {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} card${successCount === 1 ? '' : 's'} submitted for TIME rewards!`);
+      }
+      if (failCount > 0) {
+        toast.error(`${failCount} card${failCount === 1 ? '' : 's'} failed to submit`);
+      }
+
+      // Reload data and clear selection
+      const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
+      if (refreshError) throw refreshError;
+      setRows(refreshData || []);
+      setSelectedCards([]);
+    } catch (err: any) {
+      console.error('Error submitting cards:', err);
+      toast.error(`Failed to submit cards: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSelectAllReady = () => {
+    if (selectedCards.length === readyCards.length) {
+      setSelectedCards([]);
+    } else {
+      setSelectedCards(readyCards.map(card => card.card_id || '').filter(Boolean));
     }
   };
 
@@ -462,9 +521,33 @@ export default function MyCards() {
           {/* Ready for TIME Submission */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Ready for TIME Submission ({readyCards.length})
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Ready for TIME Submission ({readyCards.length})
+                </span>
+                {readyCards.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    {selectedCards.length > 0 && (
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={handleSubmitSelected}
+                        disabled={submitting}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Submit Selected ({selectedCards.length})
+                      </Button>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleSelectAllReady}
+                    >
+                      {selectedCards.length === readyCards.length ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  </div>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -473,6 +556,16 @@ export default function MyCards() {
                   {readyCards.map((row) => (
                     <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={selectedCards.includes(row.card_id || '')}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedCards([...selectedCards, row.card_id || '']);
+                            } else {
+                              setSelectedCards(selectedCards.filter(id => id !== row.card_id));
+                            }
+                          }}
+                        />
                         {row.image_url && (
                           <img 
                             src={row.image_url} 
@@ -499,6 +592,7 @@ export default function MyCards() {
                         <Button 
                           size="sm" 
                           onClick={() => handleSubmitCard(row.card_id || '')}
+                          disabled={submitting}
                         >
                           Submit
                         </Button>

@@ -122,7 +122,7 @@ export default function AdminRedemptions() {
     }
   };
 
-  const handleBulkAction = async (action: 'approve' | 'reject' | 'credit') => {
+  const handleBulkAction = async (action: 'approve' | 'reject') => {
     if (selectedRedemptions.length === 0) {
       toast.error("Please select at least one redemption");
       return;
@@ -134,14 +134,14 @@ export default function AdminRedemptions() {
         p_redemption_ids: selectedRedemptions,
         p_action: action,
         p_admin_notes: adminNotes || null,
-        p_external_ref: action === 'credit' ? externalRef || null : null
+        p_external_ref: externalRef || null
       });
 
       if (error) throw error;
 
       if (data.ok) {
-        const actionText = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'credited';
-        toast.success(`${data.updated} cards ${actionText}${action === 'credit' ? ` for ${data.total_credited} TIME` : ''}`);
+        const actionText = action === 'approve' ? 'approved and credited' : 'rejected';
+        toast.success(`${data.updated} cards ${actionText}${action === 'approve' ? ` for ${data.total_credited} TIME` : ''}`);
         
         setSelectedRedemptions([]);
         setAdminNotes("");
@@ -259,7 +259,7 @@ export default function AdminRedemptions() {
                   onChange={(e) => setAdminNotes(e.target.value)}
                 />
                 <Input
-                  placeholder="External reference (for credits)"
+                  placeholder="External reference (optional)"
                   value={externalRef}
                   onChange={(e) => setExternalRef(e.target.value)}
                 />
@@ -272,7 +272,7 @@ export default function AdminRedemptions() {
                   disabled={processing}
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve Selected
+                  Approve & Credit Selected
                 </Button>
                 <Button 
                   variant="destructive" 
@@ -281,14 +281,6 @@ export default function AdminRedemptions() {
                 >
                   <XCircle className="h-4 w-4 mr-2" />
                   Reject Selected
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  onClick={() => handleBulkAction('credit')}
-                  disabled={processing}
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Credit Selected
                 </Button>
               </div>
             </div>
