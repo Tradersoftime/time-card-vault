@@ -50,6 +50,57 @@ export type Database = {
         }
         Relationships: []
       }
+      card_redemptions: {
+        Row: {
+          admin_notes: string | null
+          card_id: string
+          created_at: string
+          credited_amount: number | null
+          credited_at: string | null
+          credited_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          external_ref: string | null
+          id: string
+          status: string
+          submitted_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          card_id: string
+          created_at?: string
+          credited_amount?: number | null
+          credited_at?: string | null
+          credited_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          external_ref?: string | null
+          id?: string
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          card_id?: string
+          created_at?: string
+          credited_amount?: number | null
+          credited_at?: string | null
+          credited_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          external_ref?: string | null
+          id?: string
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       cards: {
         Row: {
           code: string
@@ -167,84 +218,6 @@ export type Database = {
         }
         Relationships: []
       }
-      redemption_cards: {
-        Row: {
-          amount_time: number | null
-          card_id: string
-          decided_at: string | null
-          decision: string
-          id: string
-          redemption_id: string
-        }
-        Insert: {
-          amount_time?: number | null
-          card_id: string
-          decided_at?: string | null
-          decision?: string
-          id?: string
-          redemption_id: string
-        }
-        Update: {
-          amount_time?: number | null
-          card_id?: string
-          decided_at?: string | null
-          decision?: string
-          id?: string
-          redemption_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "redemption_cards_card_id_fkey"
-            columns: ["card_id"]
-            isOneToOne: true
-            referencedRelation: "cards"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "redemption_cards_redemption_id_fkey"
-            columns: ["redemption_id"]
-            isOneToOne: false
-            referencedRelation: "redemptions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      redemptions: {
-        Row: {
-          admin_notes: string | null
-          credited_amount: number | null
-          credited_at: string | null
-          credited_by: string | null
-          external_ref: string | null
-          id: string
-          status: string
-          submitted_at: string
-          user_id: string
-        }
-        Insert: {
-          admin_notes?: string | null
-          credited_amount?: number | null
-          credited_at?: string | null
-          credited_by?: string | null
-          external_ref?: string | null
-          id?: string
-          status?: string
-          submitted_at?: string
-          user_id: string
-        }
-        Update: {
-          admin_notes?: string | null
-          credited_amount?: number | null
-          credited_at?: string | null
-          credited_by?: string | null
-          external_ref?: string | null
-          id?: string
-          status?: string
-          submitted_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       scan_events: {
         Row: {
           card_id: string | null
@@ -336,38 +309,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_card_rejection: {
+        Args: { p_redemption_id: string }
+        Returns: Json
+      }
       admin_block_user_by_email: {
         Args: { p_email: string; p_reason?: string }
         Returns: Json
       }
-      admin_bulk_credit: {
-        Args: { p_amount: number; p_ids: string[]; p_ref: string }
+      admin_bulk_decision_cards: {
+        Args: {
+          p_action: string
+          p_admin_notes?: string
+          p_credited_amount?: number
+          p_external_ref?: string
+          p_redemption_ids: string[]
+        }
         Returns: Json
-      }
-      admin_credit_selected_cards: {
-        Args: {
-          p_amount_override?: number
-          p_ref?: string
-          p_selected_card_ids: string[]
-          p_source_redemption_id: string
-        }
-        Returns: {
-          credited_amount: number
-          credited_count: number
-          new_redemption_id: string
-        }[]
-      }
-      admin_finalize_redemption: {
-        Args: {
-          p_amount_override?: number
-          p_redemption_id: string
-          p_ref: string
-          p_selected_card_ids: string[]
-        }
-        Returns: {
-          credited_amount: number
-          ok: boolean
-        }[]
       }
       admin_list_blocked: {
         Args: Record<PropertyKey, never>
@@ -403,15 +361,21 @@ export type Database = {
           trader_value: string
         }[]
       }
-      admin_pending_redemptions: {
+      admin_pending_card_redemptions: {
         Args: Record<PropertyKey, never>
         Returns: {
-          card_count: number
-          cards: Json
-          email: string
-          id: string
+          card_era: string
+          card_id: string
+          card_image_url: string
+          card_name: string
+          card_rank: string
+          card_rarity: string
+          card_suit: string
+          redemption_id: string
           submitted_at: string
-          total_time_value: number
+          time_value: number
+          trader_value: string
+          user_email: string
           user_id: string
         }[]
       }
@@ -427,14 +391,6 @@ export type Database = {
           user_email: string
           user_id: string
         }[]
-      }
-      admin_redemptions_pending: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      admin_reject_redemption: {
-        Args: { p_admin_notes?: string; p_redemption_id: string }
-        Returns: Json
       }
       admin_scan_events: {
         Args: { p_limit?: number }
@@ -522,24 +478,32 @@ export type Database = {
         Args: { p_code: string }
         Returns: string
       }
-      resubmit_rejected_cards: {
-        Args: { p_card_ids: string[]; p_original_redemption_id: string }
+      resubmit_rejected_card: {
+        Args: { p_redemption_id: string }
         Returns: Json
       }
-      user_redemption_history: {
+      submit_card_for_redemption: {
+        Args: { p_card_id: string }
+        Returns: Json
+      }
+      user_card_collection: {
         Args: Record<PropertyKey, never>
         Returns: {
           admin_notes: string
-          approved_cards: number
-          cards: Json
+          card_id: string
+          claimed_at: string
           credited_amount: number
-          credited_at: string
-          id: string
-          pending_cards: number
-          rejected_cards: number
-          status: string
-          submitted_at: string
-          total_cards: number
+          decided_at: string
+          era: string
+          image_url: string
+          name: string
+          rank: string
+          rarity: string
+          redemption_id: string
+          redemption_status: string
+          suit: string
+          time_value: number
+          trader_value: string
         }[]
       }
     }

@@ -1,48 +1,48 @@
 // src/pages/MyCards.tsx
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ArrowUpDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
+import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
+
+const DECK_SUITS = ["Clubs", "Diamonds", "Hearts", "Spades"];
+const DECK_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
 type Row = {
-  claimed_at: string;
-  card_id: string;
-  name: string | null;
-  suit: string | null;
-  rank: string | null;
-  era: string | null;
-  image_url: string | null;
-  rarity: string | null;
-  trader_value: string | null; // numeric as text
-  time_value: number | null;
-  is_pending: boolean;
-  is_credited: boolean;
+  card_id?: string | null;
+  name?: string | null;
+  suit?: string | null;
+  rank?: string | null;
+  era?: string | null;
+  rarity?: string | null;
+  trader_value?: string | null;
+  time_value?: number | null;
+  image_url?: string | null;
+  claimed_at?: string | null;
+  redemption_status?: string | null;
+  redemption_id?: string | null;
+  admin_notes?: string | null;
+  decided_at?: string | null;
+  credited_amount?: number | null;
 };
 
-/* ---------------- helpers ---------------- */
-
-const RARITY_ORDER = ["Degen", "Trader", "Investor", "Market Maker", "Whale"] as const;
-type RarityName = typeof RARITY_ORDER[number];
-
-const DECK_RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"] as const;
-const DECK_SUITS = ["Spades","Hearts","Clubs","Diamonds"] as const;
-
+// Helper functions
 function prettyRarity(r?: string | null): string {
   if (!r) return "—";
-  const s = r.trim().toLowerCase();
-  const found = RARITY_ORDER.find(
-    x => x.toLowerCase() === s || s.replace(/\s+/g, "") === x.toLowerCase().replace(/\s+/g, "")
-  );
-  return found ?? r;
+  return r.charAt(0).toUpperCase() + r.slice(1).toLowerCase();
 }
 
 function rarityRank(r?: string | null): number {
-  const p = prettyRarity(r);
-  const idx = RARITY_ORDER.indexOf(p as RarityName);
-  return idx === -1 ? -1 : idx;
+  const rarities = ["common", "uncommon", "rare", "epic", "legendary"];
+  const index = rarities.indexOf(r?.toLowerCase() || "");
+  return index === -1 ? 0 : index;
 }
 
 function toNum(s?: string | null): number {
@@ -50,6 +50,7 @@ function toNum(s?: string | null): number {
   const n = Number(String(s).replace(/[^0-9.\-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
+
 function formatNum(n: number): string {
   return Number(n).toLocaleString();
 }
@@ -63,6 +64,7 @@ function canonicalSuit(s?: string | null): typeof DECK_SUITS[number] | "—" {
   if (v.startsWith("dia")) return "Diamonds";
   return "—";
 }
+
 function canonRank(r?: string | null): typeof DECK_RANKS[number] | null {
   if (!r) return null;
   const v = r.trim().toLowerCase();
@@ -74,6 +76,7 @@ function canonRank(r?: string | null): typeof DECK_RANKS[number] | null {
   if (/^[2-9]$/.test(v)) return v.toUpperCase() as any;
   return null;
 }
+
 function humanRank(r?: string | null): string {
   if (!r) return "—";
   const v = r.trim().toUpperCase();
@@ -84,16 +87,14 @@ function humanRank(r?: string | null): string {
   return r;
 }
 
-/** Suit glyph (♠ ♥ ♣ ♦). Hearts/Diamonds red, Spades/Clubs green. */
 function SuitGlyph({ suit }: { suit?: string | null }) {
   const s = canonicalSuit(suit);
   const glyph = s === "Spades" ? "♠" : s === "Hearts" ? "♥" : s === "Clubs" ? "♣" : s === "Diamonds" ? "♦" : "";
-  const cls = s === "Hearts" || s === "Diamonds" ? "text-red-500 text-lg font-bold" : 
-             s === "Spades" || s === "Clubs" ? "text-green-500 text-lg font-bold" : "text-foreground text-lg";
+  const cls = s === "Hearts" || s === "Diamonds" ? "text-red-500" : 
+             s === "Spades" || s === "Clubs" ? "text-green-500" : "text-foreground";
   return glyph ? <span className={cls} aria-label={s} title={s}>{glyph}</span> : <span>—</span>;
 }
 
-/** Rank + suit icon (no "of"), e.g., "Jack ♠" */
 function RankSuit({ rank, suit }: { rank?: string | null; suit?: string | null }) {
   const r = humanRank(rank);
   const s = canonicalSuit(suit);
@@ -106,13 +107,12 @@ function RankSuit({ rank, suit }: { rank?: string | null; suit?: string | null }
   );
 }
 
-/** Best 52-card deck by rank×suit with highest TLV per bucket */
 function buildBestDeck52(all: Row[]) {
   const bestByBucket = new Map<string, Row>();
   for (const row of all) {
     const s = canonicalSuit(row.suit);
     const r = canonRank(row.rank);
-    if (s === "—" || !r) continue; // only valid buckets
+    if (s === "—" || !r) continue;
     const key = `${s}|${r}`;
     const curr = bestByBucket.get(key);
     if (!curr || toNum(row.trader_value) > toNum(curr.trader_value)) {
@@ -130,182 +130,204 @@ function buildBestDeck52(all: Row[]) {
   return { chosen, totalTLV };
 }
 
-/* ---------------- page ---------------- */
-
 export default function MyCards() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [submitting, setSubmitting] = useState(false);
 
+  // Search and sort
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("claimed_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-  const navigate = useNavigate();
-
-  // Load
   useEffect(() => {
-    let mounted = true;
-    (async () => {
+    async function loadData() {
+      if (!user) return;
       setLoading(true);
-      setError(null);
-      setMsg(null);
-
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user) {
-        navigate("/auth/login?next=/me/cards", { replace: true });
-        return;
+      try {
+        const { data, error } = await supabase.rpc('user_card_collection');
+        if (error) throw error;
+        setRows(data || []);
+      } catch (err: any) {
+        console.error('Error loading cards:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
+    }
+    loadData();
+  }, [user]);
 
-      const { data, error } = await supabase.rpc("card_claims_with_time_status");
-      if (!mounted) return;
+  // Filter and sort logic
+  const filteredAndSortedRows = useMemo(() => {
+    let filtered = rows;
 
-      if (error) setError(error.message);
-      else setRows((data as Row[]) ?? []);
-      setLoading(false);
-    })();
-    return () => { mounted = false; };
-  }, [navigate]);
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(card =>
+        (card.name?.toLowerCase().includes(term)) ||
+        (card.era?.toLowerCase().includes(term)) ||
+        (card.suit?.toLowerCase().includes(term)) ||
+        (card.rank?.toLowerCase().includes(term)) ||
+        (card.rarity?.toLowerCase().includes(term)) ||
+        (card.trader_value?.toLowerCase().includes(term))
+      );
+    }
 
-  async function reload() {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("card_claims_with_time_status");
-    if (error) setError(error.message);
-    else setRows((data as Row[]) ?? []);
-    setLoading(false);
-  }
-
-  // Search + sort
-  const filterCards = (cards: Row[]) => {
-    if (!searchTerm) return cards;
-    const term = searchTerm.toLowerCase();
-    return cards.filter(card =>
-      (card.name?.toLowerCase().includes(term)) ||
-      (card.era?.toLowerCase().includes(term)) ||
-      (card.suit?.toLowerCase().includes(term)) ||
-      (card.rank?.toLowerCase().includes(term)) ||
-      (card.rarity?.toLowerCase().includes(term)) ||
-      (card.trader_value?.toLowerCase().includes(term))
-    );
-  };
-
-  const sortCards = (cards: Row[]) => {
-    return [...cards].sort((a, b) => {
+    // Sort
+    filtered.sort((a, b) => {
       let aValue: any, bValue: any;
 
       switch (sortBy) {
         case "name":
-          aValue = (a.name ?? "").toLowerCase(); bValue = (b.name ?? "").toLowerCase(); break;
+          aValue = (a.name ?? "").toLowerCase();
+          bValue = (b.name ?? "").toLowerCase();
+          break;
         case "era":
-          aValue = (a.era ?? "").toLowerCase(); bValue = (b.era ?? "").toLowerCase(); break;
+          aValue = (a.era ?? "").toLowerCase();
+          bValue = (b.era ?? "").toLowerCase();
+          break;
         case "suit":
-          aValue = canonicalSuit(a.suit); bValue = canonicalSuit(b.suit); break;
+          aValue = canonicalSuit(a.suit);
+          bValue = canonicalSuit(b.suit);
+          break;
         case "rank":
-          aValue = (a.rank ?? "").toString().toLowerCase(); bValue = (b.rank ?? "").toString().toLowerCase(); break;
+          aValue = (a.rank ?? "").toString().toLowerCase();
+          bValue = (b.rank ?? "").toString().toLowerCase();
+          break;
         case "rarity":
-          aValue = rarityRank(a.rarity); bValue = rarityRank(b.rarity); break;
+          aValue = rarityRank(a.rarity);
+          bValue = rarityRank(b.rarity);
+          break;
         case "time_value":
-          aValue = a.time_value || 0; bValue = b.time_value || 0; break;
+          aValue = a.time_value || 0;
+          bValue = b.time_value || 0;
+          break;
         case "trader_value":
-          aValue = toNum(a.trader_value); bValue = toNum(b.trader_value); break;
+          aValue = toNum(a.trader_value);
+          bValue = toNum(b.trader_value);
+          break;
         case "claimed_at":
         default:
-          aValue = new Date(a.claimed_at).getTime(); bValue = new Date(b.claimed_at).getTime(); break;
+          aValue = new Date(a.claimed_at || 0).getTime();
+          bValue = new Date(b.claimed_at || 0).getTime();
+          break;
       }
 
       if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
       if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
       return 0;
     });
+
+    return filtered;
+  }, [rows, searchTerm, sortBy, sortDirection]);
+
+  // Categorize cards by redemption status
+  const readyCards = useMemo(() => 
+    filteredAndSortedRows.filter(r => 
+      (!r.redemption_status || r.redemption_status === 'available') && r.time_value && r.time_value > 0
+    ), [filteredAndSortedRows]
+  );
+  
+  const pendingCards = useMemo(() => 
+    filteredAndSortedRows.filter(r => r.redemption_status === 'pending'), 
+    [filteredAndSortedRows]
+  );
+  
+  const rejectedCards = useMemo(() => 
+    filteredAndSortedRows.filter(r => r.redemption_status === 'rejected'), 
+    [filteredAndSortedRows]
+  );
+  
+  const creditedCards = useMemo(() => 
+    filteredAndSortedRows.filter(r => r.redemption_status === 'credited'), 
+    [filteredAndSortedRows]
+  );
+
+  const handleSubmitCard = async (cardId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('submit_card_for_redemption', {
+        p_card_id: cardId
+      });
+      
+      if (error) throw error;
+      
+      if (data.ok) {
+        toast.success("Card submitted for TIME rewards!");
+        // Reload data to update UI
+        const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
+        if (refreshError) throw refreshError;
+        setRows(refreshData || []);
+      } else {
+        toast.error(`Failed to submit card: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('Error submitting card:', err);
+      toast.error(`Failed to submit card: ${err.message}`);
+    }
   };
 
-  const processCards = (cards: Row[]) => sortCards(filterCards(cards));
+  const handleResubmitCard = async (redemptionId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('resubmit_rejected_card', {
+        p_redemption_id: redemptionId
+      });
+      
+      if (error) throw error;
+      
+      if (data.ok) {
+        toast.success("Card resubmitted for review!");
+        // Reload data to update UI
+        const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
+        if (refreshError) throw refreshError;
+        setRows(refreshData || []);
+      } else {
+        toast.error(`Failed to resubmit card: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('Error resubmitting card:', err);
+      toast.error(`Failed to resubmit card: ${err.message}`);
+    }
+  };
 
-  // Groups (with search + sort)
-  const ready    = useMemo(() => processCards(rows.filter(r => !r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
-  const pending  = useMemo(() => processCards(rows.filter(r =>  r.is_pending && !r.is_credited)), [rows, searchTerm, sortBy, sortDirection]);
-  const credited = useMemo(() => processCards(rows.filter(r =>  r.is_credited)),                  [rows, searchTerm, sortBy, sortDirection]);
+  const handleAcceptRejection = async (redemptionId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('accept_card_rejection', {
+        p_redemption_id: redemptionId
+      });
+      
+      if (error) throw error;
+      
+      if (data.ok) {
+        toast.success("Rejection acknowledged");
+        // Reload data to update UI
+        const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
+        if (refreshError) throw refreshError;
+        setRows(refreshData || []);
+      } else {
+        toast.error(`Failed to acknowledge rejection: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('Error acknowledging rejection:', err);
+      toast.error(`Failed to acknowledge rejection: ${err.message}`);
+    }
+  };
 
-  // Totals
-  const timeOf = (list: Row[]) => list.reduce((s, r) => s + (r.time_value ?? 0), 0);
-  const totalCards         = rows.length;
-  const totalTimeAll       = timeOf(rows);
-  const totalTimeCredited  = timeOf(credited);
-  const totalTimeReady     = timeOf(ready);
-  const totalTimePending   = timeOf(pending);
+  // Summary stats
+  const totalCards = rows.length;
+  const totalTimeAll = rows.reduce((sum, r) => sum + (r.time_value || 0), 0);
+  const totalTimeCredited = creditedCards.reduce((sum, r) => sum + (r.credited_amount || r.time_value || 0), 0);
+  const totalTimeReady = readyCards.reduce((sum, r) => sum + (r.time_value || 0), 0);
+  const totalTimePending = pendingCards.reduce((sum, r) => sum + (r.time_value || 0), 0);
 
-  // Best 52-card deck (by buckets rank×suit; highest TLV each bucket)
+  // Best 52-card deck
   const { chosen: deck52, totalTLV: deck52TLV } = useMemo(() => buildBestDeck52(rows), [rows]);
 
-  // Selection helpers (only for "ready")
-  function toggle(cardId: string) {
-    setSelected(s => ({ ...s, [cardId]: !s[cardId] }));
-  }
-  function selectAllReady() {
-    const next: Record<string, boolean> = {};
-    ready.forEach(r => { next[r.card_id] = true; });
-    setSelected(next);
-  }
-  function clearSelection() { setSelected({}); }
-
-  // Submit selected cards for TIME
-  async function submitSelected() {
-    try {
-      setMsg(null);
-      const chosen = Object.keys(selected).filter(id => selected[id]);
-      if (chosen.length === 0) { setMsg("Select at least one card."); return; }
-
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user) { setMsg("Not signed in."); return; }
-
-      // Create a new redemption header
-      const { data: redRow, error: redErr } = await supabase
-        .from("redemptions")
-        .insert({ user_id: userData.user.id })
-        .select("id")
-        .single();
-
-      if (redErr || !redRow?.id) { setMsg(redErr?.message || "Could not create redemption."); return; }
-
-      // Attach cards; ignore duplicates (already submitted by anyone)
-      const payload = chosen.map(card_id => ({ redemption_id: redRow.id, card_id }));
-      const { data: inserted, error: upsertErr } = await supabase
-        .from("redemption_cards")
-        .upsert(payload, { onConflict: "card_id", ignoreDuplicates: true })
-        .select("card_id");
-
-      if (upsertErr) {
-        const txt = upsertErr.message || "";
-        if ((upsertErr as any).code === "23505" || /duplicate key/i.test(txt)) {
-          setMsg("⚠️ Already submitted or redeemed.");
-        } else {
-          setMsg(txt);
-        }
-        return;
-      }
-
-      const added = inserted?.length ?? 0;
-      const skipped = chosen.length - added;
-
-      if (added === 0) setMsg("⚠️ Already submitted or redeemed.");
-      else setMsg(`✅ Submitted ${added} card${added === 1 ? "" : "s"} for TIME review${skipped > 0 ? ` (${skipped} already submitted)` : ""}!`);
-
-      // Clear only those we actually submitted
-      const nextSel = { ...selected };
-      (inserted || []).forEach((row: any) => { nextSel[row.card_id] = false; });
-      setSelected(nextSel);
-
-      await reload();
-    } catch (e: any) {
-      const txt = e?.message || String(e);
-      if (/duplicate key/i.test(txt)) setMsg("⚠️ Already submitted or redeemed.");
-      else setMsg(txt);
-    }
-  }
-
-  if (loading) return <div className="p-6">Loading your collection…</div>;
+  if (loading) return <div className="p-6">Loading your collection...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
   return (
@@ -321,27 +343,27 @@ export default function MyCards() {
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="glass-panel p-6 rounded-2xl glow-primary">
-            <div className="text-3xl font-bold text-primary">{totalTimeAll.toFixed(2)}</div>
+            <div className="text-3xl font-bold text-primary">{formatNum(totalTimeAll)}</div>
             <div className="text-sm text-muted-foreground">Collection TIME</div>
             <div className="text-xs text-muted-foreground">{totalCards} card{totalCards === 1 ? "" : "s"}</div>
           </div>
           
           <div className="glass-panel p-6 rounded-2xl">
-            <div className="text-3xl font-bold text-foreground">{totalTimeCredited.toFixed(2)}</div>
+            <div className="text-3xl font-bold text-foreground">{formatNum(totalTimeCredited)}</div>
             <div className="text-sm text-muted-foreground">Credited TIME</div>
-            <div className="text-xs text-muted-foreground">{credited.length} card{credited.length === 1 ? "" : "s"}</div>
+            <div className="text-xs text-muted-foreground">{creditedCards.length} card{creditedCards.length === 1 ? "" : "s"}</div>
           </div>
           
           <div className="glass-panel p-6 rounded-2xl glow-primary">
-            <div className="text-3xl font-bold text-primary">{totalTimeReady.toFixed(2)}</div>
+            <div className="text-3xl font-bold text-primary">{formatNum(totalTimeReady)}</div>
             <div className="text-sm text-muted-foreground">Ready to Claim</div>
-            <div className="text-xs text-muted-foreground">{ready.length} card{ready.length === 1 ? "" : "s"}</div>
+            <div className="text-xs text-muted-foreground">{readyCards.length} card{readyCards.length === 1 ? "" : "s"}</div>
           </div>
           
           <div className="glass-panel p-6 rounded-2xl">
-            <div className="text-3xl font-bold text-foreground">{totalTimePending.toFixed(2)}</div>
+            <div className="text-3xl font-bold text-foreground">{formatNum(totalTimePending)}</div>
             <div className="text-sm text-muted-foreground">Pending TIME</div>
-            <div className="text-xs text-muted-foreground">{pending.length} card{pending.length === 1 ? "" : "s"}</div>
+            <div className="text-xs text-muted-foreground">{pendingCards.length} card{pendingCards.length === 1 ? "" : "s"}</div>
           </div>
         </div>
 
@@ -363,12 +385,6 @@ export default function MyCards() {
             )}
           </div>
         </div>
-
-        {msg && (
-          <div className="glass-panel p-4 rounded-lg border-l-4 border-l-primary">
-            <div className="text-primary text-sm">{msg}</div>
-          </div>
-        )}
 
         {/* Search and Sort Controls */}
         <div className="glass-panel p-6 rounded-2xl">
@@ -415,7 +431,7 @@ export default function MyCards() {
                   className="px-3 bg-background/50 border-primary/20 hover:bg-primary/10"
                   title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
                 >
-                  <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} />
+                  {sortDirection === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
@@ -425,7 +441,7 @@ export default function MyCards() {
           {searchTerm && (
             <div className="mt-4 pt-4 border-t border-primary/20">
               <div className="text-sm text-muted-foreground">
-                Search results: <span className="text-primary font-medium">{ready.length + pending.length + credited.length}</span> cards found
+                Search results: <span className="text-primary font-medium">{filteredAndSortedRows.length}</span> cards found
                 {searchTerm && (
                   <span className="ml-2">
                     for "<span className="text-foreground font-medium">{searchTerm}</span>"
@@ -433,7 +449,7 @@ export default function MyCards() {
                       onClick={() => setSearchTerm("")}
                       className="ml-2 text-primary hover:text-primary/80 text-xs underline"
                     >
-                      Clear
+                      clear
                     </button>
                   </span>
                 )}
@@ -442,151 +458,225 @@ export default function MyCards() {
           )}
         </div>
 
-        {/* Unsubmitted (Ready for TIME) */}
-        <div className="glass-panel p-6 rounded-2xl">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-            <div>
-              <h2 className="text-2xl font-semibold text-foreground mb-1">Ready for TIME Submission</h2>
-              <p className="text-sm text-muted-foreground">Select cards to submit for TIME rewards</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={selectAllReady}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium glow-primary"
-              >
-                Select All ({ready.length})
-              </button>
-              <button
-                onClick={clearSelection}
-                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm font-medium"
-              >
-                Clear Selection
-              </button>
-              <button
-                onClick={submitSelected}
-                className="px-4 py-2 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground rounded-lg hover:opacity-90 transition-opacity text-sm font-medium glow-primary"
-              >
-                Submit Selected for TIME
-              </button>
-              <button
-                onClick={() => navigate('/my-redemptions')}
-                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm font-medium"
-              >
-                View Redemption History
-              </button>
-            </div>
-          </div>
-
-          {ready.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No unsubmitted cards.</div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {ready.map((r) => {
-                const checked = !!selected[r.card_id];
-                return (
-                  <div
-                    key={r.card_id}
-                    className={`glass-panel p-4 rounded-xl cursor-pointer transition-all transform hover:scale-105 ${
-                      checked ? 'border-2 border-primary glow-primary bg-primary/5' : 'hover:bg-muted/10'
-                    }`}
-                    onClick={() => toggle(r.card_id)}
-                  >
-                    <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
-                      {r.image_url && (
-                        <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
-                      )}
+        <div className="space-y-6">
+          {/* Ready for TIME Submission */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                Ready for TIME Submission ({readyCards.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {readyCards.length > 0 ? (
+                <div className="space-y-4">
+                  {readyCards.map((row) => (
+                    <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {row.image_url && (
+                          <img 
+                            src={row.image_url} 
+                            alt={row.name || "Card"} 
+                            className="w-12 h-16 object-cover rounded"
+                          />
+                        )}
+                        <div>
+                          <div className="font-medium">{row.name || "Unknown Card"}</div>
+                          <div className="text-sm text-muted-foreground">
+                            <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <Badge variant="outline" className="mb-1">
+                            {formatNum(toNum(row.trader_value))} TLV
+                          </Badge>
+                          <div className="text-sm font-medium">
+                            {formatNum(row.time_value || 0)} TIME
+                          </div>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleSubmitCard(row.card_id || '')}
+                        >
+                          Submit
+                        </Button>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                      <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
-                      <RankSuit rank={r.rank} suit={r.suit} />
-                      <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
-                      <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
-                      <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
-                      <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-primary/20 text-primary border border-primary/30 glow-primary">
-                        Ready
-                      </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No cards available for TIME submission
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Submitted (Pending TIME) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Submitted (Pending TIME) ({pendingCards.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {pendingCards.length > 0 ? (
+                <div className="space-y-4">
+                  {pendingCards.map((row) => (
+                    <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                      <div className="flex items-center gap-3">
+                        {row.image_url && (
+                          <img 
+                            src={row.image_url} 
+                            alt={row.name || "Card"} 
+                            className="w-12 h-16 object-cover rounded"
+                          />
+                        )}
+                        <div>
+                          <div className="font-medium">{row.name || "Unknown Card"}</div>
+                          <div className="text-sm text-muted-foreground">
+                            <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="secondary" className="mb-1">
+                          {formatNum(toNum(row.trader_value))} TLV
+                        </Badge>
+                        <div className="text-sm">
+                          {formatNum(row.time_value || 0)} TIME (Pending)
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Submitted (Pending TIME) */}
-        <div className="glass-panel p-6 rounded-2xl">
-          <h2 className="text-2xl font-semibold text-foreground mb-4">Submitted (Pending TIME)</h2>
-          {pending.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No pending submissions.</div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {pending.map((r) => (
-                <div key={r.card_id} className="glass-panel p-4 rounded-xl hover:bg-muted/5 transition-colors">
-                  <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
-                    {r.image_url && (
-                      <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                    <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
-                    <RankSuit rank={r.rank} suit={r.suit} />
-                    <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
-                    <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
-                    <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
-                    <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                      Pending
-                    </span>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Claimed (Credited) */}
-        <div className="glass-panel p-6 rounded-2xl">
-          <h2 className="text-2xl font-semibold text-foreground mb-4">Claimed Cards</h2>
-          {credited.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No claimed cards yet.</div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {credited.map((r) => (
-                <div key={r.card_id} className="glass-panel p-4 rounded-xl hover:bg-muted/5 transition-colors glow-primary">
-                  <div className="aspect-[3/4] bg-muted/20 rounded-lg mb-3 overflow-hidden">
-                    {r.image_url && (
-                      <img src={r.image_url} alt={r.name ?? "Card"} className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-foreground truncate">{r.name ?? "Unnamed Trader"}</div>
-                    <div className="text-sm text-muted-foreground">{`${r.era ?? "—"} ${prettyRarity(r.rarity)}`}</div>
-                    <RankSuit rank={r.rank} suit={r.suit} />
-                    <div className="text-sm text-foreground">{formatNum(toNum(r.trader_value))} TLV</div>
-                    <div className="text-sm text-primary">{(r.time_value ?? 0).toLocaleString()} TIME</div>
-                    <div className="text-xs text-muted-foreground">Claimed {new Date(r.claimed_at).toLocaleString()}</div>
-                    <span className="inline-block text-xs px-3 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
-                      Credited
-                    </span>
-                  </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No cards pending review
                 </div>
-              ))}
-            </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Rejected Cards */}
+          {rejectedCards.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  Rejected Cards ({rejectedCards.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {rejectedCards.map((row) => (
+                    <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg bg-red-50 dark:bg-red-900/20">
+                      <div className="flex items-center gap-3">
+                        {row.image_url && (
+                          <img 
+                            src={row.image_url} 
+                            alt={row.name || "Card"} 
+                            className="w-12 h-16 object-cover rounded"
+                          />
+                        )}
+                        <div>
+                          <div className="font-medium">{row.name || "Unknown Card"}</div>
+                          <div className="text-sm text-muted-foreground">
+                            <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
+                          </div>
+                          {row.admin_notes && (
+                            <div className="text-sm text-destructive mt-1">
+                              Reason: {row.admin_notes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right mr-3">
+                          <Badge variant="destructive" className="mb-1">
+                            Rejected
+                          </Badge>
+                          <div className="text-sm">
+                            {formatNum(row.time_value || 0)} TIME
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleResubmitCard(row.redemption_id || '')}
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Resubmit
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => handleAcceptRejection(row.redemption_id || '')}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Accept
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
+
+          {/* Claimed Cards */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Claimed Cards ({creditedCards.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {creditedCards.length > 0 ? (
+                <div className="space-y-4">
+                  {creditedCards.map((row) => (
+                    <div key={row.card_id} className="flex items-center justify-between p-4 border rounded-lg bg-green-50 dark:bg-green-900/20">
+                      <div className="flex items-center gap-3">
+                        {row.image_url && (
+                          <img 
+                            src={row.image_url} 
+                            alt={row.name || "Card"} 
+                            className="w-12 h-16 object-cover rounded"
+                          />
+                        )}
+                        <div>
+                          <div className="font-medium">{row.name || "Unknown Card"}</div>
+                          <div className="text-sm text-muted-foreground">
+                            <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="default" className="mb-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                          {formatNum(toNum(row.trader_value))} TLV
+                        </Badge>
+                        <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                          {formatNum(row.credited_amount || row.time_value || 0)} TIME ✓
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No credited cards yet
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* (Optional) simple number stat card — unused but kept for parity */
-function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
-  return (
-    <div className="border rounded-xl p-3">
-      <div className="text-xs opacity-70">{label}</div>
-      <div className="text-2xl font-semibold">{value}</div>
-      {sub && <div className="text-xs opacity-60">{sub}</div>}
     </div>
   );
 }
