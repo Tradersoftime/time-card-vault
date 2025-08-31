@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { TradingCard } from '@/components/TradingCard';
+import { EnhancedTradingCard } from '@/components/EnhancedTradingCard';
+import { ImageModal } from '@/components/ImageModal';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface RedemptionCard {
   card_id: string;
@@ -42,8 +44,11 @@ export default function MyRedemptions() {
   const [redemptions, setRedemptions] = useState<RedemptionHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRejectedCards, setSelectedRejectedCards] = useState<Set<string>>(new Set());
+  const [selectedCard, setSelectedCard] = useState<RedemptionCard | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
   const [resubmitting, setResubmitting] = useState(false);
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const loadRedemptions = async () => {
     try {
@@ -128,6 +133,11 @@ export default function MyRedemptions() {
     } finally {
       setResubmitting(false);
     }
+  };
+
+  const handleCardClick = (card: RedemptionCard) => {
+    setSelectedCard(card);
+    setImageModalOpen(true);
   };
 
   if (loading) {
@@ -227,46 +237,61 @@ export default function MyRedemptions() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className={`grid gap-4 ${
+                  isMobile ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                }`}>
                   {redemption.cards.map((card) => (
                     <div key={card.card_id} className="relative">
-                      <div 
-                        className={`relative ${
-                          card.decision === 'rejected' ? 'cursor-pointer' : ''
-                        }`}
-                        onClick={() => {
-                          if (card.decision === 'rejected') {
-                            toggleCardSelection(card.card_id);
-                          }
-                        }}
-                      >
-                        <TradingCard
-                          card={{
-                            id: card.card_id,
-                            name: card.name,
-                            suit: card.suit,
-                            rank: card.rank,
-                            era: card.era,
-                            image_url: card.image_url,
-                            description: null,
-                            is_claimed: true
-                          }}
-                          baseWidth={150}
-                          className={`${
-                            card.decision === 'rejected' && selectedRejectedCards.has(card.card_id)
-                              ? 'ring-2 ring-primary'
-                              : ''
-                          }`}
-                        />
-                        <div className="absolute top-2 right-2">
-                          {card.decision === 'approved' || card.decision === 'credited' ? (
-                            <Badge className="bg-emerald-500 text-white">Approved</Badge>
-                          ) : card.decision === 'rejected' ? (
-                            <Badge variant="destructive">Rejected</Badge>
-                          ) : (
-                            <Badge variant="outline">Pending</Badge>
-                          )}
+                      {/* Selection checkbox for rejected cards */}
+                      {card.decision === 'rejected' && (
+                        <div className="absolute top-2 left-2 z-20">
+                          <input
+                            type="checkbox"
+                            checked={selectedRejectedCards.has(card.card_id)}
+                            onChange={() => toggleCardSelection(card.card_id)}
+                            className="w-4 h-4 bg-background/80 border-2 border-primary rounded"
+                          />
                         </div>
+                      )}
+                      
+                      <EnhancedTradingCard
+                        card={{
+                          id: card.card_id,
+                          name: card.name,
+                          suit: card.suit,
+                          rank: card.rank,
+                          era: card.era,
+                          rarity: card.rarity,
+                          trader_value: card.trader_value,
+                          time_value: card.time_value,
+                          image_url: card.image_url,
+                          is_claimed: true
+                        }}
+                        baseWidth={isMobile ? 150 : 180}
+                        showFullDetails={true}
+                        onClick={() => handleCardClick(card)}
+                        className={`${
+                          card.decision === 'rejected' && selectedRejectedCards.has(card.card_id)
+                            ? 'ring-2 ring-primary'
+                            : ''
+                        }`}
+                      />
+
+                      {/* Status Badge */}
+                      <div className="absolute top-2 right-2 z-10">
+                        {card.decision === 'approved' || card.decision === 'credited' ? (
+                          <Badge className="bg-emerald-500 text-white text-xs">
+                            Approved
+                          </Badge>
+                        ) : card.decision === 'rejected' ? (
+                          <Badge variant="destructive" className="text-xs">
+                            Rejected
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">
+                            Pending
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -296,6 +321,25 @@ export default function MyRedemptions() {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Image Modal */}
+      {selectedCard && (
+        <ImageModal
+          isOpen={imageModalOpen}
+          onClose={() => setImageModalOpen(false)}
+          card={{
+            id: selectedCard.card_id,
+            name: selectedCard.name,
+            suit: selectedCard.suit,
+            rank: selectedCard.rank,
+            era: selectedCard.era,
+            rarity: selectedCard.rarity,
+            trader_value: selectedCard.trader_value,
+            time_value: selectedCard.time_value,
+            image_url: selectedCard.image_url
+          }}
+        />
       )}
     </div>
   );

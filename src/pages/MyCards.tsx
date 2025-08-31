@@ -12,6 +12,9 @@ import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
+import { ImageModal } from "@/components/ImageModal";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const DECK_SUITS = ["Clubs", "Diamonds", "Hearts", "Spades"];
 const DECK_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
@@ -139,11 +142,15 @@ export default function MyCards() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
+  const [selectedCard, setSelectedCard] = useState<Row | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
 
   // Search and sort
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("claimed_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     async function loadData() {
@@ -376,6 +383,11 @@ export default function MyCards() {
     }
   };
 
+  const handleCardClick = (card: Row) => {
+    setSelectedCard(card);
+    setImageModalOpen(true);
+  };
+
   // Summary stats
   const totalCards = rows.length;
   const totalTimeAll = rows.reduce((sum, r) => sum + (r.time_value || 0), 0);
@@ -552,52 +564,54 @@ export default function MyCards() {
             </CardHeader>
             <CardContent>
               {readyCards.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className={`grid gap-4 ${
+                  isMobile ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                }`}>
                   {readyCards.map((row) => (
-                    <div key={row.card_id} className="flex items-center gap-3 p-4 border rounded-lg">
-                      <Checkbox
-                        checked={selectedCards.includes(row.card_id || '')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedCards([...selectedCards, row.card_id || '']);
-                          } else {
-                            setSelectedCards(selectedCards.filter(id => id !== row.card_id));
-                          }
+                    <div key={row.card_id} className="relative">
+                      <div className="absolute top-2 left-2 z-10">
+                        <Checkbox
+                          checked={selectedCards.includes(row.card_id || '')}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedCards([...selectedCards, row.card_id || '']);
+                            } else {
+                              setSelectedCards(selectedCards.filter(id => id !== row.card_id));
+                            }
+                          }}
+                          className="bg-background/80 border-2"
+                        />
+                      </div>
+                      <EnhancedTradingCard
+                        card={{
+                          id: row.card_id || '',
+                          name: row.name || 'Unknown Card',
+                          suit: row.suit || '',
+                          rank: row.rank || '',
+                          era: row.era || '',
+                          rarity: row.rarity || '',
+                          trader_value: row.trader_value || '',
+                          time_value: row.time_value || 0,
+                          image_url: row.image_url || '',
+                          is_claimed: false,
+                          redemption_status: row.redemption_status || ''
                         }}
+                        baseWidth={isMobile ? 150 : 180}
+                        showFullDetails={true}
+                        onClick={() => handleCardClick(row)}
                       />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          {row.image_url && (
-                            <img 
-                              src={row.image_url} 
-                              alt={row.name || "Card"} 
-                              className="w-12 h-16 object-cover rounded"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <div className="font-medium">{row.name || "Unknown Card"}</div>
-                            <div className="text-sm text-muted-foreground">
-                              <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">
-                            {formatNum(toNum(row.trader_value))} TLV
-                          </Badge>
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm font-medium">
-                              {formatNum(row.time_value || 0)} TIME
-                            </div>
-                            <Button 
-                              size="sm" 
-                              onClick={() => handleSubmitCard(row.card_id || '')}
-                              disabled={submitting}
-                            >
-                              Submit
-                            </Button>
-                          </div>
-                        </div>
+                      <div className="absolute bottom-2 right-2 z-10">
+                        <Button 
+                          size="sm" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSubmitCard(row.card_id || '');
+                          }}
+                          disabled={submitting}
+                          className="text-xs px-2 py-1 h-auto"
+                        >
+                          Submit
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -620,31 +634,29 @@ export default function MyCards() {
             </CardHeader>
             <CardContent>
               {pendingCards.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className={`grid gap-4 ${
+                  isMobile ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                }`}>
                   {pendingCards.map((row) => (
-                    <div key={row.card_id} className="flex items-center gap-3 p-4 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                      {row.image_url && (
-                        <img 
-                          src={row.image_url} 
-                          alt={row.name || "Card"} 
-                          className="w-12 h-16 object-cover rounded"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <div className="font-medium">{row.name || "Unknown Card"}</div>
-                        <div className="text-sm text-muted-foreground">
-                          <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {formatNum(toNum(row.trader_value))} TLV
-                          </Badge>
-                          <div className="text-sm">
-                            {formatNum(row.time_value || 0)} TIME
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <EnhancedTradingCard
+                      key={row.card_id}
+                      card={{
+                        id: row.card_id || '',
+                        name: row.name || 'Unknown Card',
+                        suit: row.suit || '',
+                        rank: row.rank || '',
+                        era: row.era || '',
+                        rarity: row.rarity || '',
+                        trader_value: row.trader_value || '',
+                        time_value: row.time_value || 0,
+                        image_url: row.image_url || '',
+                        is_claimed: false,
+                        redemption_status: 'pending'
+                      }}
+                      baseWidth={isMobile ? 150 : 180}
+                      showFullDetails={true}
+                      onClick={() => handleCardClick(row)}
+                    />
                   ))}
                 </div>
               ) : (
@@ -665,53 +677,63 @@ export default function MyCards() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className={`grid gap-4 ${
+                  isMobile ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                }`}>
                   {rejectedCards.map((row) => (
-                    <div key={row.card_id} className="p-4 border rounded-lg bg-red-50 dark:bg-red-900/20">
-                      <div className="flex items-center gap-3 mb-3">
-                        {row.image_url && (
-                          <img 
-                            src={row.image_url} 
-                            alt={row.name || "Card"} 
-                            className="w-12 h-16 object-cover rounded"
-                          />
-                        )}
-                        <div className="flex-1">
-                          <div className="font-medium">{row.name || "Unknown Card"}</div>
-                          <div className="text-sm text-muted-foreground">
-                            <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
-                          </div>
-                        </div>
-                      </div>
+                    <div key={row.card_id} className="relative">
+                      <EnhancedTradingCard
+                        card={{
+                          id: row.card_id || '',
+                          name: row.name || 'Unknown Card',
+                          suit: row.suit || '',
+                          rank: row.rank || '',
+                          era: row.era || '',
+                          rarity: row.rarity || '',
+                          trader_value: row.trader_value || '',
+                          time_value: row.time_value || 0,
+                          image_url: row.image_url || '',
+                          is_claimed: false,
+                          redemption_status: 'rejected'
+                        }}
+                        baseWidth={isMobile ? 150 : 180}
+                        showFullDetails={true}
+                        onClick={() => handleCardClick(row)}
+                      />
                       
+                      {/* Admin Notes Overlay */}
                       {row.admin_notes && (
-                        <div className="p-2 bg-red-100 dark:bg-red-800/50 border border-red-200 dark:border-red-700 rounded mb-3">
-                          <div className="text-sm text-red-800 dark:text-red-200 font-medium">Rejection Reason:</div>
-                          <div className="text-sm text-red-700 dark:text-red-300">{row.admin_notes}</div>
+                        <div className="absolute inset-x-2 bottom-14 bg-red-500/90 text-white text-xs p-2 rounded">
+                          <div className="font-semibold">Rejected:</div>
+                          <div className="line-clamp-2">{row.admin_notes}</div>
                         </div>
                       )}
                       
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-muted-foreground">
-                          {formatNum(toNum(row.trader_value))} TLV • {formatNum(row.time_value || 0)} TIME
-                        </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleResubmitCard(row.redemption_id || '')}
-                          >
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Resubmit
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => handleAcceptRejection(row.redemption_id || '')}
-                          >
-                            Accept
-                          </Button>
-                        </div>
+                      {/* Action Buttons */}
+                      <div className="absolute bottom-2 inset-x-2 flex gap-1">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleResubmitCard(row.redemption_id || '');
+                          }}
+                          className="flex-1 text-xs px-1 py-1 h-auto"
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          Resubmit
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAcceptRejection(row.redemption_id || '');
+                          }}
+                          className="flex-1 text-xs px-1 py-1 h-auto"
+                        >
+                          Accept
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -730,29 +752,34 @@ export default function MyCards() {
             </CardHeader>
             <CardContent>
               {creditedCards.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className={`grid gap-4 ${
+                  isMobile ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                }`}>
                   {creditedCards.map((row) => (
-                    <div key={row.card_id} className="flex items-center gap-3 p-4 border rounded-lg bg-green-50 dark:bg-green-900/20">
-                      {row.image_url && (
-                        <img 
-                          src={row.image_url} 
-                          alt={row.name || "Card"} 
-                          className="w-12 h-16 object-cover rounded"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <div className="font-medium">{row.name || "Unknown Card"}</div>
-                        <div className="text-sm text-muted-foreground">
-                          <RankSuit rank={row.rank} suit={row.suit} /> • {prettyRarity(row.rarity)}
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <Badge variant="default" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                            {formatNum(toNum(row.trader_value))} TLV
-                          </Badge>
-                          <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-                            {formatNum(row.credited_amount || row.time_value || 0)} TIME ✓
-                          </div>
-                        </div>
+                    <div key={row.card_id} className="relative">
+                      <EnhancedTradingCard
+                        card={{
+                          id: row.card_id || '',
+                          name: row.name || 'Unknown Card',
+                          suit: row.suit || '',
+                          rank: row.rank || '',
+                          era: row.era || '',
+                          rarity: row.rarity || '',
+                          trader_value: row.trader_value || '',
+                          time_value: row.time_value || 0,
+                          image_url: row.image_url || '',
+                          is_claimed: true,
+                          claimed_at: row.claimed_at || '',
+                          redemption_status: 'credited'
+                        }}
+                        baseWidth={isMobile ? 150 : 180}
+                        showFullDetails={true}
+                        onClick={() => handleCardClick(row)}
+                      />
+                      
+                      {/* Claimed Receipt Overlay */}
+                      <div className="absolute top-2 right-2 bg-emerald-500/90 text-white text-xs px-2 py-1 rounded">
+                        ✓ {formatNum(row.credited_amount || row.time_value || 0)} TIME
                       </div>
                     </div>
                   ))}
@@ -765,6 +792,25 @@ export default function MyCards() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Image Modal */}
+        {selectedCard && (
+          <ImageModal
+            isOpen={imageModalOpen}
+            onClose={() => setImageModalOpen(false)}
+            card={{
+              id: selectedCard.card_id || '',
+              name: selectedCard.name || 'Unknown Card',
+              suit: selectedCard.suit || '',
+              rank: selectedCard.rank || '',
+              era: selectedCard.era || '',
+              rarity: selectedCard.rarity || '',
+              trader_value: selectedCard.trader_value || '',
+              time_value: selectedCard.time_value || 0,
+              image_url: selectedCard.image_url || ''
+            }}
+          />
+        )}
       </div>
     </div>
   );
