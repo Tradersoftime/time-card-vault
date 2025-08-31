@@ -5,28 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 /* ---------- Types ---------- */
 
-type PendingCard = {
-  card_id: string;
-  name: string | null;
-  image_url: string | null;
-  era: string | null;
-  suit: string | null;
-  rank: string | null;
-  rarity: string | null;
-  trader_value: string | null;
-  time_value: number | null;
-};
-
-type PendingRedemption = {
-  id: string;
-  user_id: string;
-  email: string | null;
-  submitted_at: string;
-  card_count: number;
-  total_time_value: number;
-  cards: PendingCard[];
-};
-
 type BlockedRow = {
   user_id: string;
   email: string | null;
@@ -68,15 +46,7 @@ type CreditedRow = {
 export default function Admin() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Pending redemptions (grouped by user)
-  const [pending, setPending] = useState<PendingRedemption[]>([]);
-  const [loadingPending, setLoadingPending] = useState(true);
-  const [selectedReds, setSelectedReds] = useState<Record<string, boolean>>({});
   const [toolMsg, setToolMsg] = useState<string | null>(null);
-
-  // Per-redemption per-card selection
-  const [cardSel, setCardSel] = useState<Record<string, Record<string, boolean>>>({});
 
   // Blocked users
   const [blocked, setBlocked] = useState<BlockedRow[]>([]);
@@ -90,8 +60,6 @@ export default function Admin() {
   const [scanSortKey, setScanSortKey] = useState<"created_at" | "email">("created_at");
   const [scanSortDir, setScanSortDir] = useState<"asc" | "desc">("desc");
 
-  // Receipt banner
-  const [lastReceiptUrl, setLastReceiptUrl] = useState<string | null>(null);
 
   // Credited log (rows per card) + filter/sort
   const [creditedRows, setCreditedRows] = useState<CreditedRow[]>([]);
@@ -128,7 +96,6 @@ export default function Admin() {
 
   useEffect(() => {
     if (isAdmin !== true) return;
-    loadPending();
     loadBlocked();
     loadScans();
     loadCredited();
@@ -136,27 +103,6 @@ export default function Admin() {
   }, [isAdmin]);
 
   /* ---- Loaders ---- */
-  async function loadPending() {
-    setLoadingPending(true);
-    setSelectedReds({});
-    setCardSel({});
-    setError(null);
-    const { data, error } = await supabase.rpc("admin_pending_redemptions");
-    if (error) setError(error.message);
-    const rows = (data as PendingRedemption[]) ?? [];
-    // default select all cards per redemption
-    const initSel: Record<string, Record<string, boolean>> = {};
-    rows.forEach((r) => {
-      const m: Record<string, boolean> = {};
-      r.cards?.forEach((c) => {
-        if (c.card_id) m[c.card_id] = true;
-      });
-      initSel[r.id] = m;
-    });
-    setCardSel(initSel);
-    setPending(rows);
-    setLoadingPending(false);
-  }
 
   async function loadBlocked() {
     setLoadingBlocked(true);
@@ -182,212 +128,6 @@ export default function Admin() {
     setLoadingCredited(false);
   }
 
-  /* ---- Selection helpers (redemptions) ---- */
-  function toggleRed(id: string) {
-    setSelectedReds((s) => ({ ...s, [id]: !s[id] }));
-  }
-  function selectAllUserReds(userId: string) {
-    const next = { ...selectedReds };
-    pending.filter((r) => r.user_id === userId).forEach((r) => {
-      next[r.id] = true;
-    });
-    setSelectedReds(next);
-  }
-  function clearRedSelection() {
-    setSelectedReds({});
-  }
-
-  /* ---- Per-card selection helpers ---- */
-  function toggleCard(redId: string, cardId: string) {
-    setCardSel((map) => ({
-      ...map,
-      [redId]: { ...(map[redId] || {}), [cardId]: !(map[redId]?.[cardId]) },
-    }));
-  }
-  function selectAllCards(redId: string, cards: PendingCard[]) {
-    const next: Record<string, boolean> = {};
-    cards.forEach((c) => {
-      if (c.card_id) next[c.card_id] = true;
-    });
-    setCardSel((map) => ({ ...map, [redId]: next }));
-  }
-  function selectNoneCards(redId: string) {
-    setCardSel((map) => ({ ...map, [redId]: {} }));
-  }
-
-  function selectedSummary(red: PendingRedemption) {
-    const m = cardSel[red.id] || {};
-    let count = 0,
-      total = 0;
-    for (const c of red.cards || []) {
-      if (c.card_id && m[c.card_id]) {
-        count++;
-        total += c.time_value ?? 0;
-      }
-    }
-    return { count, total };
-  }
-
-  /* ---- Bulk approve selected redemptions (use suggested totals) ---- */
-  async function approveSelectedSuggested() {
-    const items = pending.filter((r) => selectedReds[r.id]);
-    if (items.length === 0) {
-      setToolMsg("Select at least one redemption.");
-      return;
-    }
-
-    const grandTotal = items.reduce((sum, it) => sum + (it.total_time_value || 0), 0);
-    const proceed = window.confirm(
-      `Approve ${items.length} redemption(s) with their suggested totals?\n\n` +
-        items
-          .map(
-            (it) =>
-              `${(it.email ?? it.user_id).slice(0, 40)} — ${it.card_count} card(s), TIME ${it.total_time_value}`
-          )
-          .join("\n") +
-        `\n\nGrand total: ${grandTotal}`
-    );
-    if (!proceed) return;
-
-    const ref = window.prompt("External reference / note for all (optional)") || null;
-
-    for (const it of items) {
-      const allIds = (it.cards || [])
-        .map((c) => c.card_id!)
-        .filter(Boolean);
-      const { error } = await supabase.rpc("admin_credit_selected_cards", {
-        p_source_redemption_id: it.id,
-        p_selected_card_ids: allIds,
-        p_ref: ref,
-        p_amount_override: null,
-      });
-      if (error) {
-        setToolMsg(error.message);
-        return;
-      }
-    }
-
-    setToolMsg(`✅ Credited ${items.length} redemption(s) using suggested totals (grand total ${grandTotal}).`);
-    await loadPending();
-    await loadCredited();
-  }
-
-  /* ---- Finalize a single redemption: credit selected cards, leave others pending ---- */
-  async function finalizeRedemption(red: PendingRedemption) {
-    const m = cardSel[red.id] || {};
-    const selectedIds = Object.entries(m)
-      .filter(([, v]) => v)
-      .map(([id]) => id);
-    if (selectedIds.length === 0) {
-      setToolMsg("Select at least one card to credit.");
-      return;
-    }
-
-    // Compute suggested TIME for the checked cards
-    let suggested = 0;
-    for (const c of red.cards || []) {
-      if (c.card_id && m[c.card_id]) suggested += c.time_value ?? 0;
-    }
-
-    const ref =
-      window.prompt(
-        `Credit ${selectedIds.length} card(s) for TIME ${suggested}. Add an external reference / note (optional):`
-      ) || null;
-
-    const { data, error } = await supabase.rpc("admin_credit_selected_cards", {
-      p_source_redemption_id: red.id,
-      p_selected_card_ids: selectedIds,
-      p_ref: ref,
-      p_amount_override: null,
-    });
-
-    if (error) {
-      setToolMsg(error.message);
-      return;
-    }
-
-    const newId = (data as any)?.[0]?.new_redemption_id as string | undefined;
-    if (newId) {
-      const receiptUrl = `${window.location.origin}/receipt/${newId}`;
-      setLastReceiptUrl(receiptUrl);
-      try {
-        await navigator.clipboard.writeText(receiptUrl);
-        alert(`Credited.\nReceipt link copied to clipboard:\n${receiptUrl}`);
-      } catch {
-        alert(`Credited.\nReceipt:\n${receiptUrl}`);
-      }
-    } else {
-      setToolMsg("Credited, but no receipt id returned.");
-    }
-
-    await loadPending();
-    await loadCredited();
-  }
-
-  async function rejectAll(red: PendingRedemption) {
-    const reason = window.prompt("Reason (optional)") || null;
-
-    const { error: e1 } = await supabase
-      .from("redemptions")
-      .update({
-        status: "rejected",
-        admin_notes: reason,
-        credited_amount: null,
-        credited_at: null,
-        credited_by: null,
-      })
-      .eq("id", red.id);
-    if (e1) {
-      setToolMsg(e1.message);
-      return;
-    }
-
-    const { error: e2 } = await supabase
-      .from("redemption_cards")
-      .update({ decision: "rejected", decided_at: new Date().toISOString() })
-      .eq("redemption_id", red.id)
-      .eq("decision", "pending");
-    if (e2) {
-      setToolMsg(e2.message);
-      return;
-    }
-
-    await loadPending();
-  }
-
-  const rejectRedemption = async (redemptionId: string, adminNotes?: string) => {
-    if (!confirm("Reject this entire redemption?")) return;
-    
-    try {
-      const { data, error } = await supabase.rpc('admin_reject_redemption', {
-        p_redemption_id: redemptionId,
-        p_admin_notes: adminNotes || 'Rejected by admin'
-      });
-
-      if (error) throw error;
-
-      if (data?.ok) {
-        setToolMsg("Redemption rejected");
-        loadPending();
-      } else {
-        throw new Error('Failed to reject redemption');
-      }
-    } catch (error) {
-      console.error('Error rejecting redemption:', error);
-      setToolMsg("Failed to reject redemption");
-    }
-  };
-
-  /* ---- Group pending by user_id ---- */
-  const pendingGroups = useMemo<Record<string, PendingRedemption[]>>(() => {
-    const map: Record<string, PendingRedemption[]> = {};
-    for (const r of pending) {
-      const key = r.user_id;
-      if (!map[key]) map[key] = [];
-      map[key].push(r);
-    }
-    return map;
-  }, [pending]);
 
   /* ---- Scan filtering + sorting ---- */
   const filteredScans = useMemo(() => {
@@ -536,9 +276,14 @@ export default function Admin() {
               >
                 Card Management
               </Link>
+              <Link 
+                to="/admin/redemptions" 
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
+              >
+                Redemptions
+              </Link>
               <button
                 onClick={() => {
-                  loadPending();
                   loadScans();
                   loadCredited();
                 }}
@@ -556,200 +301,32 @@ export default function Admin() {
           </div>
         )}
 
-        {lastReceiptUrl && (
-          <div className="glass-panel p-4 rounded-lg border-l-4 border-l-emerald-500">
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-emerald-600 font-medium">Receipt ready:</span>
-              <a href={lastReceiptUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                Open receipt
-              </a>
-              <button
-                onClick={() => navigator.clipboard.writeText(lastReceiptUrl)}
-                className="px-3 py-1 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
-              >
-                Copy link
-              </button>
-              <button
-                onClick={() => setLastReceiptUrl(null)}
-                className="px-3 py-1 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ---------- Pending Redemptions (grouped by user) ---------- */}
+        {/* ---------- Redemptions Section ---------- */}
         <div className="glass-panel p-6 rounded-2xl">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
             <div>
-              <h2 className="text-2xl font-semibold text-foreground mb-1">Pending Redemptions</h2>
-              <p className="text-sm text-muted-foreground">Review and approve TIME redemption requests</p>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">Card Redemptions</h2>
+              <p className="text-sm text-muted-foreground">Manage individual card redemption requests</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button 
-                onClick={approveSelectedSuggested} 
-                className="px-4 py-2 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground rounded-lg hover:opacity-90 transition-opacity font-medium glow-primary"
-              >
-                Approve Selected
-              </button>
-              <button 
-                onClick={clearRedSelection} 
-                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium"
-              >
-                Clear Selection
-              </button>
-            </div>
+            <Link 
+              to="/admin/redemptions"
+              className="px-4 py-2 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground rounded-lg hover:opacity-90 transition-opacity font-medium glow-primary"
+            >
+              Manage Redemptions
+            </Link>
           </div>
-
-          {loadingPending ? (
-            <div className="text-center py-8">
-              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-              <div className="text-muted-foreground">Loading pending redemptions...</div>
+          
+          <div className="text-center py-8">
+            <div className="text-muted-foreground mb-4">
+              Use the dedicated redemptions page to review and process individual card redemption requests.
             </div>
-          ) : pending.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No pending redemptions.</div>
-          ) : (
-            <div className="space-y-4">
-              {Object.entries(pendingGroups).map(([userId, reds]) => {
-                const selectedCount = reds.filter((r) => selectedReds[r.id]).length;
-                const email = reds[0]?.email ?? null;
-
-                return (
-                  <div key={userId} className="glass-panel p-4 rounded-xl">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-                      <div>
-                        <div className="font-semibold text-foreground">User: {email ?? userId}</div>
-                        <div className="text-sm text-muted-foreground">Redemptions: {reds.length}</div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => selectAllUserReds(userId)}
-                          className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm font-medium"
-                        >
-                          Select All ({reds.length})
-                        </button>
-                        {selectedCount > 0 && (
-                          <div className="text-sm text-muted-foreground">Selected: {selectedCount}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      {reds.map((r) => {
-                        const m = cardSel[r.id] || {};
-                        const { count, total } = selectedSummary(r);
-                        return (
-                          <div key={r.id} className="glass-panel p-4 rounded-lg">
-                            <div className="flex items-center justify-between mb-3">
-                              <label className="flex items-center gap-3">
-                                <input
-                                  type="checkbox"
-                                  checked={!!selectedReds[r.id]}
-                                  onChange={() => toggleRed(r.id)}
-                                  className="w-4 h-4 rounded border-muted"
-                                />
-                                <span className="font-medium text-foreground">
-                                  Redemption <span className="text-muted-foreground">{r.id.slice(0, 8)}…</span>
-                                  {" • "}
-                                  <span className="text-muted-foreground">{r.email ?? r.user_id}</span>
-                                </span>
-                              </label>
-                              <div className="text-sm text-muted-foreground">
-                                {r.card_count} card(s) • Suggested TIME: <span className="font-semibold text-primary">{r.total_time_value}</span> • Submitted{" "}
-                                {new Date(r.submitted_at).toLocaleString()}
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-3 text-sm mb-4">
-                              <button
-                                onClick={() => selectAllCards(r.id, r.cards)}
-                                className="px-3 py-1 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
-                              >
-                                Select All Cards
-                              </button>
-                              <button 
-                                onClick={() => selectNoneCards(r.id)} 
-                                className="px-3 py-1 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
-                              >
-                                Select None
-                              </button>
-                              <div className="text-muted-foreground">
-                                Selected: <span className="font-semibold text-primary">{count}</span> • Selected TIME: <span className="font-semibold text-primary">{total}</span>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                              {r.cards?.map((c) => {
-                                const checked = !!m[c.card_id || ""];
-                                return (
-                                  <label
-                                    key={c.card_id}
-                                    className={`glass-panel rounded-lg overflow-hidden block cursor-pointer transition-all hover:scale-105 ${
-                                      checked ? "border-2 border-primary glow-primary" : "hover:bg-muted/5"
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="hidden"
-                                      checked={checked}
-                                      onChange={() => c.card_id && toggleCard(r.id, c.card_id)}
-                                    />
-                                    <div className="aspect-[3/4] bg-muted/20 overflow-hidden">
-                                      {c.image_url && (
-                                        <img
-                                          src={c.image_url}
-                                          alt={c.name ?? "Card"}
-                                          className="w-full h-full object-cover"
-                                        />
-                                      )}
-                                    </div>
-                                    <div className="p-3 space-y-1">
-                                      <div className="font-medium text-foreground truncate">{c.name ?? "—"}</div>
-                                      <div className="text-sm text-muted-foreground">
-                                        {c.era ?? "—"} • {c.suit ?? "—"} {c.rank ?? "—"}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        Rarity: {c.rarity ?? "—"} · Value: {c.trader_value ?? "—"}
-                                      </div>
-                                      <div className="text-sm font-medium text-primary">TIME: {c.time_value ?? 0}</div>
-                                    </div>
-                                  </label>
-                                );
-                              })}
-                            </div>
-
-                            <div className="flex flex-wrap gap-2">
-                              <Link
-                                to={`/receipt/${r.id}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
-                              >
-                                View Receipt
-                              </Link>
-                              <button 
-                                onClick={() => finalizeRedemption(r)} 
-                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
-                              >
-                                Credit Selected
-                              </button>
-                              <button 
-                                onClick={() => rejectRedemption(r.id)} 
-                                className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors font-medium"
-                              >
-                                Reject All
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            <Link 
+              to="/admin/redemptions"
+              className="inline-flex items-center px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
+            >
+              Go to Redemptions →
+            </Link>
+          </div>
         </div>
 
         {/* ---------- Credited Log ---------- */}

@@ -90,7 +90,7 @@ export function Navbar() {
               <Link
                 to="/admin"
                 className={`interactive text-sm font-medium transition-colors flex items-center space-x-1 ${
-                  isActive('/admin') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  isActive('/admin') || location.pathname.startsWith('/admin/') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Shield className="h-4 w-4" />
@@ -187,7 +187,7 @@ export function Navbar() {
                     <Link
                       to="/admin"
                       className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isActive('/admin') 
+                        isActive('/admin') || location.pathname.startsWith('/admin/') 
                           ? 'bg-primary/10 text-primary' 
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
                       }`}
