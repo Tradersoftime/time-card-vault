@@ -156,191 +156,225 @@ export default function MyRedemptions() {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="outline" size="sm" onClick={() => navigate('/my-cards')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to My Cards
-        </Button>
-        <h1 className="text-2xl font-bold">My Redemptions</h1>
-        <Button variant="outline" size="sm" onClick={loadRedemptions}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
-
-      {redemptions.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">No redemptions found</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {redemptions.map((redemption) => (
-            <Card key={redemption.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="flex items-center gap-3">
-                      Redemption #{redemption.id.slice(0, 8)}
-                      {getStatusBadge(redemption)}
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Submitted {format(new Date(redemption.submitted_at), 'PPp')}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-muted-foreground">
-                      {redemption.total_cards} cards total
-                    </div>
-                    {redemption.approved_cards > 0 && (
-                      <div className="text-sm text-emerald-600">
-                        {redemption.approved_cards} approved
-                      </div>
-                    )}
-                    {redemption.rejected_cards > 0 && (
-                      <div className="text-sm text-red-600">
-                        {redemption.rejected_cards} rejected
-                      </div>
-                    )}
-                    {redemption.pending_cards > 0 && (
-                      <div className="text-sm text-amber-600">
-                        {redemption.pending_cards} pending
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {redemption.credited_amount && (
-                  <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950 rounded-lg">
-                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                      Credited: {redemption.credited_amount} time tokens
-                    </p>
-                    {redemption.credited_at && (
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                        {format(new Date(redemption.credited_at), 'PPp')}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {redemption.admin_notes && (
-                  <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950 rounded-lg">
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300 mb-1">
-                      Admin Notes:
-                    </p>
-                    <p className="text-sm text-amber-600 dark:text-amber-400">
-                      {redemption.admin_notes}
-                    </p>
-                  </div>
-                )}
-
-                <div className={`grid gap-4 ${
-                  isMobile ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-                }`}>
-                  {redemption.cards.map((card) => (
-                    <div key={card.card_id} className="relative">
-                      {/* Selection checkbox for rejected cards */}
-                      {card.decision === 'rejected' && (
-                        <div className="absolute top-2 left-2 z-20">
-                          <input
-                            type="checkbox"
-                            checked={selectedRejectedCards.has(card.card_id)}
-                            onChange={() => toggleCardSelection(card.card_id)}
-                            className="w-4 h-4 bg-background/80 border-2 border-primary rounded"
-                          />
-                        </div>
-                      )}
-                      
-                      <EnhancedTradingCard
-                        card={{
-                          id: card.card_id,
-                          name: card.name,
-                          suit: card.suit,
-                          rank: card.rank,
-                          era: card.era,
-                          rarity: card.rarity,
-                          trader_value: card.trader_value,
-                          time_value: card.time_value,
-                          image_url: card.image_url,
-                          is_claimed: true
-                        }}
-                        baseWidth={isMobile ? 150 : 180}
-                        showFullDetails={true}
-                        onClick={() => handleCardClick(card)}
-                        className={`${
-                          card.decision === 'rejected' && selectedRejectedCards.has(card.card_id)
-                            ? 'ring-2 ring-primary'
-                            : ''
-                        }`}
-                      />
-
-                      {/* Status Badge */}
-                      <div className="absolute top-2 right-2 z-10">
-                        {card.decision === 'approved' || card.decision === 'credited' ? (
-                          <Badge className="bg-emerald-500 text-white text-xs">
-                            Approved
-                          </Badge>
-                        ) : card.decision === 'rejected' ? (
-                          <Badge variant="destructive" className="text-xs">
-                            Rejected
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">
-                            Pending
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {redemption.rejected_cards > 0 && (
-                  <>
-                    <Separator className="my-4" />
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">
-                        Click rejected cards to select them for resubmission
-                        {selectedRejectedCards.size > 0 && 
-                          ` (${selectedRejectedCards.size} selected)`
-                        }
-                      </p>
-                      <Button
-                        onClick={() => resubmitRejectedCards(redemption.id)}
-                        disabled={selectedRejectedCards.size === 0 || resubmitting}
-                        size="sm"
-                      >
-                        {resubmitting ? 'Resubmitting...' : 'Resubmit Selected'}
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+        <div className="flex h-14 items-center gap-4 px-4">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => navigate('/my-cards')}
+            className="gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            My Cards
+          </Button>
+          <h1 className="text-lg font-semibold">My Redemptions</h1>
+          <div className="ml-auto">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={loadRedemptions}
+              disabled={loading}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
-      )}
+      </header>
 
-      {/* Image Modal */}
-      {selectedCard && (
-        <ImageModal
-          isOpen={imageModalOpen}
-          onClose={() => setImageModalOpen(false)}
-          card={{
-            id: selectedCard.card_id,
-            name: selectedCard.name,
-            suit: selectedCard.suit,
-            rank: selectedCard.rank,
-            era: selectedCard.era,
-            rarity: selectedCard.rarity,
-            trader_value: selectedCard.trader_value,
-            time_value: selectedCard.time_value,
-            image_url: selectedCard.image_url
-          }}
-        />
-      )}
+      <main className="container mx-auto px-4 py-6">
+        {redemptions.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">No redemption history found.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {redemptions.map((redemption) => (
+              <Card key={redemption.id} className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <h3 className="font-semibold">Redemption #{redemption.id.slice(0, 8)}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Submitted: {format(new Date(redemption.submitted_at), 'PPp')}
+                      </p>
+                    </div>
+                    {getStatusBadge(redemption)}
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="text-center p-2 bg-muted/30 rounded">
+                      <div className="font-medium">{redemption.total_cards}</div>
+                      <div className="text-muted-foreground text-xs">Total</div>
+                    </div>
+                    <div className="text-center p-2 bg-green-50 rounded">
+                      <div className="font-medium text-green-700">{redemption.approved_cards}</div>
+                      <div className="text-green-600 text-xs">Approved</div>
+                    </div>
+                    <div className="text-center p-2 bg-red-50 rounded">
+                      <div className="font-medium text-red-700">{redemption.rejected_cards}</div>
+                      <div className="text-red-600 text-xs">Rejected</div>
+                    </div>
+                    <div className="text-center p-2 bg-yellow-50 rounded">
+                      <div className="font-medium text-yellow-700">{redemption.pending_cards}</div>
+                      <div className="text-yellow-600 text-xs">Pending</div>
+                    </div>
+                  </div>
+
+                  {redemption.credited_amount && (
+                    <div className="p-3 bg-green-50 rounded-lg">
+                      <p className="text-sm font-medium text-green-700">
+                        Credited: {redemption.credited_amount} time tokens
+                      </p>
+                      {redemption.credited_at && (
+                        <p className="text-xs text-green-600">
+                          {format(new Date(redemption.credited_at), 'PPp')}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {redemption.admin_notes && (
+                    <div className="p-3 bg-amber-50 rounded-lg">
+                      <p className="text-sm font-medium text-amber-700 mb-1">
+                        Admin Notes:
+                      </p>
+                      <p className="text-sm text-amber-600">
+                        {redemption.admin_notes}
+                      </p>
+                    </div>
+                  )}
+
+                  {redemption.cards && redemption.cards.length > 0 && (
+                    <div>
+                      <h4 className="font-medium mb-3">Cards in this redemption:</h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                        {redemption.cards.map((card) => (
+                          <div key={card.card_id} className="relative">
+                            <EnhancedTradingCard
+                              card={{
+                                id: card.card_id,
+                                name: card.name,
+                                suit: card.suit,
+                                rank: card.rank,
+                                era: card.era,
+                                rarity: card.rarity,
+                                trader_value: card.trader_value,
+                                time_value: card.time_value,
+                                image_url: card.image_url,
+                                is_claimed: true
+                              }}
+                              baseWidth={160}
+                              showFullDetails={true}
+                              onClick={() => handleCardClick(card)}
+                              className={`
+                                cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105
+                                ${card.decision === 'rejected' && selectedRejectedCards.has(card.card_id)
+                                  ? 'ring-2 ring-primary' 
+                                  : ''
+                                }
+                              `}
+                            />
+                            
+                            {/* Rejection selection checkbox */}
+                            {card.decision === 'rejected' && (
+                              <div 
+                                className="absolute top-2 left-2 z-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleCardSelection(card.card_id);
+                                }}
+                              >
+                                <div className={`
+                                  w-6 h-6 rounded border-2 cursor-pointer flex items-center justify-center
+                                  ${selectedRejectedCards.has(card.card_id)
+                                    ? 'bg-primary border-primary text-primary-foreground' 
+                                    : 'bg-background border-muted-foreground'
+                                  }
+                                `}>
+                                  {selectedRejectedCards.has(card.card_id) && (
+                                    <span className="text-xs">✓</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Status Badge */}
+                            <div className="absolute top-2 right-2 z-10">
+                              {card.decision === 'approved' || card.decision === 'credited' ? (
+                                <Badge className="bg-emerald-500 text-white text-xs">
+                                  Approved
+                                </Badge>
+                              ) : card.decision === 'rejected' ? (
+                                <Badge variant="destructive" className="text-xs">
+                                  Rejected
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">
+                                  Pending
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rejected cards resubmission section */}
+                  {redemption.rejected_cards > 0 && selectedRejectedCards.size > 0 && (
+                    <div className="mt-4 p-4 border border-destructive/50 bg-destructive/5 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-destructive">
+                          Resubmit Selected Rejected Cards ({selectedRejectedCards.size})
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => resubmitRejectedCards(redemption.id)}
+                            disabled={resubmitting}
+                            size="sm"
+                            className="bg-primary hover:bg-primary/90"
+                          >
+                            {resubmitting ? 'Resubmitting...' : 'Resubmit Selected'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedRejectedCards(new Set())}
+                          >
+                            Clear Selection
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Image Modal */}
+        {selectedCard && (
+          <ImageModal
+            isOpen={imageModalOpen}
+            onClose={() => setImageModalOpen(false)}
+            card={{
+              id: selectedCard.card_id,
+              name: selectedCard.name,
+              suit: selectedCard.suit,
+              rank: selectedCard.rank,
+              era: selectedCard.era,
+              rarity: selectedCard.rarity,
+              trader_value: selectedCard.trader_value,
+              time_value: selectedCard.time_value,
+              image_url: selectedCard.image_url
+            }}
+          />
+        )}
+      </main>
     </div>
   );
 }
