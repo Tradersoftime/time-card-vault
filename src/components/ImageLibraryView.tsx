@@ -88,20 +88,22 @@ export const ImageLibraryView: React.FC = () => {
   };
 
   const downloadMapping = () => {
+    // Standardized CSV headers matching card export format
+    const headers = ['image_code', 'filename', 'image_url'];
     const mapping = filteredImages
       .map(img => `${img.code},${img.filename},${img.public_url}`)
       .join('\n');
     
-    const blob = new Blob([`code,filename,url\n${mapping}`], { type: 'text/csv' });
+    const blob = new Blob([`${headers.join(',')}\n${mapping}`], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'image-mappings.csv';
+    a.download = `image-mappings-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast.success('Downloaded image mappings');
+    toast.success('Downloaded image mappings with standardized format');
   };
 
   // Open image preview modal

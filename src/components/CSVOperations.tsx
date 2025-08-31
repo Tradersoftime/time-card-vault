@@ -1,4 +1,30 @@
-import { useState } from 'react';
+/**
+ * CSVOperations Component
+ * 
+ * Provides standardized CSV export/import functionality for trading cards.
+ * 
+ * STANDARDIZED CSV FORMAT:
+ * card_id,code,name,suit,rank,era,rarity,time_value,trader_value,image_code,image_url,description,status,is_active,current_target,qr_dark,qr_light
+ * 
+ * KEY FEATURES:
+ * - Image Code Support: Use image_code (e.g., "a1", "hero_001") instead of full URLs
+ * - Automatic Resolution: image_code is resolved to image_url during import
+ * - Reverse Lookup: During export, image_url is converted to image_code if found in database
+ * - Consistent Field Order: Same as AdminQR bulk import and ImageLibraryView exports
+ * - Robust Validation: Validates card_id as first column for data integrity
+ * 
+ * IMPORT BEHAVIOR:
+ * - Updates existing cards by card_id (immutable identifier)
+ * - image_code takes priority over image_url if both provided
+ * - Automatically resolves image codes from image_codes table
+ * 
+ * EXPORT BEHAVIOR:
+ * - Prioritizes image_code over image_url in CSV output
+ * - Includes both fields for maximum compatibility
+ * - Uses standardized field order across all CSV operations
+ */
+
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +43,7 @@ interface CardData {
   time_value: number;
   trader_value: string | null;
   image_url: string | null;
+  image_code?: string | null; // Added for standardization
   description: string | null;
   status: string;
   is_active: boolean;
@@ -36,6 +63,44 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
   const [isImporting, setIsImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [imageCodeMappings, setImageCodeMappings] = useState<Record<string, string>>({});
+
+  // Load image code mappings on component mount
+  const loadImageCodeMappings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('image_codes')
+        .select('code, public_url');
+      
+      if (error) throw error;
+      
+      const mappings: Record<string, string> = {};
+      data?.forEach(item => {
+        mappings[item.code] = item.public_url;
+      });
+      setImageCodeMappings(mappings);
+    } catch (error) {
+      console.error('Error loading image code mappings:', error);
+    }
+  };
+
+  // Load mappings on mount
+  useEffect(() => {
+    loadImageCodeMappings();
+  }, []);
+
+  // Helper function to resolve image_code to image_url or extract image_code from image_url
+  const resolveImageField = (card: CardData): { image_url: string | null; image_code: string | null } => {
+    // If card has image_url, try to find corresponding image_code
+    if (card.image_url) {
+      const imageCode = Object.entries(imageCodeMappings).find(([_, url]) => url === card.image_url)?.[0];
+      return { 
+        image_url: card.image_url, 
+        image_code: imageCode || null 
+      };
+    }
+    return { image_url: null, image_code: null };
+  };
 
   const exportToCSV = () => {
     if (selectedCards.length === 0) {
@@ -47,45 +112,51 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
       return;
     }
 
-    // CSV headers - Card ID is first and prominently positioned
+    // Standardized CSV headers - consistent field order across all exports
     const headers = [
-      'card_id', // Immutable identifier - always first
-      'code',
-      'name',
+      'card_id',       // Primary identifier for updates
+      'code',          // Required for new card creation
+      'name',          // Core fields
       'suit',
-      'rank',
+      'rank', 
       'era',
       'rarity',
-      'time_value',
+      'time_value',    // Value fields
       'trader_value',
-      'image_url',
-      'description',
+      'image_code',    // Media fields - prioritize image_code over image_url
+      'image_url',     
+      'description',   // Meta fields
       'status',
       'is_active',
       'current_target',
-      'qr_dark',
+      'qr_dark',       // QR customization fields
       'qr_light'
     ];
 
-    // Convert cards to CSV rows
-    const rows = selectedCards.map(card => [
-      card.id, // Card ID - the immutable anchor
-      card.code,
-      card.name,
-      card.suit,
-      card.rank,
-      card.era,
-      card.rarity || '',
-      card.time_value,
-      card.trader_value || '',
-      card.image_url || '',
-      card.description || '',
-      card.status,
-      card.is_active,
-      card.current_target || '',
-      card.qr_dark || '#000000',
-      card.qr_light || '#FFFFFF'
-    ]);
+    // Convert cards to CSV rows with standardized field order
+    const rows = selectedCards.map(card => {
+      const { image_url, image_code } = resolveImageField(card);
+      
+      return [
+        card.id,                    // card_id - immutable identifier
+        card.code,                  // code - required for creation
+        card.name,                  // Core fields
+        card.suit,
+        card.rank,
+        card.era,
+        card.rarity || '',
+        card.time_value,            // Value fields
+        card.trader_value || '',
+        image_code || '',           // Media fields - image_code prioritized
+        image_url || '',
+        card.description || '',     // Meta fields
+        card.status,
+        card.is_active,
+        card.current_target || '',
+        card.qr_dark || '#000000',  // QR fields
+        card.qr_light || '#FFFFFF'
+      ];
+    });
 
     // Create CSV content
     const csvContent = [
@@ -167,6 +238,12 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
 
       for (const row of importPreview) {
         try {
+          // Resolve image_code to image_url if provided
+          let resolvedImageUrl = row.image_url || null;
+          if (row.image_code && imageCodeMappings[row.image_code]) {
+            resolvedImageUrl = imageCodeMappings[row.image_code];
+          }
+
           // Update by card_id - the immutable identifier
           const { error } = await supabase
             .from('cards')
@@ -178,7 +255,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
               rarity: row.rarity || null,
               time_value: parseInt(row.time_value) || 0,
               trader_value: row.trader_value || null,
-              image_url: row.image_url || null,
+              image_url: resolvedImageUrl,
               description: row.description || null,
               status: row.status,
               is_active: row.is_active === 'true' || row.is_active === true,
@@ -256,6 +333,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                   <p className="font-medium text-blue-500">CSV Import Requirements</p>
                   <ul className="text-muted-foreground mt-1 space-y-1 list-disc list-inside">
                     <li>First column must be <code className="bg-muted px-1 rounded">card_id</code> (immutable identifier)</li>
+                    <li>Use <code className="bg-muted px-1 rounded">image_code</code> to reference images from your library</li>
                     <li>Cards will be updated based on their Card ID</li>
                     <li>Missing fields will be set to default values</li>
                     <li>Use the exported CSV format as a template</li>
@@ -293,6 +371,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                         <th className="p-2 text-left">Suit</th>
                         <th className="p-2 text-left">Rank</th>
                         <th className="p-2 text-left">Era</th>
+                        <th className="p-2 text-left">Image</th>
                         <th className="p-2 text-left">Status</th>
                       </tr>
                     </thead>
@@ -304,6 +383,17 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                           <td className="p-2">{row.suit}</td>
                           <td className="p-2">{row.rank}</td>
                           <td className="p-2">{row.era}</td>
+                          <td className="p-2 text-xs">
+                            {row.image_code ? (
+                              <span className="bg-blue-100 text-blue-800 px-1 rounded">
+                                {row.image_code}
+                              </span>
+                            ) : row.image_url ? (
+                              <span className="text-muted-foreground">URL</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
                           <td className="p-2">
                             <Badge variant={row.is_active === 'true' ? 'default' : 'secondary'} className="text-xs">
                               {row.status} {row.is_active === 'true' ? '(Active)' : '(Inactive)'}
