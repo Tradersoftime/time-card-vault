@@ -296,22 +296,56 @@ const AdminCards = () => {
     handleModalClose();
   };
 
-  const fetchCards = async () => {
+  const fetchCards = async (retryCount = 0) => {
     try {
       setLoading(true);
+      console.log(`Fetching cards (attempt ${retryCount + 1})`);
+      
       const { data, error } = await supabase.rpc('admin_list_cards', {
         p_include_deleted: false
       });
 
       if (error) {
-        console.error('Database error:', error);
+        console.error('Database error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        
+        // Handle specific error types
         if (error.message?.includes('forbidden')) {
           toast({
             title: "Access Denied",
             description: "You don't have admin privileges to access this feature",
             variant: "destructive",
           });
+        } else if (error.message?.includes('ambiguous')) {
+          console.error('Column ambiguity error detected:', error.message);
+          toast({
+            title: "Database Configuration Error",
+            description: "There's a database configuration issue. Please contact support.",
+            variant: "destructive",
+          });
+        } else if (error.message?.includes('does not exist')) {
+          console.error('Missing table/function error:', error.message);
+          toast({
+            title: "Database Schema Error", 
+            description: "Required database objects are missing. Please contact support.",
+            variant: "destructive",
+          });
         } else {
+          // Retry logic for transient errors
+          if (retryCount < 2 && (
+            error.message?.includes('connection') || 
+            error.message?.includes('timeout') ||
+            error.message?.includes('network')
+          )) {
+            console.log(`Retrying fetch after error: ${error.message}`);
+            setTimeout(() => fetchCards(retryCount + 1), 1000 * (retryCount + 1));
+            return;
+          }
+          
           toast({
             title: "Error",
             description: error.message || "Failed to fetch cards",
@@ -321,14 +355,24 @@ const AdminCards = () => {
         return;
       }
       
+      console.log(`Successfully fetched ${data?.length || 0} cards`);
       setCards(data || []);
+      
       // Load QR codes for all cards
       (data || []).forEach(card => loadQRCode(card));
     } catch (error) {
-      console.error('Error fetching cards:', error);
+      console.error('Network/connection error:', error);
+      
+      // Retry logic for network errors
+      if (retryCount < 2) {
+        console.log(`Retrying fetch after network error (attempt ${retryCount + 1})`);
+        setTimeout(() => fetchCards(retryCount + 1), 1000 * (retryCount + 1));
+        return;
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to fetch cards. Please check your connection and try again.",
+        title: "Connection Error",
+        description: "Failed to connect to the database. Please check your internet connection and try again.",
         variant: "destructive",
       });
     } finally {
