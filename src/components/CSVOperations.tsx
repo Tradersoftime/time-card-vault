@@ -230,6 +230,16 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
     reader.readAsText(file);
   };
 
+  // Valid status values according to database constraint
+  const VALID_STATUS_VALUES = ['unprinted', 'printed', 'active', 'retired'];
+
+  const validateAndCleanStatus = (status: string): string => {
+    if (!status || typeof status !== 'string') return 'active';
+    
+    const cleanStatus = status.toString().trim().toLowerCase();
+    return VALID_STATUS_VALUES.includes(cleanStatus) ? cleanStatus : 'active';
+  };
+
   const executeImport = async () => {
     setIsImporting(true);
     try {
@@ -242,45 +252,54 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
       const processedRows = await Promise.all(
         importPreview.map(async (row, index) => {
           try {
+            // Clean and trim text fields
+            const cleanRow = Object.keys(row).reduce((acc, key) => {
+              acc[key] = typeof row[key] === 'string' ? row[key].trim() : row[key];
+              return acc;
+            }, {} as any);
+
             // Resolve image_code to image_url if provided
-            let resolvedImageUrl = row.image_url || null;
-            if (row.image_code && imageCodeMappings[row.image_code]) {
-              resolvedImageUrl = imageCodeMappings[row.image_code];
+            let resolvedImageUrl = cleanRow.image_url || null;
+            if (cleanRow.image_code && imageCodeMappings[cleanRow.image_code]) {
+              resolvedImageUrl = imageCodeMappings[cleanRow.image_code];
             }
 
             // Validate required fields for new cards (when card_id is blank)
-            const hasCardId = row.card_id && row.card_id.trim();
+            const hasCardId = cleanRow.card_id && cleanRow.card_id.trim();
             if (!hasCardId) {
               // New card - validate required fields
-              if (!row.code || !row.name || !row.suit || !row.rank || !row.era) {
+              if (!cleanRow.code || !cleanRow.name || !cleanRow.suit || !cleanRow.rank || !cleanRow.era) {
                 const missing = [];
-                if (!row.code) missing.push('code');
-                if (!row.name) missing.push('name');
-                if (!row.suit) missing.push('suit');
-                if (!row.rank) missing.push('rank');
-                if (!row.era) missing.push('era');
+                if (!cleanRow.code) missing.push('code');
+                if (!cleanRow.name) missing.push('name');
+                if (!cleanRow.suit) missing.push('suit');
+                if (!cleanRow.rank) missing.push('rank');
+                if (!cleanRow.era) missing.push('era');
                 errors.push(`Row ${index + 1}: Missing required fields for new card: ${missing.join(', ')}`);
                 return null;
               }
             }
 
+            // Validate and clean status
+            const validatedStatus = validateAndCleanStatus(cleanRow.status);
+            
             // Prepare card data for upsert
             const cardData: any = {
-              code: row.code,
-              name: row.name || null,
-              suit: row.suit || null,
-              rank: row.rank || null,
-              era: row.era || null,
-              rarity: row.rarity || null,
-              time_value: parseInt(row.time_value) || 0,
-              trader_value: row.trader_value || null,
+              code: cleanRow.code,
+              name: cleanRow.name || null,
+              suit: cleanRow.suit || null,
+              rank: cleanRow.rank || null,
+              era: cleanRow.era || null,
+              rarity: cleanRow.rarity || null,
+              time_value: parseInt(cleanRow.time_value) || 0,
+              trader_value: cleanRow.trader_value || null,
               image_url: resolvedImageUrl,
-              description: row.description || null,
-              status: row.status || 'active',
-              is_active: row.is_active === 'true' || row.is_active === true || row.is_active === 1,
-              current_target: row.current_target || null,
-              qr_dark: row.qr_dark || null,
-              qr_light: row.qr_light || null
+              description: cleanRow.description || null,
+              status: validatedStatus,
+              is_active: cleanRow.is_active === 'true' || cleanRow.is_active === true || cleanRow.is_active === 1,
+              current_target: cleanRow.current_target || null,
+              qr_dark: cleanRow.qr_dark || null,
+              qr_light: cleanRow.qr_light || null
             };
 
             // Add card_id if provided (for updates)

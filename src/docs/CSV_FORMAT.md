@@ -33,7 +33,7 @@ card_id,code,name,suit,rank,era,rarity,time_value,trader_value,image_code,image_
 
 ### Metadata
 - **description** (string): Long-form description of the card
-- **status** (string): Card status ("active", "inactive", "draft", etc.)
+- **status** (string): Card status: `unprinted`, `printed`, `active`, `retired` (defaults to `active`)
 - **is_active** (boolean): Whether card can be claimed (true/false)
 - **current_target** (string): Redirect URL when card is scanned
 
@@ -96,6 +96,7 @@ card_id,code,name,suit,rank,era,rarity,time_value,trader_value,image_code,image_
 
 - **card_id**: Must be valid UUID (for updates)
 - **code**: Must be unique, alphanumeric with hyphens
+- **status**: Must be one of: `unprinted`, `printed`, `active`, `retired` (case-insensitive, invalid values default to `active`)
 - **image_code**: Must exist in image_codes table
 - **qr_dark/qr_light**: Must be valid hex colors (#RGB or #RRGGBB)
 - **is_active**: Must be true/false or 1/0
