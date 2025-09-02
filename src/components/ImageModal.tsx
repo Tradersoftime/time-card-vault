@@ -106,13 +106,14 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
           {/* Card Details */}
           <div className="space-y-4">
             <div className="space-y-3">
-              <div className={cn("text-lg font-medium flex items-center gap-2", getEraColor(card.era))}>
+              <div className="text-lg font-medium text-muted-foreground flex items-center gap-2">
                 {card.era}{card.rarity && (
-                  <span className={cn("", getRarityColor(card.rarity))}>- {card.rarity}</span>
+                  <span className="text-muted-foreground">- {card.rarity}</span>
                 )}
               </div>
-              <div className={cn("text-xl font-bold flex items-center gap-2", getSuitColor(card.suit))}>
-                {card.rank} <span className="text-2xl">{getSuitIcon(card.suit)}</span>
+              <div className="text-2xl font-bold flex items-center gap-3">
+                <span className="text-foreground">{card.rank}</span>
+                <span className={cn("text-3xl", getSuitColor(card.suit))}>{getSuitIcon(card.suit)}</span>
               </div>
             </div>
 
@@ -120,14 +121,14 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
               {card.trader_value && (
                 <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
                   <span className="text-sm font-medium">TLV</span>
-                  <span className="text-lg font-bold text-primary">{card.trader_value}</span>
+                  <span className="text-lg font-bold text-muted-foreground">{card.trader_value}</span>
                 </div>
               )}
               
               {card.time_value && (
                 <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
                   <span className="text-sm font-medium">TIME</span>
-                  <span className="text-lg font-bold text-primary">{card.time_value}</span>
+                  <span className="text-lg font-bold text-muted-foreground">{card.time_value}</span>
                 </div>
               )}
             </div>

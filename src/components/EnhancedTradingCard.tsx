@@ -162,24 +162,25 @@ export function EnhancedTradingCard({
           </h3>
           
           <div className="space-y-1">
-            <div className={cn("text-xs font-medium flex items-center gap-1", getEraColor(card.era))}>
+            <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               {card.era}{card.rarity && (
-                <span className={cn("", getRarityColor(card.rarity))}>- {card.rarity}</span>
+                <span className="text-muted-foreground">- {card.rarity}</span>
               )}
             </div>
-            <div className={cn("text-base font-bold flex items-center gap-1", getSuitColor(card.suit))}>
-              {card.rank} <span className="text-lg">{getSuitIcon(card.suit)}</span>
+            <div className="text-xl font-bold flex items-center gap-2">
+              <span className="text-foreground">{card.rank}</span>
+              <span className={cn("text-2xl", getSuitColor(card.suit))}>{getSuitIcon(card.suit)}</span>
             </div>
             
             {showFullDetails && (
               <div className="space-y-0.5 text-xs">
                 {card.trader_value && (
-                  <div className="text-primary font-medium">
+                  <div className="text-muted-foreground font-medium">
                     TLV: {card.trader_value}
                   </div>
                 )}
                 {card.time_value && (
-                  <div className="text-primary font-medium">
+                  <div className="text-muted-foreground font-medium">
                     TIME: {card.time_value}
                   </div>
                 )}
