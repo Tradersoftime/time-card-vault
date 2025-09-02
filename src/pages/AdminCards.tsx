@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, LayoutGrid, List, QrCode, Eye, Filter, ArrowUpDown, Plus } from 'lucide-react';
+import { Loader2, Search, LayoutGrid, List, QrCode, Eye, Filter, ArrowUpDown, Plus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useSearchParams } from 'react-router-dom';
 import { AdminTradingCard } from '@/components/AdminTradingCard';
 import { CardEditModal } from '@/components/CardEditModal';
@@ -65,6 +66,8 @@ const AdminCards = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState('');
   const [modalImageName, setModalImageName] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [cardToDelete, setCardToDelete] = useState<CardData | null>(null);
 
   // Sorting state
   const [sortField, setSortField] = useState<string>(() => 
@@ -162,14 +165,50 @@ const AdminCards = () => {
     setShowImageModal(true);
   };
 
+  const handleDeleteCard = (card: CardData) => {
+    setCardToDelete(card);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteCard = async () => {
+    if (!cardToDelete) return;
+    
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .delete()
+        .eq('id', cardToDelete.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Card deleted",
+        description: `Card "${cardToDelete.name}" has been deleted successfully`,
+      });
+
+      fetchCards();
+      setShowDeleteDialog(false);
+      setCardToDelete(null);
+    } catch (error) {
+      console.error('Error deleting card:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete card",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleModalClose = () => {
     setShowEditModal(false);
     setShowCreateModal(false);
     setShowQRModal(false);
     setShowImageModal(false);
+    setShowDeleteDialog(false);
     setSelectedCard(null);
     setModalImageUrl('');
     setModalImageName('');
+    setCardToDelete(null);
   };
 
   const handleSaveCard = () => {
@@ -451,6 +490,7 @@ const AdminCards = () => {
                   onEdit={handleEditCard}
                   onViewQR={handleViewQR}
                   onViewImage={handleViewImage}
+                  onDelete={handleDeleteCard}
                 />
               ))}
             </div>
@@ -534,6 +574,24 @@ const AdminCards = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Card</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{cardToDelete?.name}"? This action cannot be undone and will remove the card and all associated data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteCard} className="bg-destructive hover:bg-destructive/90">
+                Delete Card
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

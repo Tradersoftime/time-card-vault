@@ -408,7 +408,10 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                 <div className="flex justify-end gap-2 mt-4">
                   <Button
                     variant="outline"
-                    onClick={() => setShowImportDialog(false)}
+                    onClick={() => {
+                      setShowImportDialog(false);
+                      setImportPreview([]);
+                    }}
                     disabled={isImporting}
                   >
                     Cancel
@@ -418,7 +421,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                     disabled={isImporting}
                     className="bg-gradient-to-r from-primary to-primary-glow"
                   >
-                    {isImporting ? 'Importing...' : 'Import Cards'}
+                    {isImporting ? 'Updating Cards...' : 'Confirm Import'}
                   </Button>
                 </div>
               </div>
