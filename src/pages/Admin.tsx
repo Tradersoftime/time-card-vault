@@ -277,6 +277,12 @@ export default function Admin() {
                 Card Management
               </Link>
               <Link 
+                to="/admin/trash" 
+                className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
+              >
+                Trash (30-day)
+              </Link>
+              <Link 
                 to="/admin/redemptions" 
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
               >

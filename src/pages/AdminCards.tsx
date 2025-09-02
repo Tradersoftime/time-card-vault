@@ -68,6 +68,7 @@ const AdminCards = () => {
   const [modalImageName, setModalImageName] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [cardToDelete, setCardToDelete] = useState<CardData | null>(null);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
   // Sorting state
   const [sortField, setSortField] = useState<string>(() => 
@@ -174,16 +175,15 @@ const AdminCards = () => {
     if (!cardToDelete) return;
     
     try {
-      const { error } = await supabase
-        .from('cards')
-        .delete()
-        .eq('id', cardToDelete.id);
+      const { error } = await supabase.rpc('admin_soft_delete_cards', {
+        p_card_ids: [cardToDelete.id]
+      });
 
       if (error) throw error;
 
       toast({
-        title: "Card deleted",
-        description: `Card "${cardToDelete.name}" has been deleted successfully`,
+        title: "Card moved to trash",
+        description: `Card "${cardToDelete.name}" has been moved to trash (30-day recovery)`,
       });
 
       fetchCards();
@@ -199,12 +199,42 @@ const AdminCards = () => {
     }
   };
 
+  const confirmBulkDelete = async () => {
+    if (selectedCards.size === 0) return;
+    
+    try {
+      const cardIds = Array.from(selectedCards);
+      const { error } = await supabase.rpc('admin_soft_delete_cards', {
+        p_card_ids: cardIds
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Cards moved to trash",
+        description: `${selectedCards.size} cards have been moved to trash (30-day recovery)`,
+      });
+
+      fetchCards();
+      setSelectedCards(new Set());
+      setShowBulkDeleteDialog(false);
+    } catch (error) {
+      console.error('Error deleting cards:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete cards",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleModalClose = () => {
     setShowEditModal(false);
     setShowCreateModal(false);
     setShowQRModal(false);
     setShowImageModal(false);
     setShowDeleteDialog(false);
+    setShowBulkDeleteDialog(false);
     setSelectedCard(null);
     setModalImageUrl('');
     setModalImageName('');
@@ -219,10 +249,9 @@ const AdminCards = () => {
   const fetchCards = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('cards')
-        .select('*, qr_dark, qr_light')
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.rpc('admin_list_cards', {
+        p_include_deleted: false
+      });
 
       if (error) throw error;
       setCards(data || []);
@@ -427,6 +456,29 @@ const AdminCards = () => {
                   <Button variant="outline" size="sm" onClick={deselectAllCards}>
                     Clear
                   </Button>
+                  <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Selected
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Selected Cards</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete {selectedCards.size} selected cards? 
+                          They will be moved to trash and can be recovered for 30 days.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmBulkDelete} className="bg-destructive hover:bg-destructive/90">
+                          Delete {selectedCards.size} Cards
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               )}
 

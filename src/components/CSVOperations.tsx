@@ -193,38 +193,103 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
     reader.onload = (e) => {
       try {
         const csv = e.target?.result as string;
-        const lines = csv.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        
+        // Better CSV parsing to handle quoted fields
+        const lines = csv.split('\n').filter(line => line.trim());
+        if (lines.length === 0) {
+          toast({
+            title: "Empty file",
+            description: "The CSV file appears to be empty",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Parse CSV with proper quote handling
+        const parseCSVLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+            
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                current += '"';
+                i++; // Skip next quote
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+        
+        const headers = parseCSVLine(lines[0]);
         
         // Validate that card_id is the first column
         if (headers[0] !== 'card_id') {
           toast({
             title: "Invalid CSV format",
-            description: "First column must be 'card_id' for data integrity",
+            description: "First column must be 'card_id' for data integrity. Found: " + headers[0],
             variant: "destructive",
           });
+          // Reset file input
+          event.target.value = '';
           return;
         }
 
         const data = lines.slice(1)
-          .filter(line => line.trim())
-          .map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-            const row: any = {};
-            headers.forEach((header, index) => {
-              row[header] = values[index] || '';
-            });
-            return row;
+          .map((line, index) => {
+            try {
+              const values = parseCSVLine(line);
+              const row: any = {};
+              headers.forEach((header, headerIndex) => {
+                row[header] = values[headerIndex] || '';
+              });
+              
+              // Validate card_id is not empty
+              if (!row.card_id || row.card_id.trim() === '') {
+                console.warn(`Row ${index + 2}: Empty card_id, skipping`);
+                return null;
+              }
+              
+              return row;
+            } catch (error) {
+              console.error(`Error parsing line ${index + 2}:`, error);
+              return null;
+            }
+          })
+          .filter(row => row !== null);
+
+        if (data.length === 0) {
+          toast({
+            title: "No valid data found",
+            description: "No valid rows found in CSV file. Check that your card_id column has values.",
+            variant: "destructive",
           });
+          event.target.value = '';
+          return;
+        }
 
         setImportPreview(data);
         setShowImportDialog(true);
       } catch (error) {
+        console.error('CSV parsing error:', error);
         toast({
           title: "Error reading file",
-          description: "Failed to parse CSV file",
+          description: "Failed to parse CSV file. Please check the format.",
           variant: "destructive",
         });
+        event.target.value = '';
       }
     };
     reader.readAsText(file);
@@ -289,10 +354,17 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
       
       setShowImportDialog(false);
       setImportPreview([]);
+      
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
     } catch (error) {
+      console.error('Import error:', error);
       toast({
         title: "Import failed",
-        description: "Failed to import CSV data",
+        description: "Failed to import CSV data. Check console for details.",
         variant: "destructive",
       });
     } finally {

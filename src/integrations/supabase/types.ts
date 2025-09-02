@@ -106,6 +106,8 @@ export type Database = {
           code: string
           created_at: string
           current_target: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           era: string
           id: string
@@ -125,6 +127,8 @@ export type Database = {
           code: string
           created_at?: string
           current_target?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           era: string
           id?: string
@@ -144,6 +148,8 @@ export type Database = {
           code?: string
           created_at?: string
           current_target?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           era?: string
           id?: string
@@ -339,7 +345,14 @@ export type Database = {
         }[]
       }
       admin_list_cards: {
-        Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        Args:
+          | {
+              p_include_deleted?: boolean
+              p_limit?: number
+              p_offset?: number
+              p_search?: string
+            }
+          | { p_limit?: number; p_offset?: number; p_search?: string }
         Returns: {
           code: string
           created_at: string
@@ -392,6 +405,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_restore_cards: {
+        Args: { p_card_ids: string[] }
+        Returns: Json
+      }
       admin_scan_events: {
         Args: { p_limit?: number }
         Returns: {
@@ -402,6 +419,10 @@ export type Database = {
           outcome: string
           user_id: string
         }[]
+      }
+      admin_soft_delete_cards: {
+        Args: { p_card_ids: string[] }
+        Returns: Json
       }
       admin_unblock_user_by_email: {
         Args: { p_email: string }
@@ -457,6 +478,10 @@ export type Database = {
       }
       claim_card_and_log: {
         Args: { p_code: string; p_source?: string }
+        Returns: Json
+      }
+      cleanup_old_deleted_cards: {
+        Args: Record<PropertyKey, never>
         Returns: Json
       }
       redemption_receipt: {
