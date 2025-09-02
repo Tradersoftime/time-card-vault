@@ -175,11 +175,36 @@ const AdminCards = () => {
     if (!cardToDelete) return;
     
     try {
-      const { error } = await supabase.rpc('admin_soft_delete_cards', {
+      const { data, error } = await supabase.rpc('admin_soft_delete_cards', {
         p_card_ids: [cardToDelete.id]
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        if (error.message?.includes('forbidden')) {
+          toast({
+            title: "Access Denied",
+            description: "You don't have admin privileges to delete cards",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to delete card",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      if (data && !data.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to delete card",
+          variant: "destructive",
+        });
+        return;
+      }
 
       toast({
         title: "Card moved to trash",
@@ -193,7 +218,7 @@ const AdminCards = () => {
       console.error('Error deleting card:', error);
       toast({
         title: "Error",
-        description: "Failed to delete card",
+        description: "Failed to delete card. Please check your connection and try again.",
         variant: "destructive",
       });
     }
@@ -204,11 +229,36 @@ const AdminCards = () => {
     
     try {
       const cardIds = Array.from(selectedCards);
-      const { error } = await supabase.rpc('admin_soft_delete_cards', {
+      const { data, error } = await supabase.rpc('admin_soft_delete_cards', {
         p_card_ids: cardIds
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        if (error.message?.includes('forbidden')) {
+          toast({
+            title: "Access Denied",
+            description: "You don't have admin privileges to delete cards",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to delete cards",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      if (data && !data.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to delete cards",
+          variant: "destructive",
+        });
+        return;
+      }
 
       toast({
         title: "Cards moved to trash",
@@ -222,7 +272,7 @@ const AdminCards = () => {
       console.error('Error deleting cards:', error);
       toast({
         title: "Error",
-        description: "Failed to delete cards",
+        description: "Failed to delete cards. Please check your connection and try again.",
         variant: "destructive",
       });
     }
@@ -253,7 +303,24 @@ const AdminCards = () => {
         p_include_deleted: false
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        if (error.message?.includes('forbidden')) {
+          toast({
+            title: "Access Denied",
+            description: "You don't have admin privileges to access this feature",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to fetch cards",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+      
       setCards(data || []);
       // Load QR codes for all cards
       (data || []).forEach(card => loadQRCode(card));
@@ -261,7 +328,7 @@ const AdminCards = () => {
       console.error('Error fetching cards:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch cards",
+        description: "Failed to fetch cards. Please check your connection and try again.",
         variant: "destructive",
       });
     } finally {

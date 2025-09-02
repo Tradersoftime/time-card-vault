@@ -300,30 +300,48 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
     try {
       let successCount = 0;
       let errorCount = 0;
+      const errors: string[] = [];
 
       for (const row of importPreview) {
         try {
+          // Validate required fields
+          if (!row.card_id?.trim()) {
+            errors.push(`Row: Missing card_id`);
+            errorCount++;
+            continue;
+          }
+
           // Resolve image_code to image_url if provided
           let resolvedImageUrl = row.image_url || null;
           if (row.image_code && imageCodeMappings[row.image_code]) {
             resolvedImageUrl = imageCodeMappings[row.image_code];
           }
 
+          // Parse time_value safely
+          let timeValue = 0;
+          if (row.time_value) {
+            const parsed = parseInt(row.time_value.toString());
+            timeValue = isNaN(parsed) ? 0 : parsed;
+          }
+
+          // Parse boolean values safely
+          const isActive = row.is_active === 'true' || row.is_active === true || row.is_active === 1;
+
           // Update by card_id - the immutable identifier
           const { error } = await supabase
             .from('cards')
             .update({
-              name: row.name,
-              suit: row.suit,
-              rank: row.rank,
-              era: row.era,
+              name: row.name || 'Unknown',
+              suit: row.suit || '',
+              rank: row.rank || '',
+              era: row.era || '',
               rarity: row.rarity || null,
-              time_value: parseInt(row.time_value) || 0,
+              time_value: timeValue,
               trader_value: row.trader_value || null,
               image_url: resolvedImageUrl,
               description: row.description || null,
-              status: row.status,
-              is_active: row.is_active === 'true' || row.is_active === true,
+              status: row.status || 'active',
+              is_active: isActive,
               current_target: row.current_target || null,
               qr_dark: row.qr_dark || null,
               qr_light: row.qr_light || null
@@ -332,21 +350,38 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
 
           if (error) {
             console.error(`Error updating card ${row.card_id}:`, error);
+            if (error.message?.includes('forbidden')) {
+              errors.push(`Access denied: You don't have permission to update cards`);
+            } else if (error.message?.includes('not found')) {
+              errors.push(`Card not found: ${row.card_id}`);
+            } else {
+              errors.push(`Error updating ${row.card_id}: ${error.message}`);
+            }
             errorCount++;
           } else {
             successCount++;
           }
         } catch (error) {
           console.error(`Error processing card ${row.card_id}:`, error);
+          errors.push(`Processing error for ${row.card_id}: ${error}`);
           errorCount++;
         }
       }
 
-      toast({
-        title: "Import completed",
-        description: `Successfully updated ${successCount} cards${errorCount > 0 ? `, ${errorCount} errors` : ''}`,
-        variant: errorCount > 0 ? "destructive" : "default",
-      });
+      // Show detailed results
+      if (errorCount > 0) {
+        toast({
+          title: "Import completed with errors",
+          description: `Updated ${successCount} cards, ${errorCount} errors. Check console for details.`,
+          variant: "destructive",
+        });
+        console.error('Import errors:', errors);
+      } else {
+        toast({
+          title: "Import successful",
+          description: `Successfully updated ${successCount} cards`,
+        });
+      }
 
       if (successCount > 0) {
         onImportComplete();
@@ -364,7 +399,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
       console.error('Import error:', error);
       toast({
         title: "Import failed",
-        description: "Failed to import CSV data. Check console for details.",
+        description: "Failed to import CSV data. Please check your connection and try again.",
         variant: "destructive",
       });
     } finally {

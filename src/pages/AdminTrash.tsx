@@ -51,7 +51,23 @@ const AdminTrash = () => {
         p_include_deleted: true
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        if (error.message?.includes('forbidden')) {
+          toast({
+            title: "Access Denied",
+            description: "You don't have admin privileges to access trash management",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to fetch deleted cards",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
       
       // Filter only deleted cards
       const deletedCards = (data || []).filter(card => card.deleted_at);
@@ -60,7 +76,7 @@ const AdminTrash = () => {
       console.error('Error fetching deleted cards:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch deleted cards",
+        description: "Failed to fetch deleted cards. Please check your connection and try again.",
         variant: "destructive",
       });
     } finally {
@@ -90,11 +106,36 @@ const AdminTrash = () => {
 
   const restoreCards = async (cardIds: string[]) => {
     try {
-      const { error } = await supabase.rpc('admin_restore_cards', {
+      const { data, error } = await supabase.rpc('admin_restore_cards', {
         p_card_ids: cardIds
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        if (error.message?.includes('forbidden')) {
+          toast({
+            title: "Access Denied",
+            description: "You don't have admin privileges to restore cards",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to restore cards",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      if (data && !data.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to restore cards",
+          variant: "destructive",
+        });
+        return;
+      }
 
       toast({
         title: "Cards restored",
@@ -107,7 +148,7 @@ const AdminTrash = () => {
       console.error('Error restoring cards:', error);
       toast({
         title: "Error",
-        description: "Failed to restore cards",
+        description: "Failed to restore cards. Please check your connection and try again.",
         variant: "destructive",
       });
     }
