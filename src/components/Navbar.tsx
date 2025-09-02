@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
-import { Sun, Moon, LogOut, User, CreditCard, Shield, ScanLine, Menu, X } from 'lucide-react';
+import { Sun, Moon, LogOut, User, CreditCard, Shield, ScanLine, Menu, X, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 
@@ -82,6 +82,16 @@ export function Navbar() {
                   }`}
                 >
                   My Collection
+                </Link>
+
+                <Link
+                  to="/me/redemptions"
+                  className={`interactive text-sm font-medium transition-colors flex items-center gap-1 ${
+                    isActive('/me/redemptions') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Clock className="h-4 w-4" />
+                  My Redemptions
                 </Link>
               </>
             )}
@@ -181,6 +191,18 @@ export function Navbar() {
                   >
                     <User className="h-4 w-4" />
                     <span>My Collection</span>
+                  </Link>
+
+                  <Link
+                    to="/me/redemptions"
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive('/me/redemptions') 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+                    }`}
+                  >
+                    <Clock className="h-4 w-4" />
+                    <span>My Redemptions</span>
                   </Link>
 
                   {isAdmin && (

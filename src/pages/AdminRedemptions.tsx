@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { CheckCircle, XCircle, DollarSign, Clock, User, Calendar, Filter, Search } from "lucide-react";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
 
 interface PendingRedemption {
   redemption_id: string;
@@ -307,12 +308,9 @@ export default function AdminRedemptions() {
         </CardHeader>
         <CardContent>
           {filteredAndSortedRedemptions.length > 0 ? (
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
               {filteredAndSortedRedemptions.map((redemption) => (
-                <div 
-                  key={redemption.redemption_id} 
-                  className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50"
-                >
+                <div key={redemption.redemption_id} className="relative">
                   <Checkbox
                     checked={selectedRedemptions.includes(redemption.redemption_id)}
                     onCheckedChange={(checked) => {
@@ -322,39 +320,39 @@ export default function AdminRedemptions() {
                         setSelectedRedemptions(selectedRedemptions.filter(id => id !== redemption.redemption_id));
                       }
                     }}
+                    className="absolute -top-2 -left-2 z-10 bg-background border-2"
                   />
                   
-                  {redemption.card_image_url && (
-                    <img 
-                      src={redemption.card_image_url} 
-                      alt={redemption.card_name} 
-                      className="w-16 h-20 object-cover rounded"
-                    />
-                  )}
+                  <EnhancedTradingCard
+                    card={{
+                      id: redemption.card_id,
+                      name: redemption.card_name,
+                      suit: redemption.card_suit,
+                      rank: redemption.card_rank,
+                      era: redemption.card_era,
+                      rarity: redemption.card_rarity,
+                      image_url: redemption.card_image_url,
+                      time_value: redemption.time_value,
+                      trader_value: redemption.trader_value,
+                      description: '',
+                      is_claimed: false,
+                      claimed_at: null,
+                      redemption_status: 'pending'
+                    }}
+                    baseWidth={120}
+                    showFullDetails={true}
+                    className="transition-all duration-200 hover:scale-105 cursor-pointer"
+                  />
                   
-                  <div className="flex-1">
-                    <div className="font-medium">{redemption.card_name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {redemption.card_rank} of {redemption.card_suit} • {redemption.card_era} • {redemption.card_rarity}
+                  {/* Admin Info Overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white p-2 rounded-b-lg text-xs">
+                    <div className="flex items-center gap-1 mb-1">
+                      <User className="h-3 w-3" />
+                      <span className="truncate">{redemption.user_email}</span>
                     </div>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {redemption.user_email}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(redemption.submitted_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="text-right">
-                    <Badge variant="outline" className="mb-1">
-                      {redemption.trader_value} TLV
-                    </Badge>
-                    <div className="font-medium">
-                      {redemption.time_value} TIME
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      <span>{new Date(redemption.submitted_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </div>
