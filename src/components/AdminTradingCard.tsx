@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { Edit, QrCode, Eye, Download, AlertTriangle, Trash2 } from 'lucide-react';
+import { Edit, QrCode, Eye, Download, AlertTriangle } from 'lucide-react';
 import { useImageDimensions, calculateCardDimensions } from '@/hooks/useImageDimensions';
 
 interface CardData {
@@ -32,7 +32,6 @@ interface AdminTradingCardProps {
   onEdit: (card: CardData) => void;
   onViewQR: (card: CardData) => void;
   onViewImage?: (imageUrl: string, cardName: string) => void;
-  onDelete?: (card: CardData) => void;
   baseWidth?: number;
   className?: string;
 }
@@ -44,7 +43,6 @@ export function AdminTradingCard({
   onEdit,
   onViewQR,
   onViewImage,
-  onDelete,
   baseWidth = 200,
   className
 }: AdminTradingCardProps) {
@@ -248,19 +246,6 @@ export function AdminTradingCard({
             }}
           >
             <Eye className="h-3 w-3" />
-          </Button>
-        )}
-        {onDelete && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 w-6 p-0 bg-background/80 backdrop-blur-sm hover:bg-destructive/20 hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(card);
-            }}
-          >
-            <Trash2 className="h-3 w-3" />
           </Button>
         )}
       </div>

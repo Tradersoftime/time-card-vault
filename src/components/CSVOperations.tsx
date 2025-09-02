@@ -193,103 +193,38 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
     reader.onload = (e) => {
       try {
         const csv = e.target?.result as string;
-        
-        // Better CSV parsing to handle quoted fields
-        const lines = csv.split('\n').filter(line => line.trim());
-        if (lines.length === 0) {
-          toast({
-            title: "Empty file",
-            description: "The CSV file appears to be empty",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        // Parse CSV with proper quote handling
-        const parseCSVLine = (line: string): string[] => {
-          const result: string[] = [];
-          let current = '';
-          let inQuotes = false;
-          
-          for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            const nextChar = line[i + 1];
-            
-            if (char === '"') {
-              if (inQuotes && nextChar === '"') {
-                current += '"';
-                i++; // Skip next quote
-              } else {
-                inQuotes = !inQuotes;
-              }
-            } else if (char === ',' && !inQuotes) {
-              result.push(current.trim());
-              current = '';
-            } else {
-              current += char;
-            }
-          }
-          result.push(current.trim());
-          return result;
-        };
-        
-        const headers = parseCSVLine(lines[0]);
+        const lines = csv.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
         
         // Validate that card_id is the first column
         if (headers[0] !== 'card_id') {
           toast({
             title: "Invalid CSV format",
-            description: "First column must be 'card_id' for data integrity. Found: " + headers[0],
+            description: "First column must be 'card_id' for data integrity",
             variant: "destructive",
           });
-          // Reset file input
-          event.target.value = '';
           return;
         }
 
         const data = lines.slice(1)
-          .map((line, index) => {
-            try {
-              const values = parseCSVLine(line);
-              const row: any = {};
-              headers.forEach((header, headerIndex) => {
-                row[header] = values[headerIndex] || '';
-              });
-              
-              // Validate card_id is not empty
-              if (!row.card_id || row.card_id.trim() === '') {
-                console.warn(`Row ${index + 2}: Empty card_id, skipping`);
-                return null;
-              }
-              
-              return row;
-            } catch (error) {
-              console.error(`Error parsing line ${index + 2}:`, error);
-              return null;
-            }
-          })
-          .filter(row => row !== null);
-
-        if (data.length === 0) {
-          toast({
-            title: "No valid data found",
-            description: "No valid rows found in CSV file. Check that your card_id column has values.",
-            variant: "destructive",
+          .filter(line => line.trim())
+          .map(line => {
+            const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+            const row: any = {};
+            headers.forEach((header, index) => {
+              row[header] = values[index] || '';
+            });
+            return row;
           });
-          event.target.value = '';
-          return;
-        }
 
         setImportPreview(data);
         setShowImportDialog(true);
       } catch (error) {
-        console.error('CSV parsing error:', error);
         toast({
           title: "Error reading file",
-          description: "Failed to parse CSV file. Please check the format.",
+          description: "Failed to parse CSV file",
           variant: "destructive",
         });
-        event.target.value = '';
       }
     };
     reader.readAsText(file);
@@ -300,48 +235,30 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
     try {
       let successCount = 0;
       let errorCount = 0;
-      const errors: string[] = [];
 
       for (const row of importPreview) {
         try {
-          // Validate required fields
-          if (!row.card_id?.trim()) {
-            errors.push(`Row: Missing card_id`);
-            errorCount++;
-            continue;
-          }
-
           // Resolve image_code to image_url if provided
           let resolvedImageUrl = row.image_url || null;
           if (row.image_code && imageCodeMappings[row.image_code]) {
             resolvedImageUrl = imageCodeMappings[row.image_code];
           }
 
-          // Parse time_value safely
-          let timeValue = 0;
-          if (row.time_value) {
-            const parsed = parseInt(row.time_value.toString());
-            timeValue = isNaN(parsed) ? 0 : parsed;
-          }
-
-          // Parse boolean values safely
-          const isActive = row.is_active === 'true' || row.is_active === true || row.is_active === 1;
-
           // Update by card_id - the immutable identifier
           const { error } = await supabase
             .from('cards')
             .update({
-              name: row.name || 'Unknown',
-              suit: row.suit || '',
-              rank: row.rank || '',
-              era: row.era || '',
+              name: row.name,
+              suit: row.suit,
+              rank: row.rank,
+              era: row.era,
               rarity: row.rarity || null,
-              time_value: timeValue,
+              time_value: parseInt(row.time_value) || 0,
               trader_value: row.trader_value || null,
               image_url: resolvedImageUrl,
               description: row.description || null,
-              status: row.status || 'active',
-              is_active: isActive,
+              status: row.status,
+              is_active: row.is_active === 'true' || row.is_active === true,
               current_target: row.current_target || null,
               qr_dark: row.qr_dark || null,
               qr_light: row.qr_light || null
@@ -350,38 +267,21 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
 
           if (error) {
             console.error(`Error updating card ${row.card_id}:`, error);
-            if (error.message?.includes('forbidden')) {
-              errors.push(`Access denied: You don't have permission to update cards`);
-            } else if (error.message?.includes('not found')) {
-              errors.push(`Card not found: ${row.card_id}`);
-            } else {
-              errors.push(`Error updating ${row.card_id}: ${error.message}`);
-            }
             errorCount++;
           } else {
             successCount++;
           }
         } catch (error) {
           console.error(`Error processing card ${row.card_id}:`, error);
-          errors.push(`Processing error for ${row.card_id}: ${error}`);
           errorCount++;
         }
       }
 
-      // Show detailed results
-      if (errorCount > 0) {
-        toast({
-          title: "Import completed with errors",
-          description: `Updated ${successCount} cards, ${errorCount} errors. Check console for details.`,
-          variant: "destructive",
-        });
-        console.error('Import errors:', errors);
-      } else {
-        toast({
-          title: "Import successful",
-          description: `Successfully updated ${successCount} cards`,
-        });
-      }
+      toast({
+        title: "Import completed",
+        description: `Successfully updated ${successCount} cards${errorCount > 0 ? `, ${errorCount} errors` : ''}`,
+        variant: errorCount > 0 ? "destructive" : "default",
+      });
 
       if (successCount > 0) {
         onImportComplete();
@@ -389,17 +289,10 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
       
       setShowImportDialog(false);
       setImportPreview([]);
-      
-      // Reset file input
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-      if (fileInput) {
-        fileInput.value = '';
-      }
     } catch (error) {
-      console.error('Import error:', error);
       toast({
         title: "Import failed",
-        description: "Failed to import CSV data. Please check your connection and try again.",
+        description: "Failed to import CSV data",
         variant: "destructive",
       });
     } finally {
@@ -515,10 +408,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                 <div className="flex justify-end gap-2 mt-4">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setShowImportDialog(false);
-                      setImportPreview([]);
-                    }}
+                    onClick={() => setShowImportDialog(false)}
                     disabled={isImporting}
                   >
                     Cancel
@@ -528,7 +418,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                     disabled={isImporting}
                     className="bg-gradient-to-r from-primary to-primary-glow"
                   >
-                    {isImporting ? 'Updating Cards...' : 'Confirm Import'}
+                    {isImporting ? 'Importing...' : 'Import Cards'}
                   </Button>
                 </div>
               </div>

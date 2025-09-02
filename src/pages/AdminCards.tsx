@@ -6,9 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, LayoutGrid, List, QrCode, Eye, Filter, ArrowUpDown, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Search, LayoutGrid, List, QrCode, Eye, Filter, ArrowUpDown, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useSearchParams } from 'react-router-dom';
 import { AdminTradingCard } from '@/components/AdminTradingCard';
 import { CardEditModal } from '@/components/CardEditModal';
@@ -66,9 +65,6 @@ const AdminCards = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState('');
   const [modalImageName, setModalImageName] = useState('');
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [cardToDelete, setCardToDelete] = useState<CardData | null>(null);
-  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
   // Sorting state
   const [sortField, setSortField] = useState<string>(() => 
@@ -166,129 +162,14 @@ const AdminCards = () => {
     setShowImageModal(true);
   };
 
-  const handleDeleteCard = (card: CardData) => {
-    setCardToDelete(card);
-    setShowDeleteDialog(true);
-  };
-
-  const confirmDeleteCard = async () => {
-    if (!cardToDelete) return;
-    
-    try {
-      const { data, error } = await supabase.rpc('admin_soft_delete_cards', {
-        p_card_ids: [cardToDelete.id]
-      });
-
-      if (error) {
-        console.error('Database error:', error);
-        if (error.message?.includes('forbidden')) {
-          toast({
-            title: "Access Denied",
-            description: "You don't have admin privileges to delete cards",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: error.message || "Failed to delete card",
-            variant: "destructive",
-          });
-        }
-        return;
-      }
-
-      if (data && !data.ok) {
-        toast({
-          title: "Error",
-          description: data.error || "Failed to delete card",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Card moved to trash",
-        description: `Card "${cardToDelete.name}" has been moved to trash (30-day recovery)`,
-      });
-
-      fetchCards();
-      setShowDeleteDialog(false);
-      setCardToDelete(null);
-    } catch (error) {
-      console.error('Error deleting card:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete card. Please check your connection and try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const confirmBulkDelete = async () => {
-    if (selectedCards.size === 0) return;
-    
-    try {
-      const cardIds = Array.from(selectedCards);
-      const { data, error } = await supabase.rpc('admin_soft_delete_cards', {
-        p_card_ids: cardIds
-      });
-
-      if (error) {
-        console.error('Database error:', error);
-        if (error.message?.includes('forbidden')) {
-          toast({
-            title: "Access Denied",
-            description: "You don't have admin privileges to delete cards",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: error.message || "Failed to delete cards",
-            variant: "destructive",
-          });
-        }
-        return;
-      }
-
-      if (data && !data.ok) {
-        toast({
-          title: "Error",
-          description: data.error || "Failed to delete cards",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Cards moved to trash",
-        description: `${selectedCards.size} cards have been moved to trash (30-day recovery)`,
-      });
-
-      fetchCards();
-      setSelectedCards(new Set());
-      setShowBulkDeleteDialog(false);
-    } catch (error) {
-      console.error('Error deleting cards:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete cards. Please check your connection and try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleModalClose = () => {
     setShowEditModal(false);
     setShowCreateModal(false);
     setShowQRModal(false);
     setShowImageModal(false);
-    setShowDeleteDialog(false);
-    setShowBulkDeleteDialog(false);
     setSelectedCard(null);
     setModalImageUrl('');
     setModalImageName('');
-    setCardToDelete(null);
   };
 
   const handleSaveCard = () => {
@@ -296,83 +177,23 @@ const AdminCards = () => {
     handleModalClose();
   };
 
-  const fetchCards = async (retryCount = 0) => {
+  const fetchCards = async () => {
     try {
       setLoading(true);
-      console.log(`Fetching cards (attempt ${retryCount + 1})`);
-      
-      const { data, error } = await supabase.rpc('admin_list_cards', {
-        p_include_deleted: false
-      });
+      const { data, error } = await supabase
+        .from('cards')
+        .select('*, qr_dark, qr_light')
+        .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Database error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        
-        // Handle specific error types
-        if (error.message?.includes('forbidden')) {
-          toast({
-            title: "Access Denied",
-            description: "You don't have admin privileges to access this feature",
-            variant: "destructive",
-          });
-        } else if (error.message?.includes('ambiguous')) {
-          console.error('Column ambiguity error detected:', error.message);
-          toast({
-            title: "Database Configuration Error",
-            description: "There's a database configuration issue. Please contact support.",
-            variant: "destructive",
-          });
-        } else if (error.message?.includes('does not exist')) {
-          console.error('Missing table/function error:', error.message);
-          toast({
-            title: "Database Schema Error", 
-            description: "Required database objects are missing. Please contact support.",
-            variant: "destructive",
-          });
-        } else {
-          // Retry logic for transient errors
-          if (retryCount < 2 && (
-            error.message?.includes('connection') || 
-            error.message?.includes('timeout') ||
-            error.message?.includes('network')
-          )) {
-            console.log(`Retrying fetch after error: ${error.message}`);
-            setTimeout(() => fetchCards(retryCount + 1), 1000 * (retryCount + 1));
-            return;
-          }
-          
-          toast({
-            title: "Error",
-            description: error.message || "Failed to fetch cards",
-            variant: "destructive",
-          });
-        }
-        return;
-      }
-      
-      console.log(`Successfully fetched ${data?.length || 0} cards`);
+      if (error) throw error;
       setCards(data || []);
-      
       // Load QR codes for all cards
       (data || []).forEach(card => loadQRCode(card));
     } catch (error) {
-      console.error('Network/connection error:', error);
-      
-      // Retry logic for network errors
-      if (retryCount < 2) {
-        console.log(`Retrying fetch after network error (attempt ${retryCount + 1})`);
-        setTimeout(() => fetchCards(retryCount + 1), 1000 * (retryCount + 1));
-        return;
-      }
-      
+      console.error('Error fetching cards:', error);
       toast({
-        title: "Connection Error",
-        description: "Failed to connect to the database. Please check your internet connection and try again.",
+        title: "Error",
+        description: "Failed to fetch cards",
         variant: "destructive",
       });
     } finally {
@@ -567,29 +388,6 @@ const AdminCards = () => {
                   <Button variant="outline" size="sm" onClick={deselectAllCards}>
                     Clear
                   </Button>
-                  <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Selected
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Selected Cards</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete {selectedCards.size} selected cards? 
-                          They will be moved to trash and can be recovered for 30 days.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmBulkDelete} className="bg-destructive hover:bg-destructive/90">
-                          Delete {selectedCards.size} Cards
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
                 </div>
               )}
 
@@ -653,7 +451,6 @@ const AdminCards = () => {
                   onEdit={handleEditCard}
                   onViewQR={handleViewQR}
                   onViewImage={handleViewImage}
-                  onDelete={handleDeleteCard}
                 />
               ))}
             </div>
@@ -737,24 +534,6 @@ const AdminCards = () => {
             </div>
           </DialogContent>
         </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Card</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete "{cardToDelete?.name}"? This action cannot be undone and will remove the card and all associated data.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDeleteCard} className="bg-destructive hover:bg-destructive/90">
-                Delete Card
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     </div>
   );
