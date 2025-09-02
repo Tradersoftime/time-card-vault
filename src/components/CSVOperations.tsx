@@ -196,11 +196,11 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
         const lines = csv.split('\n');
         const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
         
-        // Validate that card_id is the first column
-        if (headers[0] !== 'card_id') {
+        // Validate that either card_id or code is the first column
+        if (headers[0] !== 'card_id' && headers[0] !== 'code') {
           toast({
             title: "Invalid CSV format",
-            description: "First column must be 'card_id' for data integrity",
+            description: "First column must be either 'card_id' (for updates) or 'code' (for creates/updates)",
             variant: "destructive",
           });
           return;
@@ -233,66 +233,124 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
   const executeImport = async () => {
     setIsImporting(true);
     try {
-      let successCount = 0;
+      let createdCount = 0;
+      let updatedCount = 0;
       let errorCount = 0;
+      const errors: string[] = [];
 
-      for (const row of importPreview) {
-        try {
-          // Resolve image_code to image_url if provided
-          let resolvedImageUrl = row.image_url || null;
-          if (row.image_code && imageCodeMappings[row.image_code]) {
-            resolvedImageUrl = imageCodeMappings[row.image_code];
-          }
+      // Process rows in batch using upsert
+      const processedRows = await Promise.all(
+        importPreview.map(async (row, index) => {
+          try {
+            // Resolve image_code to image_url if provided
+            let resolvedImageUrl = row.image_url || null;
+            if (row.image_code && imageCodeMappings[row.image_code]) {
+              resolvedImageUrl = imageCodeMappings[row.image_code];
+            }
 
-          // Update by card_id - the immutable identifier
-          const { error } = await supabase
-            .from('cards')
-            .update({
-              name: row.name,
-              suit: row.suit,
-              rank: row.rank,
-              era: row.era,
+            // Validate required fields for new cards (when card_id is blank)
+            const hasCardId = row.card_id && row.card_id.trim();
+            if (!hasCardId) {
+              // New card - validate required fields
+              if (!row.code || !row.name || !row.suit || !row.rank || !row.era) {
+                const missing = [];
+                if (!row.code) missing.push('code');
+                if (!row.name) missing.push('name');
+                if (!row.suit) missing.push('suit');
+                if (!row.rank) missing.push('rank');
+                if (!row.era) missing.push('era');
+                errors.push(`Row ${index + 1}: Missing required fields for new card: ${missing.join(', ')}`);
+                return null;
+              }
+            }
+
+            // Prepare card data for upsert
+            const cardData: any = {
+              code: row.code,
+              name: row.name || null,
+              suit: row.suit || null,
+              rank: row.rank || null,
+              era: row.era || null,
               rarity: row.rarity || null,
               time_value: parseInt(row.time_value) || 0,
               trader_value: row.trader_value || null,
               image_url: resolvedImageUrl,
               description: row.description || null,
-              status: row.status,
-              is_active: row.is_active === 'true' || row.is_active === true,
+              status: row.status || 'active',
+              is_active: row.is_active === 'true' || row.is_active === true || row.is_active === 1,
               current_target: row.current_target || null,
               qr_dark: row.qr_dark || null,
               qr_light: row.qr_light || null
-            })
-            .eq('id', row.card_id);
+            };
 
-          if (error) {
-            console.error(`Error updating card ${row.card_id}:`, error);
-            errorCount++;
-          } else {
-            successCount++;
+            // Add card_id if provided (for updates)
+            if (hasCardId) {
+              cardData.id = row.card_id;
+            }
+
+            return { cardData, isUpdate: hasCardId, rowIndex: index + 1 };
+          } catch (error) {
+            errors.push(`Row ${index + 1}: Error processing data - ${error instanceof Error ? error.message : 'Unknown error'}`);
+            return null;
           }
-        } catch (error) {
-          console.error(`Error processing card ${row.card_id}:`, error);
-          errorCount++;
-        }
+        })
+      );
+
+      const validRows = processedRows.filter(row => row !== null);
+
+      if (errors.length > 0) {
+        toast({
+          title: "Validation errors",
+          description: `${errors.length} row(s) had validation errors. Check console for details.`,
+          variant: "destructive",
+        });
+        console.error('CSV Import Validation Errors:', errors);
+        errorCount = errors.length;
       }
 
-      toast({
-        title: "Import completed",
-        description: `Successfully updated ${successCount} cards${errorCount > 0 ? `, ${errorCount} errors` : ''}`,
-        variant: errorCount > 0 ? "destructive" : "default",
-      });
+      if (validRows.length > 0) {
+        // Use upsert with onConflict for code to handle both create and update
+        const { data, error } = await supabase
+          .from('cards')
+          .upsert(
+            validRows.map(row => row!.cardData),
+            { 
+              onConflict: 'code'
+            }
+          );
 
-      if (successCount > 0) {
-        onImportComplete();
+        if (error) {
+          console.error('Upsert error:', error);
+          toast({
+            title: "Import failed",
+            description: `Database error: ${error.message}`,
+            variant: "destructive",
+          });
+        } else {
+          // Count creates vs updates (approximation based on whether card_id was provided)
+          createdCount = validRows.filter(row => !row!.isUpdate).length;
+          updatedCount = validRows.filter(row => row!.isUpdate).length;
+
+          const successMessage = [];
+          if (createdCount > 0) successMessage.push(`${createdCount} cards created`);
+          if (updatedCount > 0) successMessage.push(`${updatedCount} cards updated`);
+
+          toast({
+            title: "Import successful",
+            description: successMessage.join(', '),
+          });
+
+          onImportComplete();
+        }
       }
       
       setShowImportDialog(false);
       setImportPreview([]);
     } catch (error) {
+      console.error('Import error:', error);
       toast({
         title: "Import failed",
-        description: "Failed to import CSV data",
+        description: "An unexpected error occurred during import",
         variant: "destructive",
       });
     } finally {
@@ -326,21 +384,21 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                <div className="text-sm">
-                  <p className="font-medium text-blue-500">CSV Import Requirements</p>
-                  <ul className="text-muted-foreground mt-1 space-y-1 list-disc list-inside">
-                    <li>First column must be <code className="bg-muted px-1 rounded">card_id</code> (immutable identifier)</li>
-                    <li>Use <code className="bg-muted px-1 rounded">image_code</code> to reference images from your library</li>
-                    <li>Cards will be updated based on their Card ID</li>
-                    <li>Missing fields will be set to default values</li>
-                    <li>Use the exported CSV format as a template</li>
-                  </ul>
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-blue-500">CSV Import Requirements</p>
+                    <ul className="text-muted-foreground mt-1 space-y-1 list-disc list-inside">
+                      <li><strong>New Cards:</strong> Leave <code className="bg-muted px-1 rounded">card_id</code> blank, provide required fields: <code className="bg-muted px-1 rounded">code, name, suit, rank, era</code></li>
+                      <li><strong>Update Cards:</strong> Provide <code className="bg-muted px-1 rounded">card_id</code> to update existing cards</li>
+                      <li>Use <code className="bg-muted px-1 rounded">image_code</code> to reference images from your library</li>
+                      <li>Cards are identified by <code className="bg-muted px-1 rounded">code</code> - duplicates will be updated</li>
+                      <li>Use the exported CSV format as a template</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
-            </div>
 
             {importPreview.length === 0 ? (
               <div className="border-2 border-dashed border-muted rounded-lg p-8 text-center">
@@ -358,7 +416,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-medium">Import Preview</h3>
                   <Badge variant="outline">
-                    {importPreview.length} cards to update
+                    {importPreview.filter(row => row.card_id && row.card_id.trim()).length} to update, {importPreview.filter(row => !row.card_id || !row.card_id.trim()).length} to create
                   </Badge>
                 </div>
                 
@@ -366,41 +424,52 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50 sticky top-0">
                       <tr>
-                        <th className="p-2 text-left">Card ID</th>
+                        <th className="p-2 text-left">Action</th>
+                        <th className="p-2 text-left">Code</th>
                         <th className="p-2 text-left">Name</th>
                         <th className="p-2 text-left">Suit</th>
                         <th className="p-2 text-left">Rank</th>
                         <th className="p-2 text-left">Era</th>
                         <th className="p-2 text-left">Image</th>
-                        <th className="p-2 text-left">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {importPreview.map((row, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="p-2 font-mono text-xs">{row.card_id}</td>
-                          <td className="p-2">{row.name}</td>
-                          <td className="p-2">{row.suit}</td>
-                          <td className="p-2">{row.rank}</td>
-                          <td className="p-2">{row.era}</td>
-                          <td className="p-2 text-xs">
-                            {row.image_code ? (
-                              <span className="bg-blue-100 text-blue-800 px-1 rounded">
-                                {row.image_code}
-                              </span>
-                            ) : row.image_url ? (
-                              <span className="text-muted-foreground">URL</span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="p-2">
-                            <Badge variant={row.is_active === 'true' ? 'default' : 'secondary'} className="text-xs">
-                              {row.status} {row.is_active === 'true' ? '(Active)' : '(Inactive)'}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
+                      {importPreview.map((row, index) => {
+                        const isUpdate = row.card_id && row.card_id.trim();
+                        const hasRequiredFields = row.code && row.name && row.suit && row.rank && row.era;
+                        const isValid = isUpdate || hasRequiredFields;
+                        
+                        return (
+                          <tr key={index} className={`border-t ${!isValid ? 'bg-destructive/10' : ''}`}>
+                            <td className="p-2">
+                              <Badge variant={isUpdate ? 'secondary' : 'default'} className="text-xs">
+                                {isUpdate ? 'Update' : 'Create'}
+                              </Badge>
+                              {!isValid && (
+                                <div className="text-xs text-destructive mt-1">
+                                  {isUpdate ? 'Invalid ID' : 'Missing required fields'}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-2 font-mono text-sm">{row.code || row.card_id}</td>
+                            <td className="p-2">{row.name || '—'}</td>
+                            <td className="p-2">{row.suit || '—'}</td>
+                            <td className="p-2">{row.rank || '—'}</td>
+                            <td className="p-2">{row.era || '—'}</td>
+                            <td className="p-2 text-xs">
+                              {row.image_code ? (
+                                <span className="bg-blue-100 text-blue-800 px-1 rounded">
+                                  {row.image_code}
+                                </span>
+                              ) : row.image_url ? (
+                                <span className="text-muted-foreground">URL</span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

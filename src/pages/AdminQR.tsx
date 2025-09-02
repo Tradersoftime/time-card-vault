@@ -1068,117 +1068,28 @@ export default function AdminQR() {
         </div>
       </section>
 
-      {/* CSV Import */}
+      {/* Bulk CSV Import Notice */}
       <section className="card-premium rounded-xl p-4 space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">CSV Import</h2>
-        <div className="text-sm text-muted-foreground">
-          Required column: <code className="bg-muted px-1 rounded">code</code>. Optional:{" "}
-          <code className="bg-muted px-1 rounded">
-            name,suit,rank,era,rarity,trader_value,time_value,description,image_url,image_code,current_target,status,is_active,qr_dark,qr_light
-          </code>
-          <br />
-          <span className="text-xs mt-1 block">
-            For complete cards, provide: name, suit, rank, era. Use <code className="bg-muted px-1 rounded">image_code</code> (a1, a2...) instead of full URLs. Default time_value: 0, status: 'active'
-          </span>
-          <span className="text-xs mt-1 block">
-            Use <code className="bg-muted px-1 rounded">qr_dark</code> and <code className="bg-muted px-1 rounded">qr_light</code> columns to set custom QR colors per card (#RGB or #RRGGBB format).
-          </span>
-          {imageMappings.length > 0 && (
-            <span className="text-xs mt-1 block text-primary">
-              💡 {imageMappings.length} image codes available: {imageMappings.map(m => m.code).join(', ')}
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-3">
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={handleCsvFile}
-            className="glass-panel border border-border rounded px-2 py-1 text-foreground"
-          />
-          <button
-            onClick={handleCsvPaste}
-            className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors"
-          >
-            Parse Pasted CSV
-          </button>
-        </div>
-
-        <textarea
-          value={csvText}
-          onChange={(e) => setCsvText(e.target.value)}
-          placeholder={`code,name,suit,rank,era,rarity,trader_value,time_value,description,image_code,current_target,status,is_active
-TOT-4K9V-7XQ2,Ada Lovelace,Hearts,A,Victorian,Legendary,100,10,Famous mathematician and programmer,a1,https://your-site/trader/ada,active,true`}
-          rows={6}
-          className="w-full glass-panel border border-border rounded px-2 py-1 font-mono text-xs text-foreground placeholder:text-muted-foreground"
-        />
-
-        {csvErrors.length > 0 && (
-          <div className="glass-panel text-sm px-3 py-2 rounded border-l-4 border-l-destructive text-destructive-foreground">
-            {csvErrors.slice(0, 5).map((e, i) => (
-              <div key={i}>{e}</div>
-            ))}
-            {csvErrors.length > 5 && <div>…and {csvErrors.length - 5} more</div>}
+        <h2 className="text-lg font-semibold text-foreground">Bulk CSV Import</h2>
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <ChevronRight className="w-4 h-4 text-blue-500" />
+            <span className="text-blue-500 font-medium">For bulk CSV import and card management:</span>
           </div>
-        )}
-
-        <div className="flex gap-2">
-          <button
-            onClick={upsertCsv}
-            disabled={csvBusy || csvRows.length === 0}
-            className="bg-primary text-primary-foreground border border-border rounded px-3 py-1 hover:bg-primary/90 transition-colors disabled:opacity-50"
+          <div className="text-sm text-muted-foreground mt-2">
+            Use the <strong>Card Management</strong> page for importing multiple cards from CSV files. 
+            This page is focused on image upload and single QR generation.
+          </div>
+          <Button
+            onClick={() => navigate('/admin/cards')}
+            variant="outline"
+            size="sm"
+            className="mt-3"
           >
-            {csvBusy ? "Upserting…" : `Upsert ${csvRows.length} row(s)`}
-          </button>
-          <button
-            onClick={downloadZipFromCsv}
-            disabled={csvRows.length === 0}
-            className="bg-secondary text-secondary-foreground border border-border rounded px-3 py-1 hover:bg-secondary/80 transition-colors disabled:opacity-50"
-          >
-            Download QR ZIP for parsed rows
-          </button>
+            <Edit className="w-4 h-4 mr-2" />
+            Go to Card Management
+          </Button>
         </div>
-
-        {csvRows.length > 0 && (
-          <>
-            <div className="text-xs text-muted-foreground">
-              Showing first {Math.min(csvRows.length, 10)} of {csvRows.length} parsed rows:
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left border-b border-border">
-                    <th className="py-1 pr-3 text-foreground">code</th>
-                    <th className="py-1 pr-3 text-foreground">name</th>
-                    <th className="py-1 pr-3 text-foreground">suit</th>
-                    <th className="py-1 pr-3 text-foreground">rank</th>
-                    <th className="py-1 pr-3 text-foreground">era</th>
-                    <th className="py-1 pr-3 text-foreground">rarity</th>
-                    <th className="py-1 pr-3 text-foreground">time_value</th>
-                    <th className="py-1 pr-3 text-foreground">status</th>
-                    <th className="py-1 pr-3 text-foreground">is_active</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {csvRows.slice(0, 10).map((r, i) => (
-                    <tr key={i} className="border-b border-border last:border-b-0">
-                      <td className="py-1 pr-3 font-mono text-foreground">{r.code}</td>
-                      <td className="py-1 pr-3 text-foreground">{r.name ?? "—"}</td>
-                      <td className="py-1 pr-3 text-foreground">{r.suit ?? "—"}</td>
-                      <td className="py-1 pr-3 text-foreground">{r.rank ?? "—"}</td>
-                      <td className="py-1 pr-3 text-foreground">{r.era ?? "—"}</td>
-                      <td className="py-1 pr-3 text-foreground">{r.rarity ?? "—"}</td>
-                      <td className="py-1 pr-3 text-foreground">{r.time_value ?? 0}</td>
-                      <td className="py-1 pr-3 text-foreground">{r.status ?? "active"}</td>
-                      <td className="py-1 pr-3 text-foreground">{String(r.is_active ?? "")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
       </section>
 
       {/* Edit redirect */}
