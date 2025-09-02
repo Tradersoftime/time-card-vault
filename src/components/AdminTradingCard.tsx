@@ -58,46 +58,46 @@ export function AdminTradingCard({
     switch (suit.toLowerCase()) {
       case 'hearts':
       case 'diamonds':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
+        return 'text-red-500';
       case 'clubs':
       case 'spades':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
+        return 'text-success';
       default:
-        return 'bg-primary/20 text-primary border-primary/30';
+        return 'text-primary';
     }
   };
 
   const getEraColor = (era: string) => {
     switch (era.toLowerCase()) {
       case 'prehistoric':
-        return 'bg-amber-800/20 text-amber-700 border-amber-800/30';
+        return 'text-amber-700';
       case 'ancient':
-        return 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30';
+        return 'text-yellow-300';
       case 'medieval':
-        return 'bg-red-800/20 text-red-600 border-red-800/30';
+        return 'text-red-600';
       case 'modern':
-        return 'bg-slate-900/20 text-slate-300 border-slate-900/30';
+        return 'text-slate-300';
       case 'future':
-        return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
+        return 'text-teal-400';
       default:
-        return 'bg-primary/20 text-primary border-primary/30';
+        return 'text-primary';
     }
   };
 
   const getRarityColor = (rarity: string) => {
     switch (rarity?.toLowerCase()) {
       case 'degen':
-        return 'bg-black/20 text-slate-100 border-black/30';
+        return 'text-slate-100';
       case 'trader':
-        return 'bg-slate-300/20 text-slate-400 border-slate-300/30';
+        return 'text-slate-400';
       case 'investor':
-        return 'bg-amber-600/20 text-amber-500 border-amber-600/30';
+        return 'text-amber-500';
       case 'market maker':
-        return 'bg-rose-400/20 text-rose-300 border-rose-400/30';
+        return 'text-rose-300';
       case 'whale':
-        return 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30';
+        return 'text-yellow-300';
       default:
-        return 'bg-primary/20 text-primary border-primary/30';
+        return 'text-primary';
     }
   };
 
@@ -177,38 +177,33 @@ export function AdminTradingCard({
         </div>
 
         {/* Card Info */}
-        <div className="space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1">
-              {card.name}
-            </h3>
-          </div>
+        <div className="space-y-1">
+          <h3 className="font-semibold text-sm leading-tight line-clamp-2">
+            {card.name}
+          </h3>
           
-          <div className="flex flex-wrap gap-1">
-            <Badge variant="outline" className={cn("text-xs", getSuitColor(card.suit))}>
-              {card.suit} {card.rank}
-            </Badge>
-            <Badge variant="outline" className={cn("text-xs", getEraColor(card.era))}>
-              {card.era}
-            </Badge>
+          <div className="text-xs space-y-0.5">
+            <div className={cn("font-medium", getEraColor(card.era))}>
+              {card.era}{card.rarity ? `- ${card.rarity}` : ''}
+            </div>
+            <div className={cn("font-medium", getSuitColor(card.suit))}>
+              {card.rank} of {card.suit}
+            </div>
+            {card.trader_value && (
+              <div className="text-primary font-medium">
+                TLV: {card.trader_value}
+              </div>
+            )}
+            <div className="text-primary font-medium">
+              TIME: {card.time_value}
+            </div>
           </div>
-          
-          {card.rarity && (
-            <Badge variant="outline" className={cn("text-xs", getRarityColor(card.rarity))}>
-              {card.rarity}
-            </Badge>
-          )}
 
           {baseWidth >= 250 && card.description && (
             <p className="text-xs text-muted-foreground line-clamp-2">
               {card.description}
             </p>
           )}
-
-          {/* TIME Value */}
-          <div className="text-xs text-muted-foreground">
-            TIME: {card.time_value}
-          </div>
         </div>
       </div>
 

@@ -31,25 +31,30 @@ export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, c
     switch (suit.toLowerCase()) {
       case 'hearts':
       case 'diamonds':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
+        return 'text-red-500';
       case 'clubs':
       case 'spades':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
+        return 'text-success';
       default:
-        return 'bg-primary/20 text-primary border-primary/30';
+        return 'text-primary';
     }
   };
 
   const getEraColor = (era: string) => {
-    const colors = [
-      'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      'bg-green-500/20 text-green-400 border-green-500/30',
-      'bg-purple-500/20 text-purple-400 border-purple-500/30',
-      'bg-orange-500/20 text-orange-400 border-orange-500/30',
-      'bg-pink-500/20 text-pink-400 border-pink-500/30',
-    ];
-    const index = era.length % colors.length;
-    return colors[index];
+    switch (era.toLowerCase()) {
+      case 'prehistoric':
+        return 'text-amber-700';
+      case 'ancient':
+        return 'text-yellow-300';
+      case 'medieval':
+        return 'text-red-600';
+      case 'modern':
+        return 'text-slate-300';
+      case 'future':
+        return 'text-teal-400';
+      default:
+        return 'text-primary';
+    }
   };
 
   return (
@@ -88,16 +93,16 @@ export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, c
         </div>
 
         {/* Card Info */}
-        <div className="space-y-2">
+        <div className="space-y-1">
           <h3 className="font-semibold text-sm leading-tight">{card.name}</h3>
           
-          <div className="flex flex-wrap gap-1">
-            <Badge variant="outline" className={cn("text-xs", getSuitColor(card.suit))}>
-              {card.suit} {card.rank}
-            </Badge>
-            <Badge variant="outline" className={cn("text-xs", getEraColor(card.era))}>
+          <div className="text-xs space-y-0.5">
+            <div className={cn("font-medium", getEraColor(card.era))}>
               {card.era}
-            </Badge>
+            </div>
+            <div className={cn("font-medium", getSuitColor(card.suit))}>
+              {card.rank} of {card.suit}
+            </div>
           </div>
           
           {card.description && baseWidth >= 250 && (

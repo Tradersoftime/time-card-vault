@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 
 interface ImageModalProps {
@@ -24,25 +25,47 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
     switch (suit.toLowerCase()) {
       case 'hearts':
       case 'diamonds':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
+        return 'text-red-500';
       case 'clubs':
       case 'spades':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
+        return 'text-success';
       default:
-        return 'bg-primary/20 text-primary border-primary/30';
+        return 'text-primary';
     }
   };
 
   const getEraColor = (era: string) => {
-    const colors = [
-      'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      'bg-green-500/20 text-green-400 border-green-500/30', 
-      'bg-purple-500/20 text-purple-400 border-purple-500/30',
-      'bg-orange-500/20 text-orange-400 border-orange-500/30',
-      'bg-pink-500/20 text-pink-400 border-pink-500/30',
-    ];
-    const index = era.length % colors.length;
-    return colors[index];
+    switch (era.toLowerCase()) {
+      case 'prehistoric':
+        return 'text-amber-700';
+      case 'ancient':
+        return 'text-yellow-300';
+      case 'medieval':
+        return 'text-red-600';
+      case 'modern':
+        return 'text-slate-300';
+      case 'future':
+        return 'text-teal-400';
+      default:
+        return 'text-primary';
+    }
+  };
+
+  const getRarityColor = (rarity: string) => {
+    switch (rarity?.toLowerCase()) {
+      case 'degen':
+        return 'text-slate-100';
+      case 'trader':
+        return 'text-slate-400';
+      case 'investor':
+        return 'text-amber-500';
+      case 'market maker':
+        return 'text-rose-300';
+      case 'whale':
+        return 'text-yellow-300';
+      default:
+        return 'text-primary';
+    }
   };
 
   return (
@@ -72,31 +95,26 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
 
           {/* Card Details */}
           <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className={getSuitColor(card.suit)}>
-                {card.suit} {card.rank}
-              </Badge>
-              <Badge variant="outline" className={getEraColor(card.era)}>
-                {card.era}
-              </Badge>
-              {card.rarity && (
-                <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/30">
-                  {card.rarity}
-                </Badge>
-              )}
+            <div className="space-y-2">
+              <div className={cn("text-lg font-medium", getEraColor(card.era))}>
+                {card.era}{card.rarity ? `- ${card.rarity}` : ''}
+              </div>
+              <div className={cn("text-lg font-medium", getSuitColor(card.suit))}>
+                {card.rank} of {card.suit}
+              </div>
             </div>
 
             <div className="space-y-3">
               {card.trader_value && (
                 <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                  <span className="text-sm font-medium">TLV (Trader Leverage Value)</span>
+                  <span className="text-sm font-medium">TLV</span>
                   <span className="text-lg font-bold text-primary">{card.trader_value}</span>
                 </div>
               )}
               
               {card.time_value && (
                 <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                  <span className="text-sm font-medium">TIME Value</span>
+                  <span className="text-sm font-medium">TIME</span>
                   <span className="text-lg font-bold text-primary">{card.time_value}</span>
                 </div>
               )}
