@@ -344,16 +344,24 @@ export default function AdminRedemptions() {
                     className="transition-all duration-200 hover:scale-105 cursor-pointer"
                   />
                   
-                  {/* Admin Info Overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white p-2 rounded-b-lg text-xs">
-                    <div className="flex items-center gap-1 mb-1">
-                      <User className="h-3 w-3" />
-                      <span className="truncate">{redemption.user_email}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      <span>{new Date(redemption.submitted_at).toLocaleDateString()}</span>
-                    </div>
+                  {/* TIME Value Badge - Super Visible */}
+                  <div className="absolute -top-2 -left-2 z-20">
+                    <Badge className="bg-green-600 text-white font-bold text-sm px-2 py-1 shadow-lg border-2 border-white">
+                      <DollarSign className="h-3 w-3 mr-1" />
+                      {redemption.time_value} TIME
+                    </Badge>
+                  </div>
+                  
+                  {/* User Email Badge - Top Right */}
+                  <div className="absolute -top-2 -right-2 z-10">
+                    <Badge variant="outline" className="bg-white text-xs px-2 py-1 max-w-24 truncate">
+                      {redemption.user_email}
+                    </Badge>
+                  </div>
+                  
+                  {/* Submission Date - Bottom Right Corner */}
+                  <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                    {new Date(redemption.submitted_at).toLocaleDateString()}
                   </div>
                 </div>
               ))}
