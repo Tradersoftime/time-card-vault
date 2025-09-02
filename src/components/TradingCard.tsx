@@ -27,6 +27,16 @@ export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, c
     height: `${height}px`,
   };
 
+  const getSuitIcon = (suit: string) => {
+    switch (suit.toLowerCase()) {
+      case 'hearts': return '♥';
+      case 'diamonds': return '♦';
+      case 'clubs': return '♣';
+      case 'spades': return '♠';
+      default: return '•';
+    }
+  };
+
   const getSuitColor = (suit: string) => {
     switch (suit.toLowerCase()) {
       case 'hearts':
@@ -34,7 +44,7 @@ export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, c
         return 'text-red-500';
       case 'clubs':
       case 'spades':
-        return 'text-success';
+        return 'text-emerald-500';
       default:
         return 'text-primary';
     }
@@ -43,15 +53,15 @@ export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, c
   const getEraColor = (era: string) => {
     switch (era.toLowerCase()) {
       case 'prehistoric':
-        return 'text-amber-700';
+        return 'text-amber-400';
       case 'ancient':
-        return 'text-yellow-300';
+        return 'text-yellow-400';
       case 'medieval':
-        return 'text-red-600';
+        return 'text-rose-400';
       case 'modern':
         return 'text-slate-300';
       case 'future':
-        return 'text-teal-400';
+        return 'text-cyan-400';
       default:
         return 'text-primary';
     }
@@ -93,15 +103,15 @@ export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, c
         </div>
 
         {/* Card Info */}
-        <div className="space-y-1">
-          <h3 className="font-semibold text-sm leading-tight">{card.name}</h3>
+        <div className="space-y-1.5">
+          <h3 className="font-semibold text-sm leading-tight text-foreground">{card.name}</h3>
           
-          <div className="text-xs space-y-0.5">
-            <div className={cn("font-medium", getEraColor(card.era))}>
+          <div className="space-y-1">
+            <div className={cn("text-xs font-medium", getEraColor(card.era))}>
               {card.era}
             </div>
-            <div className={cn("font-medium", getSuitColor(card.suit))}>
-              {card.rank} of {card.suit}
+            <div className={cn("text-base font-bold flex items-center gap-1", getSuitColor(card.suit))}>
+              {card.rank} <span className="text-lg">{getSuitIcon(card.suit)}</span>
             </div>
           </div>
           

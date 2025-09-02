@@ -21,6 +21,16 @@ interface ImageModalProps {
 }
 
 export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
+  const getSuitIcon = (suit: string) => {
+    switch (suit.toLowerCase()) {
+      case 'hearts': return '♥';
+      case 'diamonds': return '♦';
+      case 'clubs': return '♣';
+      case 'spades': return '♠';
+      default: return '•';
+    }
+  };
+
   const getSuitColor = (suit: string) => {
     switch (suit.toLowerCase()) {
       case 'hearts':
@@ -28,7 +38,7 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
         return 'text-red-500';
       case 'clubs':
       case 'spades':
-        return 'text-success';
+        return 'text-emerald-500';
       default:
         return 'text-primary';
     }
@@ -37,15 +47,15 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
   const getEraColor = (era: string) => {
     switch (era.toLowerCase()) {
       case 'prehistoric':
-        return 'text-amber-700';
+        return 'text-amber-400';
       case 'ancient':
-        return 'text-yellow-300';
+        return 'text-yellow-400';
       case 'medieval':
-        return 'text-red-600';
+        return 'text-rose-400';
       case 'modern':
         return 'text-slate-300';
       case 'future':
-        return 'text-teal-400';
+        return 'text-cyan-400';
       default:
         return 'text-primary';
     }
@@ -54,11 +64,11 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
   const getRarityColor = (rarity: string) => {
     switch (rarity?.toLowerCase()) {
       case 'degen':
-        return 'text-slate-100';
+        return 'text-gray-300';
       case 'trader':
-        return 'text-slate-400';
+        return 'text-amber-300';
       case 'investor':
-        return 'text-amber-500';
+        return 'text-yellow-400';
       case 'market maker':
         return 'text-rose-300';
       case 'whale':
@@ -95,12 +105,14 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
 
           {/* Card Details */}
           <div className="space-y-4">
-            <div className="space-y-2">
-              <div className={cn("text-lg font-medium", getEraColor(card.era))}>
-                {card.era}{card.rarity ? `- ${card.rarity}` : ''}
+            <div className="space-y-3">
+              <div className={cn("text-lg font-medium flex items-center gap-2", getEraColor(card.era))}>
+                {card.era}{card.rarity && (
+                  <span className={cn("", getRarityColor(card.rarity))}>- {card.rarity}</span>
+                )}
               </div>
-              <div className={cn("text-lg font-medium", getSuitColor(card.suit))}>
-                {card.rank} of {card.suit}
+              <div className={cn("text-xl font-bold flex items-center gap-2", getSuitColor(card.suit))}>
+                {card.rank} <span className="text-2xl">{getSuitIcon(card.suit)}</span>
               </div>
             </div>
 

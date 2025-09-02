@@ -41,6 +41,16 @@ export function EnhancedTradingCard({
     height: showFullDetails ? `${height + 60}px` : `${height}px`, // Extra space for details
   };
 
+  const getSuitIcon = (suit: string) => {
+    switch (suit.toLowerCase()) {
+      case 'hearts': return '♥';
+      case 'diamonds': return '♦';
+      case 'clubs': return '♣';
+      case 'spades': return '♠';
+      default: return '•';
+    }
+  };
+
   const getSuitColor = (suit: string) => {
     switch (suit.toLowerCase()) {
       case 'hearts':
@@ -48,7 +58,7 @@ export function EnhancedTradingCard({
         return 'text-red-500';
       case 'clubs':
       case 'spades':
-        return 'text-success';
+        return 'text-emerald-500';
       default:
         return 'text-primary';
     }
@@ -57,15 +67,15 @@ export function EnhancedTradingCard({
   const getEraColor = (era: string) => {
     switch (era.toLowerCase()) {
       case 'prehistoric':
-        return 'text-amber-700';
+        return 'text-amber-400';
       case 'ancient':
-        return 'text-yellow-300';
+        return 'text-yellow-400';
       case 'medieval':
-        return 'text-red-600';
+        return 'text-rose-400';
       case 'modern':
         return 'text-slate-300';
       case 'future':
-        return 'text-teal-400';
+        return 'text-cyan-400';
       default:
         return 'text-primary';
     }
@@ -74,11 +84,11 @@ export function EnhancedTradingCard({
   const getRarityColor = (rarity: string) => {
     switch (rarity?.toLowerCase()) {
       case 'degen':
-        return 'text-slate-100';
+        return 'text-gray-300';
       case 'trader':
-        return 'text-slate-400';
+        return 'text-amber-300';
       case 'investor':
-        return 'text-amber-500';
+        return 'text-yellow-400';
       case 'market maker':
         return 'text-rose-300';
       case 'whale':
@@ -146,21 +156,23 @@ export function EnhancedTradingCard({
         </div>
 
         {/* Card Info */}
-        <div className="space-y-1">
-          <h3 className="font-semibold text-sm leading-tight line-clamp-1" title={card.name}>
+        <div className="space-y-1.5">
+          <h3 className="font-semibold text-sm leading-tight line-clamp-1 text-foreground" title={card.name}>
             {card.name}
           </h3>
           
-          <div className="text-xs space-y-0.5">
-            <div className={cn("font-medium", getEraColor(card.era))}>
-              {card.era}{card.rarity ? `- ${card.rarity}` : ''}
+          <div className="space-y-1">
+            <div className={cn("text-xs font-medium flex items-center gap-1", getEraColor(card.era))}>
+              {card.era}{card.rarity && (
+                <span className={cn("", getRarityColor(card.rarity))}>- {card.rarity}</span>
+              )}
             </div>
-            <div className={cn("font-medium", getSuitColor(card.suit))}>
-              {card.rank} of {card.suit}
+            <div className={cn("text-base font-bold flex items-center gap-1", getSuitColor(card.suit))}>
+              {card.rank} <span className="text-lg">{getSuitIcon(card.suit)}</span>
             </div>
             
             {showFullDetails && (
-              <>
+              <div className="space-y-0.5 text-xs">
                 {card.trader_value && (
                   <div className="text-primary font-medium">
                     TLV: {card.trader_value}
@@ -171,7 +183,7 @@ export function EnhancedTradingCard({
                     TIME: {card.time_value}
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
 
