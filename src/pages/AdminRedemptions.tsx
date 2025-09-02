@@ -309,62 +309,74 @@ export default function AdminRedemptions() {
         <CardContent>
           {filteredAndSortedRedemptions.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-              {filteredAndSortedRedemptions.map((redemption) => (
-                <div key={redemption.redemption_id} className="relative">
-                  <Checkbox
-                    checked={selectedRedemptions.includes(redemption.redemption_id)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedRedemptions([...selectedRedemptions, redemption.redemption_id]);
-                      } else {
+              {filteredAndSortedRedemptions.map((redemption) => {
+                const isSelected = selectedRedemptions.includes(redemption.redemption_id);
+                return (
+                  <div 
+                    key={redemption.redemption_id} 
+                    className={`space-y-2 p-2 rounded-lg border-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
+                      isSelected ? 'border-primary bg-primary/5' : 'border-transparent hover:border-border'
+                    }`}
+                    onClick={() => {
+                      if (isSelected) {
                         setSelectedRedemptions(selectedRedemptions.filter(id => id !== redemption.redemption_id));
+                      } else {
+                        setSelectedRedemptions([...selectedRedemptions, redemption.redemption_id]);
                       }
                     }}
-                    className="absolute -top-2 -left-2 z-10 bg-background border-2"
-                  />
-                  
-                  <EnhancedTradingCard
-                    card={{
-                      id: redemption.card_id,
-                      name: redemption.card_name,
-                      suit: redemption.card_suit,
-                      rank: redemption.card_rank,
-                      era: redemption.card_era,
-                      rarity: redemption.card_rarity,
-                      image_url: redemption.card_image_url,
-                      time_value: redemption.time_value,
-                      trader_value: redemption.trader_value,
-                      description: '',
-                      is_claimed: false,
-                      claimed_at: null,
-                      redemption_status: 'pending'
-                    }}
-                    baseWidth={120}
-                    showFullDetails={true}
-                    className="transition-all duration-200 hover:scale-105 cursor-pointer"
-                  />
-                  
-                  {/* TIME Value Badge - Super Visible */}
-                  <div className="absolute -top-2 -left-2 z-20">
-                    <Badge className="bg-green-600 text-white font-bold text-sm px-2 py-1 shadow-lg border-2 border-white">
-                      <DollarSign className="h-3 w-3 mr-1" />
-                      {redemption.time_value} TIME
-                    </Badge>
+                  >
+                    <div className="relative">
+                      <EnhancedTradingCard
+                        card={{
+                          id: redemption.card_id,
+                          name: redemption.card_name,
+                          suit: redemption.card_suit,
+                          rank: redemption.card_rank,
+                          era: redemption.card_era,
+                          rarity: redemption.card_rarity,
+                          image_url: redemption.card_image_url,
+                          time_value: redemption.time_value,
+                          trader_value: redemption.trader_value,
+                          description: '',
+                          is_claimed: false,
+                          claimed_at: null,
+                          redemption_status: 'pending'
+                        }}
+                        baseWidth={120}
+                        showFullDetails={true}
+                        className="transition-all duration-200"
+                      />
+                      
+                      {/* TIME Value Badge - Super Visible */}
+                      <div className="absolute -top-2 -left-2 z-20">
+                        <Badge className="bg-green-600 text-white font-bold text-sm px-2 py-1 shadow-lg border-2 border-white">
+                          <DollarSign className="h-3 w-3 mr-1" />
+                          {redemption.time_value} TIME
+                        </Badge>
+                      </div>
+                      
+                      {/* Selection Indicator */}
+                      {isSelected && (
+                        <div className="absolute -top-2 -right-2 z-10">
+                          <CheckCircle className="h-5 w-5 text-primary bg-background rounded-full" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* User Info Below Card - Grayed Out */}
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1 truncate">
+                        <User className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{redemption.user_email}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3 flex-shrink-0" />
+                        <span>{new Date(redemption.submitted_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  
-                  {/* User Email Badge - Top Right */}
-                  <div className="absolute -top-2 -right-2 z-10">
-                    <Badge variant="outline" className="bg-white text-xs px-2 py-1 max-w-24 truncate">
-                      {redemption.user_email}
-                    </Badge>
-                  </div>
-                  
-                  {/* Submission Date - Bottom Right Corner */}
-                  <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                    {new Date(redemption.submitted_at).toLocaleDateString()}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
