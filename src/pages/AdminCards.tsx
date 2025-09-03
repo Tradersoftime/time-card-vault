@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Search, LayoutGrid, List, QrCode, Eye, Filter, ArrowUpDown, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -15,6 +16,7 @@ import { CardCreateModal } from '@/components/CardCreateModal';
 import { CSVOperations } from '@/components/CSVOperations';
 import { QRCodePreview } from '@/components/QRCodePreview';
 import { ImageDownloadButton } from '@/components/ImageDownloadButton';
+import { BulkActionsBar } from '@/components/BulkActionsBar';
 import { cn } from '@/lib/utils';
 import QRCode from 'qrcode';
 
@@ -29,6 +31,7 @@ interface CardData {
   time_value: number;
   trader_value: string | null;
   image_url: string | null;
+  image_code?: string | null;
   description: string | null;
   status: string;
   is_active: boolean;
@@ -113,76 +116,13 @@ const AdminCards = () => {
     }
   };
 
-  const toggleCardSelection = (cardId: string) => {
-    setSelectedCards(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(cardId)) {
-        newSet.delete(cardId);
-      } else {
-        newSet.add(cardId);
-      }
-      return newSet;
-    });
-  };
-
-  const selectAllCards = () => {
-    setSelectedCards(new Set(filteredCards.map(card => card.id)));
-  };
-
-  const deselectAllCards = () => {
-    setSelectedCards(new Set());
-  };
-
-  // View mode functions
-  const setViewModeAndSave = (mode: 'grid' | 'list') => {
-    setViewMode(mode);
-    localStorage.setItem('adminCards_viewMode', mode);
-  };
-
-  const setCardSizeAndSave = (size: 'sm' | 'md' | 'lg') => {
-    setCardSize(size);
-    localStorage.setItem('adminCards_cardSize', size);
-  };
-
-  // Modal functions
-  const handleEditCard = (card: CardData) => {
-    setSelectedCard(card);
-    setShowEditModal(true);
-  };
-
-  const handleViewQR = (card: CardData) => {
-    setSelectedCard(card);
-    setShowQRModal(true);
-    loadQRCode(card);
-  };
-
-  const handleViewImage = (imageUrl: string, cardName: string) => {
-    setModalImageUrl(imageUrl);
-    setModalImageName(cardName);
-    setShowImageModal(true);
-  };
-
-  const handleModalClose = () => {
-    setShowEditModal(false);
-    setShowCreateModal(false);
-    setShowQRModal(false);
-    setShowImageModal(false);
-    setSelectedCard(null);
-    setModalImageUrl('');
-    setModalImageName('');
-  };
-
-  const handleSaveCard = () => {
-    fetchCards();
-    handleModalClose();
-  };
-
   const fetchCards = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('cards')
-        .select('*, qr_dark, qr_light')
+        .select('*, qr_dark, qr_light, image_code')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -248,6 +188,107 @@ const AdminCards = () => {
       return matchesSearch && matchesStatus;
     })
   );
+
+  // View mode functions
+  const setViewModeAndSave = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('adminCards_viewMode', mode);
+  };
+
+  const setCardSizeAndSave = (size: 'sm' | 'md' | 'lg') => {
+    setCardSize(size);
+    localStorage.setItem('adminCards_cardSize', size);
+  };
+
+  // Modal functions
+  const handleEditCard = (card: CardData) => {
+    setSelectedCard(card);
+    setShowEditModal(true);
+  };
+
+  const handleViewQR = (card: CardData) => {
+    setSelectedCard(card);
+    setShowQRModal(true);
+    loadQRCode(card);
+  };
+
+  const handleViewImage = (imageUrl: string, cardName: string) => {
+    setModalImageUrl(imageUrl);
+    setModalImageName(cardName);
+    setShowImageModal(true);
+  };
+
+  const handleModalClose = () => {
+    setShowEditModal(false);
+    setShowCreateModal(false);
+    setShowQRModal(false);
+    setShowImageModal(false);
+    setSelectedCard(null);
+    setModalImageUrl('');
+    setModalImageName('');
+  };
+
+  const handleSaveCard = () => {
+    fetchCards();
+    handleModalClose();
+  };
+
+  const handleDeleteCard = async (cardId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('admin_soft_delete_card', {
+        p_card_id: cardId
+      });
+
+      if (error) throw error;
+
+      if (data.ok) {
+        toast({
+          title: "Success",
+          description: "Card deleted successfully",
+        });
+        fetchCards();
+      } else {
+        throw new Error(data.error || 'Delete failed');
+      }
+    } catch (error) {
+      console.error('Error deleting card:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete card",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleCardSelection = (cardId: string) => {
+    setSelectedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(cardId)) {
+        newSet.delete(cardId);
+      } else {
+        newSet.add(cardId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllCards = () => {
+    setSelectedCards(new Set(filteredCards.map(card => card.id)));
+  };
+
+  const deselectAllCards = () => {
+    setSelectedCards(new Set());
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCards.size === filteredCards.length && selectedCards.size > 0) {
+      deselectAllCards();
+    } else {
+      selectAllCards();
+    }
+  };
+
+  const isAllSelected = filteredCards.length > 0 && selectedCards.size === filteredCards.length;
 
   // Get status counts for filter badges
   const statusCounts = {
@@ -329,6 +370,18 @@ const AdminCards = () => {
         <div className="glass-panel p-4 rounded-2xl mb-6">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-1">
+              {/* Select All Checkbox */}
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={toggleSelectAll}
+                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                />
+                <label className="text-sm text-muted-foreground">
+                  Select All ({filteredCards.length})
+                </label>
+              </div>
+
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -425,14 +478,6 @@ const AdminCards = () => {
             </div>
           </div>
 
-          {/* Bulk Actions */}
-          {selectedCards.size > 0 && (
-            <div className="flex items-center gap-2 mt-4 pt-4 border-t">
-              <Button variant="outline" size="sm" onClick={selectAllCards}>
-                Select All ({filteredCards.length})
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* Main Content */}
@@ -451,6 +496,7 @@ const AdminCards = () => {
                   onEdit={handleEditCard}
                   onViewQR={handleViewQR}
                   onViewImage={handleViewImage}
+                  onDelete={handleDeleteCard}
                 />
               ))}
             </div>
@@ -534,6 +580,16 @@ const AdminCards = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Bulk Actions Bar */}
+        {selectedCards.size > 0 && (
+          <BulkActionsBar
+            selectedCount={selectedCards.size}
+            selectedCardIds={Array.from(selectedCards)}
+            onClearSelection={deselectAllCards}
+            onRefresh={fetchCards}
+          />
+        )}
       </div>
     </div>
   );

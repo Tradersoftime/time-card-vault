@@ -23,6 +23,7 @@ interface CardData {
   time_value: number;
   trader_value: string | null;
   image_url: string | null;
+  image_code?: string | null;
   description: string | null;
   status: string;
   is_active: boolean;
@@ -357,6 +358,26 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                   cardCode={card.code}
                   className="h-80"
                 />
+              </div>
+
+              {/* Image Code Display */}
+              <div className="space-y-2">
+                <Label htmlFor="image_code_display">Image Code</Label>
+                <div className="p-3 bg-muted/50 border rounded-md">
+                  <div className="text-sm font-mono text-muted-foreground">
+                    {card.image_code || '—'}
+                  </div>
+                  {card.image_code && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      From CSV import
+                    </div>
+                  )}
+                  {!card.image_code && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      No image code assigned
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">

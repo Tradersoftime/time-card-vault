@@ -1,8 +1,20 @@
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { Edit, QrCode, Eye, Download, AlertTriangle } from 'lucide-react';
+import { Edit, QrCode, Eye, Download, AlertTriangle, Trash2 } from 'lucide-react';
 import { useImageDimensions, calculateCardDimensions } from '@/hooks/useImageDimensions';
 
 interface CardData {
@@ -16,6 +28,7 @@ interface CardData {
   time_value: number;
   trader_value: string | null;
   image_url: string | null;
+  image_code?: string | null;
   description: string | null;
   status: string;
   is_active: boolean;
@@ -32,6 +45,7 @@ interface AdminTradingCardProps {
   onEdit: (card: CardData) => void;
   onViewQR: (card: CardData) => void;
   onViewImage?: (imageUrl: string, cardName: string) => void;
+  onDelete?: (cardId: string) => void;
   baseWidth?: number;
   className?: string;
 }
@@ -43,6 +57,7 @@ export function AdminTradingCard({
   onEdit,
   onViewQR,
   onViewImage,
+  onDelete,
   baseWidth = 200,
   className
 }: AdminTradingCardProps) {
@@ -224,6 +239,38 @@ export function AdminTradingCard({
 
       {/* Quick Action Buttons */}
       <div className="absolute bottom-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {onDelete && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 w-6 p-0 bg-background/80 backdrop-blur-sm text-red-500 border-red-500 hover:bg-red-500 hover:text-white"
+                onClick={(e) => e.stopPropagation()}
+                title="Delete card"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Card</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete "{card.name}"? This action will soft-delete the card (it can be restored later).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => onDelete(card.id)}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Delete Card
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         <Button
           size="sm"
           variant="outline"
