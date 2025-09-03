@@ -45,7 +45,8 @@ export function BulkActionsBar({
 
       if (error) throw error;
 
-      const count = data.updated_count || 0;
+      console.log('Bulk set active response:', data);
+      const count = data?.updated_count || 0;
       toast({
         title: "Success",
         description: `${count} card${count !== 1 ? 's' : ''} ${isActive ? 'activated' : 'deactivated'} successfully`,
@@ -53,11 +54,11 @@ export function BulkActionsBar({
       
       onClearSelection();
       onRefresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating cards:', error);
       toast({
-        title: "Error",
-        description: `Failed to ${isActive ? 'activate' : 'deactivate'} cards`,
+        title: "Error", 
+        description: error.message || `Failed to ${isActive ? 'activate' : 'deactivate'} cards`,
         variant: "destructive",
       });
     } finally {
@@ -77,7 +78,8 @@ export function BulkActionsBar({
 
       if (error) throw error;
 
-      const count = data.deleted_count || 0;
+      console.log('Bulk delete response:', data);
+      const count = data?.deleted_count || 0;
       toast({
         title: "Success",
         description: `${count} card${count !== 1 ? 's' : ''} deleted successfully`,
@@ -85,11 +87,11 @@ export function BulkActionsBar({
       
       onClearSelection();
       onRefresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting cards:', error);
       toast({
         title: "Error",
-        description: "Failed to delete cards",
+        description: error.message || "Failed to delete cards",
         variant: "destructive",
       });
     } finally {

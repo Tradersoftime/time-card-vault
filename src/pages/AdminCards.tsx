@@ -372,12 +372,21 @@ const AdminCards = () => {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-1">
               {/* Select All Checkbox */}
               <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={isAllSelected}
-                  onCheckedChange={toggleSelectAll}
-                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                />
-                <label className="text-sm text-muted-foreground">
+                <div className="relative">
+                  <Checkbox
+                    checked={isAllSelected}
+                    onCheckedChange={toggleSelectAll}
+                    className="h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                  <div 
+                    className="absolute -inset-2 cursor-pointer" 
+                    onClick={toggleSelectAll}
+                  />
+                </div>
+                <label 
+                  className="text-sm text-muted-foreground cursor-pointer select-none"
+                  onClick={toggleSelectAll}
+                >
                   Select All ({filteredCards.length})
                 </label>
               </div>
