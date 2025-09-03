@@ -145,11 +145,18 @@ export function AdminTradingCard({
     >
       {/* Selection Checkbox */}
       <div className="absolute top-2 left-2 z-20">
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={() => onSelect(card.id)}
-          className="bg-background/80 backdrop-blur-sm border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-        />
+        <div className="relative">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => onSelect(card.id)}
+            className="h-5 w-5 bg-background/80 backdrop-blur-sm border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+          />
+          {/* Larger clickable area */}
+          <div 
+            className="absolute -inset-2 cursor-pointer" 
+            onClick={() => onSelect(card.id)}
+          />
+        </div>
       </div>
 
       {/* Status and Active Indicators */}
