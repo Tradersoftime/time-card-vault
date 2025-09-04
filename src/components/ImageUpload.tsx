@@ -25,18 +25,23 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   className = ''
 }) => {
   const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState<string | null>(currentImageUrl || null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [mode, setMode] = useState<'upload' | 'code'>('upload');
-  const [imageCode, setImageCode] = useState(currentImageCode || '');
+  const [imageCode, setImageCode] = useState('');
 
-  // Sync internal state with props when they change
+  // Initialize and sync state with props
   useEffect(() => {
+    console.log('ImageUpload: Syncing with props', { currentImageUrl, currentImageCode });
     setPreview(currentImageUrl || null);
-  }, [currentImageUrl]);
-
-  useEffect(() => {
     setImageCode(currentImageCode || '');
-  }, [currentImageCode]);
+    
+    // Set mode based on what we have
+    if (currentImageCode && !currentImageUrl) {
+      setMode('code');
+    } else if (currentImageUrl) {
+      setMode('upload');
+    }
+  }, [currentImageUrl, currentImageCode]);
 
   const uploadImage = async (file: File) => {
     try {
