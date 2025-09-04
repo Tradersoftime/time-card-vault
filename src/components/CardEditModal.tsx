@@ -356,9 +356,11 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
               <div className="space-y-2">
                 <Label>Card Image</Label>
                 <ImageUpload
+                  key={card.id} // Force re-render when card changes
                   onImageUploaded={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
                   onImageCodeChanged={(code) => setFormData(prev => ({ ...prev, image_code: code }))}
                   currentImageUrl={formData.image_url}
+                  currentImageCode={formData.image_code}
                   cardCode={card.code}
                   className="h-80"
                 />

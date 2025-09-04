@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ interface ImageUploadProps {
   onImageUploaded: (url: string) => void;
   onImageCodeChanged?: (imageCode: string) => void;
   currentImageUrl?: string;
+  currentImageCode?: string;
   cardCode?: string;
   className?: string;
 }
@@ -19,13 +20,23 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   onImageUploaded,
   onImageCodeChanged,
   currentImageUrl,
+  currentImageCode,
   cardCode,
   className = ''
 }) => {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentImageUrl || null);
   const [mode, setMode] = useState<'upload' | 'code'>('upload');
-  const [imageCode, setImageCode] = useState('');
+  const [imageCode, setImageCode] = useState(currentImageCode || '');
+
+  // Sync internal state with props when they change
+  useEffect(() => {
+    setPreview(currentImageUrl || null);
+  }, [currentImageUrl]);
+
+  useEffect(() => {
+    setImageCode(currentImageCode || '');
+  }, [currentImageCode]);
 
   const uploadImage = async (file: File) => {
     try {
