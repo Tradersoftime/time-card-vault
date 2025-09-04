@@ -220,6 +220,13 @@ export function AdminTradingCard({
                 <span className="text-muted-foreground">- {card.rarity}</span>
               )}
             </div>
+            
+            {/* Image Code Display */}
+            {card.image_code && (
+              <div className="text-xs font-mono bg-muted/50 px-1 py-0.5 rounded text-muted-foreground">
+                IMG: {card.image_code}
+              </div>
+            )}
             <div className="text-xl font-bold flex items-center gap-2">
               <span className="text-foreground">{card.rank}</span>
               <span className={cn("text-2xl", getSuitColor(card.suit))}>{getSuitIcon(card.suit)}</span>

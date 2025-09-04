@@ -119,29 +119,71 @@ export function BulkActionsBar({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkSetActive(true)}
-              disabled={loading}
-              className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white"
-            >
-              {loading && operation === 'activating' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <CheckSquare className="h-4 w-4 mr-1" />
-              Set Active
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                  className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white"
+                >
+                  <CheckSquare className="h-4 w-4 mr-1" />
+                  Activate Selected
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Activate Selected Cards</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to activate {selectedCount} card{selectedCount !== 1 ? 's' : ''}? 
+                    This will make them available for claiming by users.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => handleBulkSetActive(true)}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {loading && operation === 'activating' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Activate Cards
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkSetActive(false)}
-              disabled={loading}
-              className="text-orange-600 border-orange-600 hover:bg-orange-600 hover:text-white"
-            >
-              {loading && operation === 'deactivating' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <Square className="h-4 w-4 mr-1" />
-              Set Inactive
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                  className="text-orange-600 border-orange-600 hover:bg-orange-600 hover:text-white"
+                >
+                  <Square className="h-4 w-4 mr-1" />
+                  Deactivate Selected
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Deactivate Selected Cards</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to deactivate {selectedCount} card{selectedCount !== 1 ? 's' : ''}? 
+                    This will prevent users from claiming them until reactivated.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => handleBulkSetActive(false)}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    {loading && operation === 'deactivating' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Deactivate Cards
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>

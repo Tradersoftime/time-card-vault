@@ -52,6 +52,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
     time_value: 0,
     trader_value: '',
     image_url: '',
+    image_code: '',
     description: '',
     status: 'active',
     is_active: true,
@@ -71,6 +72,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
         time_value: card.time_value,
         trader_value: card.trader_value || '',
         image_url: card.image_url || '',
+        image_code: card.image_code || '',
         description: card.description || '',
         status: card.status,
         is_active: card.is_active,
@@ -98,6 +100,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
           time_value: formData.time_value,
           trader_value: formData.trader_value || null,
           image_url: formData.image_url || null,
+          image_code: formData.image_code || null,
           description: formData.description || null,
           status: formData.status,
           is_active: formData.is_active,
@@ -354,6 +357,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                 <Label>Card Image</Label>
                 <ImageUpload
                   onImageUploaded={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
+                  onImageCodeChanged={(code) => setFormData(prev => ({ ...prev, image_code: code }))}
                   currentImageUrl={formData.image_url}
                   cardCode={card.code}
                   className="h-80"
@@ -364,19 +368,16 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
               <div className="space-y-2">
                 <Label htmlFor="image_code_display">Image Code</Label>
                 <div className="p-3 bg-muted/50 border rounded-md">
-                  <div className="text-sm font-mono text-muted-foreground">
-                    {card.image_code || '—'}
+                  <div className="text-sm font-mono text-foreground">
+                    {formData.image_code || '—'}
                   </div>
-                  {card.image_code && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      From CSV import
-                    </div>
-                  )}
-                  {!card.image_code && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      No image code assigned
-                    </div>
-                  )}
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {formData.image_code ? (
+                      formData.image_code !== card.image_code ? 
+                        'Updated from image selection' : 
+                        'From CSV import or image selection'
+                    ) : 'No image code assigned'}
+                  </div>
                 </div>
               </div>
 

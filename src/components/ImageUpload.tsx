@@ -9,6 +9,7 @@ import { ImageCodeBrowser } from './ImageCodeBrowser';
 
 interface ImageUploadProps {
   onImageUploaded: (url: string) => void;
+  onImageCodeChanged?: (imageCode: string) => void;
   currentImageUrl?: string;
   cardCode?: string;
   className?: string;
@@ -16,6 +17,7 @@ interface ImageUploadProps {
 
 export const ImageUpload: React.FC<ImageUploadProps> = ({
   onImageUploaded,
+  onImageCodeChanged,
   currentImageUrl,
   cardCode,
   className = ''
@@ -52,6 +54,12 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 
       setPreview(publicUrl);
       onImageUploaded(publicUrl);
+      
+      // Auto-derive image code from filename (without path and extension)
+      const derivedCode = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+      setImageCode(derivedCode);
+      onImageCodeChanged?.(derivedCode);
+      
       toast.success('Image uploaded successfully!');
       
     } catch (error: any) {
@@ -100,6 +108,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       if (data) {
         setPreview(data);
         onImageUploaded(data);
+        onImageCodeChanged?.(code);
         toast.success(`Found image for code: ${code}`);
       } else {
         toast.error(`No image found for code: ${code}`);
@@ -120,6 +129,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     setPreview(url);
     setImageCode(code);
     onImageUploaded(url);
+    onImageCodeChanged?.(code);
   };
 
   const removeImage = () => {
