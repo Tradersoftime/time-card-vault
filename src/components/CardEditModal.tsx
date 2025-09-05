@@ -31,6 +31,7 @@ interface CardData {
   current_target?: string | null;
   qr_dark?: string | null;
   qr_light?: string | null;
+  claim_token?: string | null; // Added for secure token-based claiming
 }
 
 interface CardEditModalProps {
@@ -384,9 +385,40 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
               </div>
 
               <div className="space-y-2">
+                <Label>Claim Token</Label>
+                <div className="p-3 bg-muted/50 border rounded-md">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-mono text-foreground">
+                      {card.claim_token || '—'}
+                    </div>
+                    {card.claim_token && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(card.claim_token!);
+                          toast({
+                            title: "Copied",
+                            description: "Claim token copied to clipboard",
+                          });
+                        }}
+                        className="text-xs"
+                      >
+                        Copy
+                      </Button>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Secure token for claiming this card
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <Label>QR Code Preview</Label>
                 <QRCodePreview
-                  code={card.code}
+                  code={card.claim_token || card.code}
                   qrDark={formData.qr_dark}
                   qrLight={formData.qr_light}
                   onColorChange={handleColorChange}

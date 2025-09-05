@@ -16,6 +16,7 @@ import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
 import CardRedirect from "./pages/CardRedirect";
 import ClaimCard from "./pages/ClaimCard";
+import ClaimToken from "./pages/ClaimToken";
 import MyCards from "./pages/MyCards";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
@@ -38,7 +39,7 @@ const App = () => (
                 <Route path="/auth/login" element={<Login />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/r/:code" element={<CardRedirect />} />
-                <Route path="/claim" element={<ClaimCard />} />
+                <Route path="/claim" element={<ClaimToken />} />
                 <Route path="/me/cards" element={<MyCards />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/auth/admin" element={<AdminLogin />} />

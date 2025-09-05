@@ -39,6 +39,7 @@ interface CardData {
   current_target?: string | null;
   qr_dark?: string | null;
   qr_light?: string | null;
+  claim_token?: string | null; // Added for secure token-based claiming
 }
 
 const AdminCards = () => {
@@ -94,8 +95,13 @@ const AdminCards = () => {
   // Utility functions
   const generateQRCode = async (code: string, qrDark?: string | null, qrLight?: string | null): Promise<string> => {
     try {
-      const url = `${window.location.origin}/claim/${code}`;
-      return await QRCode.toDataURL(url, {
+      // Use tot.cards domain for production QRs
+      const baseUrl = import.meta.env.PUBLIC_CLAIM_BASE_URL || 'https://tot.cards/claim?token=';
+      const shortUrl = import.meta.env.PUBLIC_SHORT_CLAIM_BASE_URL;
+      
+      const claimUrl = shortUrl ? `${shortUrl}${code}` : `${baseUrl}${code}`;
+      
+      return await QRCode.toDataURL(claimUrl, {
         width: 200,
         margin: 2,
         color: {
@@ -111,7 +117,9 @@ const AdminCards = () => {
 
   const loadQRCode = async (card: CardData) => {
     if (!qrCodes.has(card.id)) {
-      const qrDataUrl = await generateQRCode(card.code, card.qr_dark, card.qr_light);
+      // Use claim_token for QR code generation, fallback to code if no claim_token
+      const token = card.claim_token || card.code;
+      const qrDataUrl = await generateQRCode(token, card.qr_dark, card.qr_light);
       setQrCodes(prev => new Map(prev).set(card.id, qrDataUrl));
     }
   };
@@ -121,7 +129,7 @@ const AdminCards = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('cards')
-        .select('*, qr_dark, qr_light, image_code')
+        .select('*, qr_dark, qr_light, image_code, claim_token')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
@@ -506,6 +514,13 @@ const AdminCards = () => {
                   onViewQR={handleViewQR}
                   onViewImage={handleViewImage}
                   onDelete={handleDeleteCard}
+                  onCopyToken={(token) => {
+                    navigator.clipboard.writeText(token);
+                    toast({
+                      title: "Copied",
+                      description: "Claim token copied to clipboard",
+                    });
+                  }}
                 />
               ))}
             </div>
@@ -552,16 +567,35 @@ const AdminCards = () => {
             {selectedCard && (
               <div className="space-y-4">
                 <QRCodePreview
-                  code={selectedCard.code}
+                  code={selectedCard.claim_token || selectedCard.code}
                   qrDark={selectedCard.qr_dark}
                   qrLight={selectedCard.qr_light}
                   showColorControls={false}
                   size={250}
                 />
-                <div className="text-sm text-muted-foreground text-center">
+                <div className="text-sm text-muted-foreground text-center space-y-1">
                   <p>Card ID: {selectedCard.id}</p>
                   <p>Code: {selectedCard.code}</p>
-                  <p>URL: {window.location.origin}/claim/{selectedCard.code}</p>
+                  {selectedCard.claim_token && (
+                    <div className="flex items-center justify-center gap-2">
+                      <span>Claim Token: {selectedCard.claim_token}</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedCard.claim_token!);
+                          toast({
+                            title: "Copied",
+                            description: "Claim token copied to clipboard",
+                          });
+                        }}
+                        className="h-6 px-2 text-xs"
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  )}
+                  <p>QR URL: {import.meta.env.PUBLIC_CLAIM_BASE_URL || 'https://tot.cards/claim?token='}{selectedCard.claim_token || selectedCard.code}</p>
                 </div>
               </div>
             )}

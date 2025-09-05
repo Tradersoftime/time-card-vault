@@ -14,7 +14,7 @@ import {
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { Edit, QrCode, Eye, Download, AlertTriangle, Trash2 } from 'lucide-react';
+import { Edit, QrCode, Eye, Download, AlertTriangle, Trash2, Copy } from 'lucide-react';
 import { useImageDimensions, calculateCardDimensions } from '@/hooks/useImageDimensions';
 
 interface CardData {
@@ -36,6 +36,7 @@ interface CardData {
   current_target?: string | null;
   qr_dark?: string | null;
   qr_light?: string | null;
+  claim_token?: string | null; // Added for secure token-based claiming
 }
 
 interface AdminTradingCardProps {
@@ -46,6 +47,7 @@ interface AdminTradingCardProps {
   onViewQR: (card: CardData) => void;
   onViewImage?: (imageUrl: string, cardName: string) => void;
   onDelete?: (cardId: string) => void;
+  onCopyToken?: (token: string) => void; // For copying claim tokens
   baseWidth?: number;
   className?: string;
 }
@@ -58,6 +60,7 @@ export function AdminTradingCard({
   onViewQR,
   onViewImage,
   onDelete,
+  onCopyToken,
   baseWidth = 200,
   className
 }: AdminTradingCardProps) {
@@ -225,6 +228,25 @@ export function AdminTradingCard({
             {card.image_code && (
               <div className="text-xs font-mono bg-muted/50 px-1 py-0.5 rounded text-muted-foreground">
                 IMG: {card.image_code}
+              </div>
+            )}
+            
+            {/* Claim Token Display */}
+            {card.claim_token && (
+              <div className="flex items-center justify-between text-xs font-mono bg-green-500/10 px-1 py-0.5 rounded text-green-600">
+                <span className="truncate">TOKEN: {card.claim_token.substring(0, 8)}...</span>
+                {onCopyToken && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCopyToken(card.claim_token!);
+                    }}
+                    className="ml-1 p-0.5 hover:bg-green-500/20 rounded transition-colors"
+                    title="Copy claim token"
+                  >
+                    <Copy className="h-2.5 w-2.5" />
+                  </button>
+                )}
               </div>
             )}
             <div className="text-xl font-bold flex items-center gap-2">

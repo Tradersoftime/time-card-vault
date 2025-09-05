@@ -43,8 +43,13 @@ export const QRCodePreview = ({
     
     setGenerating(true);
     try {
-      const url = `${window.location.origin}/claim/${code}`;
-      const dataUrl = await QRCode.toDataURL(url, {
+      // Use tot.cards domain for production QRs
+      const baseUrl = import.meta.env.PUBLIC_CLAIM_BASE_URL || 'https://tot.cards/claim?token=';
+      const shortUrl = import.meta.env.PUBLIC_SHORT_CLAIM_BASE_URL;
+      
+      const claimUrl = shortUrl ? `${shortUrl}${code}` : `${baseUrl}${code}`;
+      
+      const dataUrl = await QRCode.toDataURL(claimUrl, {
         width: size,
         margin: 2,
         color: {
@@ -99,11 +104,15 @@ export const QRCodePreview = ({
     if (!code) return;
 
     try {
-      const url = `${window.location.origin}/claim/${code}`;
+      // Use tot.cards domain for production QRs
+      const baseUrl = import.meta.env.PUBLIC_CLAIM_BASE_URL || 'https://tot.cards/claim?token=';
+      const shortUrl = import.meta.env.PUBLIC_SHORT_CLAIM_BASE_URL;
+      
+      const claimUrl = shortUrl ? `${shortUrl}${code}` : `${baseUrl}${code}`;
       let dataUrl: string;
 
       if (format === 'svg') {
-        const svgString = await QRCode.toString(url, {
+        const svgString = await QRCode.toString(claimUrl, {
           type: 'svg',
           width: downloadSize,
           margin: 2,
@@ -114,7 +123,7 @@ export const QRCodePreview = ({
         });
         dataUrl = `data:image/svg+xml;base64,${btoa(svgString)}`;
       } else {
-        dataUrl = await QRCode.toDataURL(url, {
+        dataUrl = await QRCode.toDataURL(claimUrl, {
           width: downloadSize,
           margin: 2,
           color: {

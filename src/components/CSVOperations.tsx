@@ -51,6 +51,7 @@ interface CardData {
   current_target?: string | null;
   qr_dark?: string | null;
   qr_light?: string | null;
+  claim_token?: string | null; // Added for secure token-based claiming
 }
 
 interface CSVOperationsProps {
@@ -130,7 +131,8 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
       'is_active',
       'current_target',
       'qr_dark',       // QR customization fields
-      'qr_light'
+      'qr_light',
+      'claim_token'    // Secure claiming token
     ];
 
     // Convert cards to CSV rows with standardized field order
@@ -154,7 +156,8 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
         card.is_active,
         card.current_target || '',
         card.qr_dark || '#000000',  // QR fields
-        card.qr_light || '#FFFFFF'
+        card.qr_light || '#FFFFFF',
+        card.claim_token || ''      // Secure claiming token
       ];
     });
 
@@ -299,7 +302,9 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
               is_active: cleanRow.is_active === 'true' || cleanRow.is_active === true || cleanRow.is_active === 1,
               current_target: cleanRow.current_target || null,
               qr_dark: cleanRow.qr_dark || null,
-              qr_light: cleanRow.qr_light || null
+              qr_light: cleanRow.qr_light || null,
+              // Include claim_token if provided (optional)
+              ...(cleanRow.claim_token && { claim_token: cleanRow.claim_token })
             };
 
             // Add card_id if provided (for updates)
@@ -450,6 +455,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                         <th className="p-2 text-left">Rank</th>
                         <th className="p-2 text-left">Era</th>
                         <th className="p-2 text-left">Image</th>
+                        <th className="p-2 text-left">Token</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -484,6 +490,15 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
                                 <span className="text-muted-foreground">URL</span>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-xs">
+                              {row.claim_token ? (
+                                <span className="bg-green-100 text-green-800 px-1 rounded font-mono">
+                                  {row.claim_token.substring(0, 8)}...
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">Auto-generated</span>
                               )}
                             </td>
                           </tr>
