@@ -103,6 +103,9 @@ export type Database = {
       }
       cards: {
         Row: {
+          claim_token: string
+          claimed_at: string | null
+          claimed_by: string | null
           code: string
           created_at: string
           current_target: string | null
@@ -114,6 +117,7 @@ export type Database = {
           image_code: string | null
           image_url: string | null
           is_active: boolean
+          is_claimed: boolean
           name: string
           qr_dark: string | null
           qr_light: string | null
@@ -125,6 +129,9 @@ export type Database = {
           trader_value: string | null
         }
         Insert: {
+          claim_token?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
           code: string
           created_at?: string
           current_target?: string | null
@@ -136,6 +143,7 @@ export type Database = {
           image_code?: string | null
           image_url?: string | null
           is_active?: boolean
+          is_claimed?: boolean
           name: string
           qr_dark?: string | null
           qr_light?: string | null
@@ -147,6 +155,9 @@ export type Database = {
           trader_value?: string | null
         }
         Update: {
+          claim_token?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
           code?: string
           created_at?: string
           current_target?: string | null
@@ -158,6 +169,7 @@ export type Database = {
           image_code?: string | null
           image_url?: string | null
           is_active?: boolean
+          is_claimed?: boolean
           name?: string
           qr_dark?: string | null
           qr_light?: string | null
@@ -495,9 +507,17 @@ export type Database = {
         Args: { p_code: string; p_source?: string }
         Returns: Json
       }
+      claim_card_by_token: {
+        Args: { p_token: string }
+        Returns: Json
+      }
       cleanup_old_deleted_cards: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      generate_claim_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       redemption_receipt: {
         Args: { p_id: string }
