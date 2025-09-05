@@ -107,24 +107,38 @@ export default function Scan() {
     return true;
   }
 
-  function extractCode(text: string): string | null {
+  function extractCodeOrToken(text: string): { value: string; type: 'code' | 'token' } | null {
     if (!text) return null;
     const s = text.trim();
 
-    // Full URL? Try /r/:code or last path part
+    // Full URL? Check for different formats
     if (/^https?:\/\//i.test(s)) {
       try {
         const url = new URL(s);
+        
+        // New format: /claim?token=ABC123XYZ
+        if (url.pathname === '/claim' && url.searchParams.has('token')) {
+          const token = url.searchParams.get('token');
+          if (token) return { value: token, type: 'token' };
+        }
+        
+        // Old format: /r/:code
         const rMatch = url.pathname.match(/\/r\/([^/]+)$/i);
-        if (rMatch?.[1]) return decodeURIComponent(rMatch[1]);
+        if (rMatch?.[1]) {
+          return { value: decodeURIComponent(rMatch[1]), type: 'code' };
+        }
+        
+        // Fallback: last path part (old format)
         const parts = url.pathname.split("/").filter(Boolean);
-        if (parts.length > 0) return decodeURIComponent(parts[parts.length - 1]);
+        if (parts.length > 0) {
+          return { value: decodeURIComponent(parts[parts.length - 1]), type: 'code' };
+        }
       } catch { /* ignore */ }
     }
 
-    // Otherwise allow letters/digits/_/-
+    // Otherwise allow letters/digits/_/- (assume it's a direct code)
     const m = s.match(/[A-Za-z0-9\-_]+/);
-    return m ? m[0] : null;
+    return m ? { value: m[0], type: 'code' } : null;
   }
 
   async function fetchCardById(id: string) {
@@ -147,7 +161,7 @@ export default function Scan() {
     return data || undefined;
   }
 
-  async function claim(code: string) {
+  async function claimByCodeOrToken(value: string, type: 'code' | 'token') {
     // Set processing flag to prevent concurrent scans
     processingRef.current = true;
     const t = now();
@@ -157,16 +171,30 @@ export default function Scan() {
       const { data: u } = await supabase.auth.getUser();
       if (!u?.user) { navigate("/auth/login?next=/scan", { replace: true }); return; }
 
-      const { data, error } = await supabase.rpc("claim_card_and_log", {
-        p_code: code,
-        p_source: "scan",
-      });
+      let data, error;
+
+      if (type === 'token') {
+        // Use new token-based claiming
+        const result = await supabase.rpc("claim_card_by_token", {
+          p_token: value,
+        });
+        data = result.data;
+        error = result.error;
+      } else {
+        // Use old code-based claiming
+        const result = await supabase.rpc("claim_card_and_log", {
+          p_code: value,
+          p_source: "scan",
+        });
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         const item: LogItem = {
           id: crypto.randomUUID(),
           ts: now(),
-          code,
+          code: value,
           status: "error",
           message: error.message || "Error claiming card",
         };
@@ -176,14 +204,26 @@ export default function Scan() {
       }
 
       if (data?.ok) {
-        const status: LogItem["status"] = data.already_owner ? "already_owner" : "claimed";
+        let status: LogItem["status"];
+        let message: string;
+        
+        if (type === 'token') {
+          // Handle token-based response
+          status = data.already_claimed_by_you ? "already_owner" : "claimed";
+          message = status === "claimed" ? "Added to your collection" : "Already in your collection";
+        } else {
+          // Handle code-based response
+          status = data.already_owner ? "already_owner" : "claimed";
+          message = status === "claimed" ? "Added to your collection" : "Already in your collection";
+        }
+
         const card = data.card_id ? await fetchCardById(data.card_id) : undefined;
         const item: LogItem = {
           id: crypto.randomUUID(),
           ts: now(),
-          code,
+          code: value,
           status,
-          message: status === "claimed" ? "Added to your collection" : "Already in your collection",
+          message,
           card,
         };
         feedback(item.status);
@@ -191,21 +231,33 @@ export default function Scan() {
         return;
       }
 
-      // not ok → map
+      // not ok → map errors
       let status: LogItem["status"] = "error";
       let message = "Something went wrong.";
-      switch (data?.error) {
-        case "not_found":      status = "not_found";      message = "Card not found."; break;
-        case "owned_by_other": status = "owned_by_other"; message = "Already claimed by another user."; break;
-        case "blocked":        status = "blocked";        message = "Your account is blocked from claiming cards."; break;
-        case "not_signed_in":  navigate("/auth/login?next=/scan", { replace: true }); return;
+      
+      if (type === 'token') {
+        // Handle token-based errors
+        switch (data?.error) {
+          case "token_not_found":           status = "not_found";      message = "Card not found."; break;
+          case "already_claimed_by_other":  status = "owned_by_other"; message = "Already claimed by another user."; break;
+          case "blocked":                   status = "blocked";        message = "Your account is blocked from claiming cards."; break;
+          case "not_authenticated":         navigate("/auth/login?next=/scan", { replace: true }); return;
+        }
+      } else {
+        // Handle code-based errors
+        switch (data?.error) {
+          case "not_found":      status = "not_found";      message = "Card not found."; break;
+          case "owned_by_other": status = "owned_by_other"; message = "Already claimed by another user."; break;
+          case "blocked":        status = "blocked";        message = "Your account is blocked from claiming cards."; break;
+          case "not_signed_in":  navigate("/auth/login?next=/scan", { replace: true }); return;
+        }
       }
 
-      const card = status === "owned_by_other" ? undefined : await fetchCardByCodeLike(code);
+      const card = status === "owned_by_other" ? undefined : await fetchCardByCodeLike(value);
       const item: LogItem = {
         id: crypto.randomUUID(),
         ts: now(),
-        code,
+        code: value,
         status,
         message,
         card,
@@ -214,12 +266,12 @@ export default function Scan() {
       pushLog(item);
     } finally {
       // Update cooldowns and processing flag
-      cooldownRef.current[code] = t;
+      cooldownRef.current[value] = t;
       globalCooldownRef.current = t;
       processingRef.current = false;
       
       // Start visual cooldown feedback
-      setLastScannedCode(code);
+      setLastScannedCode(value);
       setCooldownActive(true);
       
       // Countdown timer for visual feedback
@@ -244,9 +296,9 @@ export default function Scan() {
     if (!result || isPaused) return;
     
     const text = result[0]?.rawValue || result;
-    const code = extractCode(text);
-    if (code && shouldProcess(code)) {
-      await claim(code);
+    const extracted = extractCodeOrToken(text);
+    if (extracted && shouldProcess(extracted.value)) {
+      await claimByCodeOrToken(extracted.value, extracted.type);
     }
   }, [isPaused]);
 
