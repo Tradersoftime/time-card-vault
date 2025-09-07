@@ -2,7 +2,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Scanner } from "@yudiel/react-qr-scanner";
+import { Button } from "@/components/ui/button";
+import { FullScreenScanner } from "@/components/FullScreenScanner";
+import { Camera } from "lucide-react";
 
 type LogItem = {
   id: string;
@@ -30,12 +32,11 @@ export default function Scan() {
 
   // UI state
   const [error, setError] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(true);
+  const [isFullScreenScannerOpen, setIsFullScreenScannerOpen] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [lastScannedCode, setLastScannedCode] = useState<string>("");
   const [cooldownActive, setCooldownActive] = useState(false);
   const [cooldownTimer, setCooldownTimer] = useState(0);
-  const [scanMode, setScanMode] = useState<"card" | "screen">("card");
 
   // live log
   const [log, setLog] = useState<LogItem[]>([]);
@@ -299,6 +300,8 @@ export default function Scan() {
     const extracted = extractCodeOrToken(text);
     if (extracted && shouldProcess(extracted.value)) {
       await claimByCodeOrToken(extracted.value, extracted.type);
+      // Auto-close the scanner after successful scan
+      setIsFullScreenScannerOpen(false);
     }
   }, [isPaused]);
 
@@ -314,15 +317,11 @@ export default function Scan() {
 
   /* ---------- UI ---------- */
   const tips = useMemo(() => [
-    scanMode === "card" 
-      ? "Hold your device 4-8 inches from the card QR code" 
-      : "Point the camera at QR codes on screens or larger surfaces",
-    "Ensure good lighting - tap the torch button if needed",
+    "Use the full-screen scanner for best results with small QR codes",
+    "Ensure good lighting - use the torch button if needed",
     "Wait 2 seconds between scans to avoid duplicates",
-    scanMode === "card" 
-      ? "For small QR codes, move closer and hold steady" 
-      : "The scanner works best with clear, high-contrast QR codes",
-  ], [scanMode]);
+    "Position the QR code within the scanning frame and hold steady",
+  ], []);
 
   function StatusPill({ s }: { s: LogItem["status"] }) {
     const map: Record<LogItem["status"], string> = {
@@ -355,84 +354,35 @@ export default function Scan() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Camera */}
+          {/* Scanner Launch */}
           <div className="space-y-4">
             <div className="glass-panel p-6 rounded-2xl glow-primary">
-              {/* Scanner Mode Toggle */}
-              <div className="mb-4 glass-panel p-3 rounded-lg bg-accent/10 border border-accent/20">
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => setScanMode("card")}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      scanMode === "card" 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'bg-secondary/50 text-secondary-foreground hover:bg-secondary'
-                    }`}
-                  >
-                    📱 Physical Cards
-                  </button>
-                  <button
-                    onClick={() => setScanMode("screen")}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      scanMode === "screen" 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'bg-secondary/50 text-secondary-foreground hover:bg-secondary'
-                    }`}
-                  >
-                    🖥️ Screen Codes
-                  </button>
+              <div className="text-center space-y-6">
+                <div className="w-32 h-32 mx-auto bg-gradient-to-br from-primary/20 to-primary-glow/20 rounded-2xl border border-primary/30 flex items-center justify-center">
+                  <Camera className="w-16 h-16 text-primary" />
                 </div>
-              </div>
-
-              {/* Scanner Container */}
-              <div className="relative w-full aspect-square bg-black rounded-xl overflow-hidden border border-primary/20">
-                {isScanning && !isPaused && (
-                  <Scanner
-                    onScan={handleScan}
-                    onError={handleError}
-                    constraints={{
-                      facingMode: "environment",
-                      width: scanMode === "card" ? { ideal: 1920, max: 3840 } : { ideal: 1280, max: 1920 },
-                      height: scanMode === "card" ? { ideal: 1080, max: 2160 } : { ideal: 720, max: 1080 }
-                    }}
-                    scanDelay={300}
-                    allowMultiple={false}
-                    styles={{
-                      container: { 
-                        width: "100%", 
-                        height: "100%",
-                        position: "relative"
-                      },
-                      video: { 
-                        width: "100%", 
-                        height: "100%",
-                        objectFit: "cover"
-                      }
-                    }}
-                  />
-                )}
                 
-                {/* Overlay for scan area indicator */}
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute inset-4 border-2 border-primary/60 rounded-lg flex items-center justify-center">
-                    <div 
-                      className={`border-2 border-primary rounded-lg bg-primary/5 ${
-                        scanMode === "card" ? "w-32 h-32" : "w-48 h-48"
-                      }`}
-                      style={{
-                        boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5)",
-                      }}
-                    >
-                      <div className="w-full h-full flex items-center justify-center text-primary text-xs font-medium">
-                        {scanMode === "card" ? "Small QR" : "Large QR"}
-                      </div>
-                    </div>
-                  </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">Full-Screen Scanner</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Open the full-screen camera for the best scanning experience with small QR codes on trading cards.
+                  </p>
                 </div>
 
-                {isPaused && (
-                  <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-                    <div className="text-white text-lg font-medium">Scanner Paused</div>
+                <Button
+                  onClick={() => setIsFullScreenScannerOpen(true)}
+                  variant="hero"
+                  size="lg"
+                  className="w-full text-lg py-6"
+                  disabled={isPaused}
+                >
+                  <Camera className="w-5 h-5 mr-2" />
+                  Open Camera Scanner
+                </Button>
+
+                {error && (
+                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-destructive text-sm">{error}</p>
                   </div>
                 )}
               </div>
@@ -457,27 +407,25 @@ export default function Scan() {
                 </div>
               )}
 
-              {/* Controls */}
+              {/* Scanner Controls */}
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button
-                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
+                <Button
                   onClick={() => setIsPaused(!isPaused)}
+                  variant={isPaused ? "default" : "secondary"}
+                  size="sm"
                 >
-                  {isPaused ? "Resume" : "Pause"}
-                </button>
-
-                <span className="ml-auto text-xs opacity-60">
-                  {isScanning ? `${scanMode === "card" ? "Card" : "Screen"} scanner active` : "Initializing scanner..."}
-                  {processingRef.current && " • Processing..."}
-                </span>
+                  {isPaused ? "▶️ Resume" : "⏸️ Pause"}
+                </Button>
+                
+                <Button
+                  onClick={() => setError(null)}
+                  variant="outline"
+                  size="sm"
+                >
+                  🔄 Clear Errors
+                </Button>
               </div>
             </div>
-
-            {error && (
-              <div className="glass-panel p-4 rounded-lg border-l-4 border-l-destructive">
-                <div className="text-sm text-destructive">{error}</div>
-              </div>
-            )}
           </div>
 
           {/* Log */}
@@ -486,24 +434,26 @@ export default function Scan() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-foreground">Scan Activity</h2>
                 <div className="flex gap-2">
-                  <button 
+                  <Button 
                     onClick={() => navigate("/me/cards")} 
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 transition-colors px-4 py-2 rounded-lg text-sm font-medium glow-primary"
+                    variant="default"
+                    size="sm"
                   >
                     My Collection
-                  </button>
-                  <button 
+                  </Button>
+                  <Button 
                     onClick={() => setLog([])} 
-                    className="bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-4 py-2 rounded-lg text-sm font-medium"
+                    variant="secondary"
+                    size="sm"
                   >
                     Clear
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {log.length === 0 ? (
                 <div className="text-center py-8">
-                  <div className="text-muted-foreground">No scans yet. Point the camera at a card QR code to get started.</div>
+                  <div className="text-muted-foreground">No scans yet. Use the camera scanner to get started.</div>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -548,6 +498,15 @@ export default function Scan() {
           </ul>
         </div>
       </div>
+
+      {/* Full Screen Scanner Modal */}
+      <FullScreenScanner
+        isOpen={isFullScreenScannerOpen}
+        onClose={() => setIsFullScreenScannerOpen(false)}
+        onScan={handleScan}
+        onError={handleError}
+        isPaused={isPaused}
+      />
     </div>
   );
 }
