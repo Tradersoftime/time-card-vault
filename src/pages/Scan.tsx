@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { FullScreenScanner } from "@/components/FullScreenScanner";
+import { Html5QRScanner } from "@/components/Html5QRScanner";
 import { Camera } from "lucide-react";
 
 type LogItem = {
@@ -500,7 +500,7 @@ export default function Scan() {
       </div>
 
       {/* Full Screen Scanner Modal */}
-      <FullScreenScanner
+      <Html5QRScanner
         isOpen={isFullScreenScannerOpen}
         onClose={() => setIsFullScreenScannerOpen(false)}
         onScan={handleScan}
