@@ -172,7 +172,9 @@ export default function MyCards() {
 
   // Filter and sort logic
   const filteredAndSortedRows = useMemo(() => {
-    let filtered = rows;
+    console.log('Sorting triggered:', { sortBy, sortDirection, searchTerm, rowsCount: rows.length });
+    
+    let filtered = [...rows]; // Create a copy to avoid mutations
 
     // Search filter
     if (searchTerm) {
@@ -187,51 +189,65 @@ export default function MyCards() {
       );
     }
 
-    // Sort
+    // Sort with improved error handling
     filtered.sort((a, b) => {
       let aValue: any, bValue: any;
 
-      switch (sortBy) {
-        case "name":
-          aValue = (a.name ?? "").toLowerCase();
-          bValue = (b.name ?? "").toLowerCase();
-          break;
-        case "era":
-          aValue = (a.era ?? "").toLowerCase();
-          bValue = (b.era ?? "").toLowerCase();
-          break;
-        case "suit":
-          aValue = canonicalSuit(a.suit);
-          bValue = canonicalSuit(b.suit);
-          break;
-        case "rank":
-          aValue = (a.rank ?? "").toString().toLowerCase();
-          bValue = (b.rank ?? "").toString().toLowerCase();
-          break;
-        case "rarity":
-          aValue = rarityRank(a.rarity);
-          bValue = rarityRank(b.rarity);
-          break;
-        case "time_value":
-          aValue = a.time_value || 0;
-          bValue = b.time_value || 0;
-          break;
-        case "trader_value":
-          aValue = toNum(a.trader_value);
-          bValue = toNum(b.trader_value);
-          break;
-        case "claimed_at":
-        default:
-          aValue = new Date(a.claimed_at || 0).getTime();
-          bValue = new Date(b.claimed_at || 0).getTime();
-          break;
-      }
+      try {
+        switch (sortBy) {
+          case "name":
+            aValue = (a.name ?? "").toLowerCase().trim();
+            bValue = (b.name ?? "").toLowerCase().trim();
+            break;
+          case "era":
+            aValue = (a.era ?? "").toLowerCase().trim();
+            bValue = (b.era ?? "").toLowerCase().trim();
+            break;
+          case "suit":
+            aValue = canonicalSuit(a.suit);
+            bValue = canonicalSuit(b.suit);
+            break;
+          case "rank":
+            aValue = (a.rank ?? "").toString().toLowerCase().trim();
+            bValue = (b.rank ?? "").toString().toLowerCase().trim();
+            break;
+          case "rarity":
+            aValue = rarityRank(a.rarity);
+            bValue = rarityRank(b.rarity);
+            break;
+          case "time_value":
+            aValue = Number(a.time_value) || 0;
+            bValue = Number(b.time_value) || 0;
+            break;
+          case "trader_value":
+            aValue = toNum(a.trader_value);
+            bValue = toNum(b.trader_value);
+            break;
+          case "claimed_at":
+          default:
+            // Better date parsing with fallback
+            aValue = a.claimed_at ? new Date(a.claimed_at).getTime() : 0;
+            bValue = b.claimed_at ? new Date(b.claimed_at).getTime() : 0;
+            // If dates are invalid, fall back to 0
+            if (isNaN(aValue)) aValue = 0;
+            if (isNaN(bValue)) bValue = 0;
+            break;
+        }
 
-      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
-      return 0;
+        // Ensure values are not null/undefined for comparison
+        if (aValue == null) aValue = "";
+        if (bValue == null) bValue = "";
+
+        if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+        if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      } catch (err) {
+        console.error('Sorting error:', err, { a, b, sortBy });
+        return 0;
+      }
     });
 
+    console.log('Sorted result:', { filteredCount: filtered.length, firstCard: filtered[0]?.name });
     return filtered;
   }, [rows, searchTerm, sortBy, sortDirection]);
 
@@ -479,7 +495,10 @@ export default function MyCards() {
               
               {/* Sort */}
               <div className="flex gap-2">
-                <Select value={sortBy} onValueChange={setSortBy}>
+                <Select value={sortBy} onValueChange={(value) => {
+                  console.log('Sort by changed:', value);
+                  setSortBy(value);
+                }}>
                   <SelectTrigger className="w-[200px] bg-background/50 border-primary/20">
                     <SelectValue placeholder="Sort by..." />
                   </SelectTrigger>
@@ -498,7 +517,11 @@ export default function MyCards() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+                  onClick={() => {
+                    const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    console.log('Sort direction changed:', newDirection);
+                    setSortDirection(newDirection);
+                  }}
                   className="px-3 bg-background/50 border-primary/20 hover:bg-primary/10"
                   title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
                 >
