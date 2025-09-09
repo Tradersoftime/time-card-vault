@@ -44,7 +44,7 @@ function prettyRarity(r?: string | null): string {
 }
 
 function rarityRank(r?: string | null): number {
-  const rarities = ["common", "uncommon", "rare", "epic", "legendary"];
+  const rarities = ["degen", "trader", "investor", "market maker", "whale"];
   const index = rarities.indexOf(r?.toLowerCase() || "");
   return index === -1 ? 0 : index;
 }

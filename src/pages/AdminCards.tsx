@@ -166,6 +166,15 @@ const AdminCards = () => {
       } else if (sortField === 'created_at') {
         aValue = new Date(aValue).getTime();
         bValue = new Date(bValue).getTime();
+      } else if (sortField === 'rarity') {
+        // Use rarity ranking for proper sorting order
+        const rarityRank = (r?: string | null): number => {
+          const rarities = ["degen", "trader", "investor", "market maker", "whale"];
+          const index = rarities.indexOf(r?.toLowerCase() || "");
+          return index === -1 ? 0 : index;
+        };
+        aValue = rarityRank(String(aValue));
+        bValue = rarityRank(String(bValue));
       } else {
         aValue = String(aValue).toLowerCase();
         bValue = String(bValue).toLowerCase();
