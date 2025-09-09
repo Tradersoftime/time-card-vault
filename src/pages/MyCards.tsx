@@ -424,7 +424,58 @@ export default function MyCards() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-3">
             My Collection
           </h1>
-          <p className="text-muted-foreground">Manage your trading cards and submit them for TIME rewards</p>
+          <p className="text-muted-foreground mb-4">Manage your trading cards and submit them for TIME rewards</p>
+          <div className="max-w-3xl mx-auto text-sm text-muted-foreground">
+            <p>
+              Submit your cards to earn TIME tokens based on their rarity and market value. 
+              Cards with higher TIME values generate more rewards when successfully processed.
+            </p>
+          </div>
+        </div>
+
+        {/* Submission Process Information */}
+        <div className="glass-panel p-6 rounded-2xl border border-primary/20">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Clock className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground mb-1">How Card Submission Works</h3>
+              <p className="text-sm text-muted-foreground">Understanding the TIME rewards process</p>
+            </div>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-4 text-sm">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-primary" />
+                <span className="font-medium text-foreground">Submit Cards</span>
+              </div>
+              <p className="text-muted-foreground">
+                Select cards with TIME value and submit them for review. Higher rarity cards typically have greater TIME value.
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <span className="font-medium text-foreground">Review Process</span>
+              </div>
+              <p className="text-muted-foreground">
+                Reviews typically take 24-48 hours. Cards are verified for authenticity, condition, and market value.
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-primary" />
+                <span className="font-medium text-foreground">Earn TIME</span>
+              </div>
+              <p className="text-muted-foreground">
+                Approved cards are credited with TIME tokens. Rejected cards can be resubmitted after addressing feedback.
+              </p>
+            </div>
+          </div>
         </div>
         
         {/* Summary Stats */}
@@ -584,6 +635,9 @@ export default function MyCards() {
                   </div>
                 )}
               </CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">
+                These cards have TIME value and are ready to submit for rewards. Select individual cards or use "Submit Selected" for bulk submission.
+              </p>
             </CardHeader>
             <CardContent>
               {readyCards.length > 0 ? (
@@ -654,6 +708,9 @@ export default function MyCards() {
                 <Clock className="h-5 w-5" />
                 Submitted (Pending TIME) ({pendingCards.length})
               </CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">
+                Cards under review for TIME rewards. Reviews typically take 24-48 hours. You'll be notified when the review is complete.
+              </p>
             </CardHeader>
             <CardContent>
               {pendingCards.length > 0 ? (
@@ -698,6 +755,9 @@ export default function MyCards() {
                   <AlertCircle className="h-5 w-5 text-destructive" />
                   Rejected Cards ({rejectedCards.length})
                 </CardTitle>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Cards that didn't meet submission criteria. Review the admin notes below each card and use "Resubmit" to try again, or "Accept" to acknowledge the rejection.
+                </p>
               </CardHeader>
               <CardContent>
                 <div className={`grid gap-4 ${
@@ -772,6 +832,9 @@ export default function MyCards() {
                 <Trophy className="h-5 w-5" />
                 Claimed Cards ({creditedCards.length})
               </CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">
+                Cards that have been successfully processed and credited with TIME rewards. The credited amount is displayed on each card.
+              </p>
             </CardHeader>
             <CardContent>
               {creditedCards.length > 0 ? (
