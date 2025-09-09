@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
-import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
+import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw, Star } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
 import { ImageModal } from "@/components/ImageModal";
@@ -505,22 +505,101 @@ export default function MyCards() {
           </div>
         </div>
 
-        {/* Best Deck (52) TLV */}
-        <div className="glass-panel p-6 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-semibold text-foreground">
-                {formatNum(deck52TLV)} TLV
+        {/* Peak Collection Value - Enhanced TLV Display */}
+        <div className="relative overflow-hidden">
+          {/* Background glow effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-primary-glow/30 to-primary/20 blur-xl opacity-50 animate-pulse"></div>
+          
+          <div className="relative glass-panel p-8 rounded-3xl border-2 border-primary/30 glow-effect hover-scale transition-all duration-500">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+              {/* Achievement Icon */}
+              <div className="flex-shrink-0">
+                <div className="relative">
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-primary to-primary-glow shadow-lg">
+                    <Trophy className="h-8 w-8 text-white drop-shadow-sm" />
+                  </div>
+                  {deck52TLV > 100000 && (
+                    <div className="absolute -top-1 -right-1 p-1 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 animate-pulse">
+                      <Star className="h-4 w-4 text-white" />
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="text-sm text-muted-foreground">
-                Best 52-Card Deck TLV (using {deck52.length}/52 slots)
+              
+              {/* Main Content */}
+              <div className="flex-1 space-y-3">
+                <div>
+                  <div className="flex items-baseline gap-3 mb-2">
+                    <span className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary via-primary-glow to-primary bg-clip-text text-transparent">
+                      {formatNum(deck52TLV)}
+                    </span>
+                    <span className="text-2xl font-semibold text-primary">TLV</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-foreground mb-1">
+                    Your Peak Collection Value
+                  </h3>
+                  <p className="text-muted-foreground">
+                    The combined value of your strongest cards across all 52 unique rank×suit combinations
+                  </p>
+                </div>
+                
+                {/* Progress Indicator */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Deck Completion</span>
+                    <span className="font-medium text-foreground">
+                      {deck52.length}/52 slots filled ({Math.round((deck52.length / 52) * 100)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-background/50 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary to-primary-glow rounded-full transition-all duration-1000 ease-out"
+                      style={{ width: `${(deck52.length / 52) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Achievement Badges */}
+              <div className="flex-shrink-0 text-right space-y-2">
+                {deck52TLV >= 1000000 && (
+                  <div className="px-4 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-400/30 rounded-xl">
+                    <div className="text-sm font-semibold text-purple-300">Million Club</div>
+                    <div className="text-xs text-purple-200">Elite Collection</div>
+                  </div>
+                )}
+                {deck52TLV >= 100000 && deck52TLV < 1000000 && (
+                  <div className="px-4 py-2 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-400/30 rounded-xl">
+                    <div className="text-sm font-semibold text-blue-300">High Roller</div>
+                    <div className="text-xs text-blue-200">Impressive Value</div>
+                  </div>
+                )}
+                {deck52.length === 52 && (
+                  <div className="px-4 py-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 rounded-xl">
+                    <div className="text-sm font-semibold text-green-300">Complete Deck</div>
+                    <div className="text-xs text-green-200">All 52 Slots</div>
+                  </div>
+                )}
+                {deck52.length < 52 && (
+                  <div className="px-3 py-1 bg-background/30 border border-border/50 rounded-lg">
+                    <div className="text-xs text-muted-foreground">
+                      +{52 - deck52.length} slots to fill
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            {deck52.length < 52 && (
-              <div className="text-xs text-muted-foreground">
-                Missing {52 - deck52.length} rank×suit slot{52 - deck52.length === 1 ? "" : "s"}
+            
+            {/* Tooltip/Info Expandable */}
+            <div className="mt-4 pt-4 border-t border-border/30">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <TrendingUp className="h-3 w-3" />
+                <span>
+                  Your peak TLV is calculated using the highest-value card for each unique rank×suit combination. 
+                  {deck52.length < 52 && ` Complete your deck to maximize potential value.`}
+                </span>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
