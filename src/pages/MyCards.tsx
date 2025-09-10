@@ -425,12 +425,6 @@ export default function MyCards() {
             My Collection
           </h1>
           <p className="text-muted-foreground mb-4">Manage your trading cards and submit them for TIME rewards</p>
-          <div className="max-w-3xl mx-auto text-sm text-muted-foreground">
-            <p>
-              Submit your cards to earn TIME tokens based on their rarity and market value. 
-              Cards with higher TIME values generate more rewards when successfully processed.
-            </p>
-          </div>
         </div>
 
         {/* Submission Process Information */}
