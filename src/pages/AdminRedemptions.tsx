@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, DollarSign, Clock, User, Calendar, Filter, Search } from "lucide-react";
+import { CheckCircle, XCircle, DollarSign, Clock, User, Calendar, Filter, Search, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
 
@@ -159,6 +160,37 @@ export default function AdminRedemptions() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedRedemptions.length === 0) {
+      toast.error("Please select at least one redemption");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const { data, error } = await supabase.rpc('admin_delete_pending_redemptions', {
+        p_redemption_ids: selectedRedemptions
+      });
+
+      if (error) throw error;
+
+      if (data.ok) {
+        toast.success(`${data.deleted_count} redemption${data.deleted_count !== 1 ? 's' : ''} permanently deleted`);
+        setSelectedRedemptions([]);
+        setAdminNotes("");
+        setExternalRef("");
+        await loadPendingRedemptions();
+      } else {
+        toast.error(`Failed to delete redemptions: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('Error deleting redemptions:', err);
+      toast.error(`Failed to delete redemptions: ${err.message}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const totalTimeValue = selectedRedemptions.reduce((sum, id) => {
     const redemption = pendingRedemptions.find(r => r.redemption_id === id);
     return sum + (redemption?.time_value || 0);
@@ -266,7 +298,7 @@ export default function AdminRedemptions() {
                 />
               </div>
               
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button 
                   variant="default" 
                   onClick={() => handleBulkAction('approve')}
@@ -283,6 +315,37 @@ export default function AdminRedemptions() {
                   <XCircle className="h-4 w-4 mr-2" />
                   Reject Selected
                 </Button>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                      disabled={processing}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Selected
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Permanently Delete Redemptions?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete {selectedRedemptions.length} redemption request{selectedRedemptions.length !== 1 ? 's' : ''} from the database. 
+                        This action cannot be undone. Consider using "Reject" instead if you want to preserve the record.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleBulkDelete}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete Permanently
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           </CardContent>

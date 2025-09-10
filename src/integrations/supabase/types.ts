@@ -356,6 +356,10 @@ export type Database = {
         Args: { p_card_ids: string[] }
         Returns: Json
       }
+      admin_delete_pending_redemptions: {
+        Args: { p_redemption_ids: string[] }
+        Returns: Json
+      }
       admin_list_blocked: {
         Args: Record<PropertyKey, never>
         Returns: {
