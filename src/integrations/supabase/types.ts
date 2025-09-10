@@ -519,6 +519,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      delete_user_card: {
+        Args: { p_card_id: string }
+        Returns: Json
+      }
       generate_claim_token: {
         Args: Record<PropertyKey, never>
         Returns: string

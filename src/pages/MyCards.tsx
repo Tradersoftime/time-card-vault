@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
-import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw, Star } from "lucide-react";
+import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw, Star, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
 import { ImageModal } from "@/components/ImageModal";
@@ -399,6 +399,94 @@ export default function MyCards() {
     }
   };
 
+  const handleDeleteCard = async (cardId: string, cardName: string, status: string) => {
+    const statusMessages = {
+      ready: "This will remove the card from your collection.",
+      pending: "This will cancel the submission and remove the card from your collection.",
+      rejected: "This will permanently remove the rejected card from your collection.",
+      credited: "This will remove the credited card from your collection."
+    };
+
+    const confirmed = window.confirm(
+      `Delete "${cardName}"?\n\n${statusMessages[status as keyof typeof statusMessages] || statusMessages.ready}\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const { data, error } = await supabase.rpc('delete_user_card', {
+        p_card_id: cardId
+      });
+      
+      if (error) throw error;
+      
+      if (data.ok) {
+        toast.success("Card deleted successfully");
+        // Reload data to update UI
+        const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
+        if (refreshError) throw refreshError;
+        setRows(refreshData || []);
+      } else {
+        toast.error(`Failed to delete card: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('Error deleting card:', err);
+      toast.error(`Failed to delete card: ${err.message}`);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedCards.length === 0) {
+      toast.error("Please select at least one card to delete");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${selectedCards.length} selected card${selectedCards.length === 1 ? '' : 's'}?\n\nThis will remove the selected cards from your collection and cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const cardId of selectedCards) {
+        try {
+          const { data, error } = await supabase.rpc('delete_user_card', {
+            p_card_id: cardId
+          });
+          
+          if (error) throw error;
+          
+          if (data.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (err) {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} card${successCount === 1 ? '' : 's'} deleted successfully`);
+      }
+      if (failCount > 0) {
+        toast.error(`${failCount} card${failCount === 1 ? '' : 's'} failed to delete`);
+      }
+
+      // Reload data and clear selection
+      const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
+      if (refreshError) throw refreshError;
+      setRows(refreshData || []);
+      setSelectedCards([]);
+    } catch (err: any) {
+      console.error('Error deleting cards:', err);
+      toast.error(`Failed to delete cards: ${err.message}`);
+    }
+  };
+
   const handleCardClick = (card: Row) => {
     setSelectedCard(card);
     setImageModalOpen(true);
@@ -688,15 +776,25 @@ export default function MyCards() {
                 {readyCards.length > 0 && (
                   <div className="flex items-center gap-2">
                     {selectedCards.length > 0 && (
-                      <Button 
-                        variant="default" 
-                        size="sm"
-                        onClick={handleSubmitSelected}
-                        disabled={submitting}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Submit Selected ({selectedCards.length})
-                      </Button>
+                      <>
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={handleSubmitSelected}
+                          disabled={submitting}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Submit Selected ({selectedCards.length})
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={handleDeleteSelected}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete Selected
+                        </Button>
+                      </>
                     )}
                     <Button 
                       variant="outline" 
@@ -750,7 +848,19 @@ export default function MyCards() {
                         showFullDetails={true}
                         onClick={() => handleCardClick(row)}
                       />
-                      <div className="absolute bottom-2 right-2 z-10">
+                      <div className="absolute bottom-2 right-2 z-10 flex gap-1">
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'ready');
+                          }}
+                          className="text-xs px-2 py-1 h-auto"
+                          title="Delete card"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                         <Button 
                           size="sm" 
                           onClick={(e) => {
@@ -790,26 +900,41 @@ export default function MyCards() {
                 <div className={`grid gap-4 ${
                   isMobile ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
                 }`}>
-                  {pendingCards.map((row) => (
-                    <EnhancedTradingCard
-                      key={row.card_id}
-                      card={{
-                        id: row.card_id || '',
-                        name: row.name || 'Unknown Card',
-                        suit: row.suit || '',
-                        rank: row.rank || '',
-                        era: row.era || '',
-                        rarity: row.rarity || '',
-                        trader_value: row.trader_value || '',
-                        time_value: row.time_value || 0,
-                        image_url: row.image_url || '',
-                        is_claimed: false,
-                        redemption_status: 'pending'
-                      }}
-                      baseWidth={isMobile ? 150 : 180}
-                      showFullDetails={true}
-                      onClick={() => handleCardClick(row)}
-                    />
+                   {pendingCards.map((row) => (
+                    <div key={row.card_id} className="relative">
+                      <EnhancedTradingCard
+                        card={{
+                          id: row.card_id || '',
+                          name: row.name || 'Unknown Card',
+                          suit: row.suit || '',
+                          rank: row.rank || '',
+                          era: row.era || '',
+                          rarity: row.rarity || '',
+                          trader_value: row.trader_value || '',
+                          time_value: row.time_value || 0,
+                          image_url: row.image_url || '',
+                          is_claimed: false,
+                          redemption_status: 'pending'
+                        }}
+                        baseWidth={isMobile ? 150 : 180}
+                        showFullDetails={true}
+                        onClick={() => handleCardClick(row)}
+                      />
+                      <div className="absolute bottom-2 right-2 z-10">
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'pending');
+                          }}
+                          className="text-xs px-2 py-1 h-auto"
+                          title="Cancel and delete"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -890,6 +1015,18 @@ export default function MyCards() {
                         >
                           Accept
                         </Button>
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'rejected');
+                          }}
+                          className="text-xs px-1 py-1 h-auto"
+                          title="Delete card"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -939,6 +1076,22 @@ export default function MyCards() {
                       {/* Claimed Receipt Overlay */}
                       <div className="absolute top-2 right-2 bg-emerald-500/90 text-white text-xs px-2 py-1 rounded">
                         ✓ {formatNum(row.credited_amount || row.time_value || 0)} TIME
+                      </div>
+                      
+                      {/* Delete Button */}
+                      <div className="absolute bottom-2 right-2 z-10">
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'credited');
+                          }}
+                          className="text-xs px-2 py-1 h-auto"
+                          title="Delete card"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                   ))}
