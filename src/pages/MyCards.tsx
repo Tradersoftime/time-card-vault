@@ -14,6 +14,7 @@ import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCirc
 import { Checkbox } from "@/components/ui/checkbox";
 import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
 import { ImageModal } from "@/components/ImageModal";
+import { DeleteConfirmationDialog } from "@/components/DeleteConfirmationDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const DECK_SUITS = ["Clubs", "Diamonds", "Hearts", "Spades"];
@@ -145,6 +146,18 @@ export default function MyCards() {
   const [selectedCard, setSelectedCard] = useState<Row | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteDialogData, setDeleteDialogData] = useState<{
+    type: 'single' | 'bulk';
+    cardId?: string;
+    cardName?: string;
+    status?: string;
+    imageUrl?: string;
+    cardCount?: number;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Search and sort
   const [searchTerm, setSearchTerm] = useState("");
@@ -400,7 +413,7 @@ export default function MyCards() {
     }
   };
 
-  const handleDeleteCard = async (cardId: string, cardName: string, status: string) => {
+  const handleDeleteCard = async (cardId: string, cardName: string, status: string, imageUrl?: string) => {
     const statusMessages = {
       ready: "This will remove the card from your collection.",
       pending: "This will cancel the submission and remove the card from your collection.",
@@ -408,32 +421,14 @@ export default function MyCards() {
       credited: "This will remove the credited card from your collection."
     };
 
-    const confirmed = window.confirm(
-      `Delete "${cardName}"?\n\n${statusMessages[status as keyof typeof statusMessages] || statusMessages.ready}\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    try {
-      const { data, error } = await supabase.rpc('delete_user_card', {
-        p_card_id: cardId
-      });
-      
-      if (error) throw error;
-      
-      if (data.ok) {
-        toast.success("Card deleted successfully");
-        // Reload data to update UI
-        const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
-        if (refreshError) throw refreshError;
-        setRows(refreshData || []);
-      } else {
-        toast.error(`Failed to delete card: ${data.error}`);
-      }
-    } catch (err: any) {
-      console.error('Error deleting card:', err);
-      toast.error(`Failed to delete card: ${err.message}`);
-    }
+    setDeleteDialogData({
+      type: 'single',
+      cardId,
+      cardName,
+      status,
+      imageUrl
+    });
+    setDeleteDialogOpen(true);
   };
 
   const handleDeleteSelected = async () => {
@@ -442,51 +437,78 @@ export default function MyCards() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Delete ${selectedCards.length} selected card${selectedCards.length === 1 ? '' : 's'}?\n\nThis will remove the selected cards from your collection and cannot be undone.`
-    );
+    setDeleteDialogData({
+      type: 'bulk',
+      cardCount: selectedCards.length
+    });
+    setDeleteDialogOpen(true);
+  };
 
-    if (!confirmed) return;
-
-    let successCount = 0;
-    let failCount = 0;
+  const confirmDelete = async () => {
+    if (!deleteDialogData) return;
+    
+    setIsDeleting(true);
 
     try {
-      for (const cardId of selectedCards) {
-        try {
-          const { data, error } = await supabase.rpc('delete_user_card', {
-            p_card_id: cardId
-          });
-          
-          if (error) throw error;
-          
-          if (data.ok) {
-            successCount++;
-          } else {
+      if (deleteDialogData.type === 'single' && deleteDialogData.cardId) {
+        // Single card deletion
+        const { data, error } = await supabase.rpc('delete_user_card', {
+          p_card_id: deleteDialogData.cardId
+        });
+        
+        if (error) throw error;
+        
+        if (data.ok) {
+          toast.success("Card deleted successfully");
+        } else {
+          toast.error(`Failed to delete card: ${data.error}`);
+        }
+      } else if (deleteDialogData.type === 'bulk') {
+        // Bulk deletion
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const cardId of selectedCards) {
+          try {
+            const { data, error } = await supabase.rpc('delete_user_card', {
+              p_card_id: cardId
+            });
+            
+            if (error) throw error;
+            
+            if (data.ok) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+          } catch (err) {
             failCount++;
           }
-        } catch (err) {
-          failCount++;
         }
+
+        if (successCount > 0) {
+          toast.success(`${successCount} card${successCount === 1 ? '' : 's'} deleted successfully`);
+        }
+        if (failCount > 0) {
+          toast.error(`${failCount} card${failCount === 1 ? '' : 's'} failed to delete`);
+        }
+
+        setSelectedCards([]);
       }
 
-      if (successCount > 0) {
-        toast.success(`${successCount} card${successCount === 1 ? '' : 's'} deleted successfully`);
-      }
-      if (failCount > 0) {
-        toast.error(`${failCount} card${failCount === 1 ? '' : 's'} failed to delete`);
-      }
-
-      // Reload data and clear selection
+      // Reload data to update UI
       const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
       if (refreshError) throw refreshError;
       setRows(refreshData || []);
-      setSelectedCards([]);
+      
     } catch (err: any) {
-      console.error('Error deleting cards:', err);
-      toast.error(`Failed to delete cards: ${err.message}`);
+      console.error('Error deleting:', err);
+      toast.error(`Failed to delete: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
+
 
   const handleCardClick = (card: Row) => {
     if (selectionMode) {
@@ -907,7 +929,7 @@ export default function MyCards() {
                           variant="destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'ready');
+                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'ready', row.image_url || '');
                           }}
                           className="text-xs px-2 py-1 h-auto"
                           title="Delete card"
@@ -979,7 +1001,7 @@ export default function MyCards() {
                           variant="destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'pending');
+                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'pending', row.image_url || '');
                           }}
                           className="text-xs px-2 py-1 h-auto"
                           title="Cancel and delete"
@@ -1073,7 +1095,7 @@ export default function MyCards() {
                           variant="destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'rejected');
+                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'rejected', row.image_url || '');
                           }}
                           className="text-xs px-1 py-1 h-auto"
                           title="Delete card"
@@ -1138,7 +1160,7 @@ export default function MyCards() {
                           variant="destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'credited');
+                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'credited', row.image_url || '');
                           }}
                           className="text-xs px-2 py-1 h-auto"
                           title="Delete card"
@@ -1176,6 +1198,39 @@ export default function MyCards() {
             }}
           />
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <DeleteConfirmationDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={confirmDelete}
+          title={
+            deleteDialogData?.type === 'single'
+              ? `Delete "${deleteDialogData.cardName}"`
+              : `Delete ${deleteDialogData?.cardCount} Selected Cards`
+          }
+          description={
+            deleteDialogData?.type === 'single'
+              ? (() => {
+                  const statusMessages = {
+                    ready: "This will remove the card from your collection.",
+                    pending: "This will cancel the submission and remove the card from your collection.",
+                    rejected: "This will permanently remove the rejected card from your collection.",
+                    credited: "This will remove the credited card from your collection."
+                  };
+                  return statusMessages[deleteDialogData.status as keyof typeof statusMessages] || statusMessages.ready;
+                })()
+              : "This will remove the selected cards from your collection and cannot be undone."
+          }
+          confirmText={
+            deleteDialogData?.type === 'single'
+              ? deleteDialogData.cardName || 'DELETE'
+              : 'DELETE ALL'
+          }
+          isLoading={isDeleting}
+          imageUrl={deleteDialogData?.imageUrl}
+          cardCount={deleteDialogData?.cardCount}
+        />
       </div>
     </div>
   );
