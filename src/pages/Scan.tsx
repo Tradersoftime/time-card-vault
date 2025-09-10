@@ -296,21 +296,45 @@ export default function Scan() {
   const handleScan = useCallback(async (result: any) => {
     if (!result || isPaused) return;
     
-    const text = result[0]?.rawValue || result;
+    console.log("Scan result received:", result); // Debug logging
+    
+    // Handle different result formats from various scanners
+    let text: string = "";
+    if (typeof result === "string") {
+      text = result;
+    } else if (result.text) {
+      text = result.text;
+    } else if (result.rawValue) {
+      text = result.rawValue;
+    } else if (result[0]?.rawValue) {
+      text = result[0].rawValue;
+    } else if (Array.isArray(result) && result.length > 0) {
+      text = result[0];
+    }
+    
+    console.log("Extracted text:", text); // Debug logging
+    
     const extracted = extractCodeOrToken(text);
     if (extracted && shouldProcess(extracted.value)) {
       await claimByCodeOrToken(extracted.value, extracted.type);
-      // Auto-close the scanner after successful scan
-      setIsFullScreenScannerOpen(false);
+      // Don't auto-close scanner - let users scan multiple cards
     }
   }, [isPaused]);
 
   const handleError = useCallback((error: any) => {
+    console.log("Scanner error:", error); // Debug logging
+    
     // Only set error for significant issues, not common scanning noise
     if (error?.name === "NotAllowedError") {
-      setError("Camera access denied. Please enable camera permissions.");
+      setError("Camera access denied. Please enable camera permissions and refresh the page.");
     } else if (error?.name === "NotFoundError") {
-      setError("No camera found. Please connect a camera.");
+      setError("No camera found. Please ensure your device has a camera and try again.");
+    } else if (error?.name === "NotReadableError") {
+      setError("Camera is being used by another application. Please close other camera apps and try again.");
+    } else if (error?.name === "OverconstrainedError") {
+      setError("Camera doesn't support the required settings. Try using a different camera if available.");
+    } else if (typeof error === "string" && error.includes("getUserMedia")) {
+      setError("Unable to access camera. Please check your browser permissions.");
     }
     // Ignore other scanning errors to avoid spam
   }, []);
@@ -365,7 +389,7 @@ export default function Scan() {
                 <div>
                   <h3 className="text-xl font-semibold mb-2">Full-Screen Scanner</h3>
                   <p className="text-muted-foreground text-sm">
-                    Open the full-screen camera for the best scanning experience with small QR codes on trading cards.
+                    Optimized camera for scanning small QR codes. Scanner stays open so you can scan multiple cards quickly.
                   </p>
                 </div>
 

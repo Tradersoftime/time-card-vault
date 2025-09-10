@@ -39,32 +39,59 @@ export function Html5QRScanner({ isOpen, onClose, onScan, onError, isPaused }: H
 
   const handleScanSuccess = useCallback((decodedText: string, decodedResult: any) => {
     if (!isPaused) {
-      onScan({ text: decodedText, result: decodedResult });
+      console.log("QR Scan Success:", { decodedText, decodedResult }); // Debug logging
+      // Normalize the result format for consistent handling
+      const normalizedResult = {
+        text: decodedText,
+        rawValue: decodedText,
+        result: decodedResult
+      };
+      onScan(normalizedResult);
     }
   }, [onScan, isPaused]);
 
   const handleScanError = useCallback((errorMessage: string) => {
-    // Don't log every scan attempt error, only real errors
-    if (errorMessage.includes("NotFoundException")) {
-      return; // Normal when no QR code is visible
+    // Filter out common scanning noise to avoid spam
+    const ignoredErrors = [
+      "NotFoundException", 
+      "No QR code found", 
+      "QR code parse error",
+      "Unable to detect a square finder pattern"
+    ];
+    
+    const shouldIgnore = ignoredErrors.some(err => 
+      errorMessage.includes(err) || errorMessage.toLowerCase().includes(err.toLowerCase())
+    );
+    
+    if (!shouldIgnore) {
+      console.warn("QR Scanner Error:", errorMessage); // Debug logging
+      onError(errorMessage);
     }
-    onError(errorMessage);
   }, [onError]);
 
   const startScanner = useCallback(() => {
     if (scannerRef.current || !isOpen || isPaused) return;
 
+    // Responsive qrbox size - 30% of screen width, min 200px, max 300px
+    const screenWidth = window.innerWidth;
+    const qrboxSize = Math.min(300, Math.max(200, screenWidth * 0.3));
+
     const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
+      fps: 7, // Reduced for better mobile performance
+      qrbox: { width: qrboxSize, height: qrboxSize },
       aspectRatio: 1.0,
       disableFlip: false,
       videoConstraints: {
         facingMode: "environment",
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 }
+        width: { ideal: 640, max: 1280 }, // Reduced resolution for better performance
+        height: { ideal: 480, max: 720 },
+        frameRate: { ideal: 15, max: 30 } // Add frame rate constraint
       },
-      supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+      supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+      // Add fallback constraints for older devices
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true
+      }
     };
 
     try {
@@ -142,9 +169,16 @@ export function Html5QRScanner({ isOpen, onClose, onScan, onError, isPaused }: H
                 <div className="absolute bottom-0 right-0 w-8 h-8 border-r-4 border-b-4 border-primary"></div>
               </div>
               
-              {/* Center scanning line animation */}
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-2 border-primary/30 rounded-lg">
+              {/* Center scanning line animation - responsive size */}
+              <div 
+                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 border-2 border-primary/30 rounded-lg"
+                style={{ 
+                  width: Math.min(300, Math.max(200, window.innerWidth * 0.3)), 
+                  height: Math.min(300, Math.max(200, window.innerWidth * 0.3))
+                }}
+              >
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse"></div>
+                <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse"></div>
               </div>
             </div>
           )}
@@ -185,7 +219,10 @@ export function Html5QRScanner({ isOpen, onClose, onScan, onError, isPaused }: H
           <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/70 to-transparent pointer-events-none z-50">
             <div className="text-center text-white space-y-2">
               <p className="text-lg font-medium">Position QR code within the frame</p>
-              <p className="text-sm opacity-80">Hold steady for best results</p>
+              <p className="text-sm opacity-80">Hold steady • Scanner stays open for multiple cards</p>
+              {!isScanning && (
+                <p className="text-xs opacity-60">Starting camera...</p>
+              )}
             </div>
           </div>
 
