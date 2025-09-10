@@ -144,6 +144,7 @@ export default function MyCards() {
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [selectedCard, setSelectedCard] = useState<Row | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
 
   // Search and sort
   const [searchTerm, setSearchTerm] = useState("");
@@ -488,8 +489,27 @@ export default function MyCards() {
   };
 
   const handleCardClick = (card: Row) => {
-    setSelectedCard(card);
-    setImageModalOpen(true);
+    if (selectionMode) {
+      // In selection mode, toggle card selection
+      const cardId = card.card_id || '';
+      if (selectedCards.includes(cardId)) {
+        setSelectedCards(selectedCards.filter(id => id !== cardId));
+      } else {
+        setSelectedCards([...selectedCards, cardId]);
+      }
+    } else {
+      // In view mode, open image modal
+      setSelectedCard(card);
+      setImageModalOpen(true);
+    }
+  };
+
+  const toggleCardSelection = (cardId: string) => {
+    if (selectedCards.includes(cardId)) {
+      setSelectedCards(selectedCards.filter(id => id !== cardId));
+    } else {
+      setSelectedCards([...selectedCards, cardId]);
+    }
   };
 
   // Summary stats
@@ -774,14 +794,36 @@ export default function MyCards() {
                   Ready for TIME Submission ({readyCards.length})
                 </span>
                 {readyCards.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    {/* Selection Mode Toggle */}
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant={selectionMode ? "default" : "outline"} 
+                        size="sm" 
+                        onClick={() => setSelectionMode(!selectionMode)}
+                        className="whitespace-nowrap"
+                      >
+                        {selectionMode ? 'Exit Selection' : 'Select Mode'}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleSelectAllReady}
+                        className="whitespace-nowrap"
+                      >
+                        {selectedCards.length === readyCards.length ? 'Deselect All' : 'Select All'}
+                      </Button>
+                    </div>
+                    
+                    {/* Bulk Action Buttons */}
                     {selectedCards.length > 0 && (
-                      <>
+                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <Button 
                           variant="default" 
                           size="sm"
                           onClick={handleSubmitSelected}
                           disabled={submitting}
+                          className="w-full sm:w-auto"
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
                           Submit Selected ({selectedCards.length})
@@ -790,24 +832,24 @@ export default function MyCards() {
                           variant="destructive" 
                           size="sm"
                           onClick={handleDeleteSelected}
+                          className="w-full sm:w-auto"
                         >
                           <Trash2 className="h-4 w-4 mr-1" />
                           Delete Selected
                         </Button>
-                      </>
+                      </div>
                     )}
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleSelectAllReady}
-                    >
-                      {selectedCards.length === readyCards.length ? 'Deselect All' : 'Select All'}
-                    </Button>
                   </div>
                 )}
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-2">
-                These cards have TIME value and are ready to submit for rewards. Select individual cards or use "Submit Selected" for bulk submission.
+                {selectionMode ? (
+                  <span className="text-primary font-medium">
+                    Selection Mode Active: Tap cards to select them, or tap "Exit Selection" to view card details.
+                  </span>
+                ) : (
+                  "These cards have TIME value and are ready to submit for rewards. Use 'Select Mode' to choose multiple cards for bulk actions."
+                )}
               </p>
             </CardHeader>
             <CardContent>
@@ -821,33 +863,44 @@ export default function MyCards() {
                         <Checkbox
                           checked={selectedCards.includes(row.card_id || '')}
                           onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedCards([...selectedCards, row.card_id || '']);
-                            } else {
-                              setSelectedCards(selectedCards.filter(id => id !== row.card_id));
-                            }
+                            toggleCardSelection(row.card_id || '');
                           }}
-                          className="bg-background/80 border-2"
+                          className={`bg-background/80 border-2 ${
+                            isMobile ? 'h-5 w-5' : 'h-4 w-4'
+                          } ${selectionMode ? 'ring-2 ring-primary/50' : ''}`}
                         />
                       </div>
-                      <EnhancedTradingCard
-                        card={{
-                          id: row.card_id || '',
-                          name: row.name || 'Unknown Card',
-                          suit: row.suit || '',
-                          rank: row.rank || '',
-                          era: row.era || '',
-                          rarity: row.rarity || '',
-                          trader_value: row.trader_value || '',
-                          time_value: row.time_value || 0,
-                          image_url: row.image_url || '',
-                          is_claimed: false,
-                          redemption_status: row.redemption_status || ''
-                        }}
-                        baseWidth={isMobile ? 150 : 180}
-                        showFullDetails={true}
-                        onClick={() => handleCardClick(row)}
-                      />
+                      
+                      {/* Selection Mode Indicator */}
+                      {selectionMode && (
+                        <div className="absolute inset-0 bg-primary/10 rounded-lg border-2 border-primary/30 z-0" />
+                      )}
+                      
+                      <div 
+                        className={`${selectionMode ? 'cursor-pointer' : ''} ${
+                          selectedCards.includes(row.card_id || '') ? 'ring-2 ring-primary' : ''
+                        } rounded-lg transition-all duration-200`}
+                        onClick={() => selectionMode ? toggleCardSelection(row.card_id || '') : undefined}
+                      >
+                        <EnhancedTradingCard
+                          card={{
+                            id: row.card_id || '',
+                            name: row.name || 'Unknown Card',
+                            suit: row.suit || '',
+                            rank: row.rank || '',
+                            era: row.era || '',
+                            rarity: row.rarity || '',
+                            trader_value: row.trader_value || '',
+                            time_value: row.time_value || 0,
+                            image_url: row.image_url || '',
+                            is_claimed: false,
+                            redemption_status: row.redemption_status || ''
+                          }}
+                          baseWidth={isMobile ? 150 : 180}
+                          showFullDetails={true}
+                          onClick={() => !selectionMode ? handleCardClick(row) : undefined}
+                        />
+                      </div>
                       <div className="absolute bottom-2 right-2 z-10 flex gap-1">
                         <Button 
                           size="sm" 
