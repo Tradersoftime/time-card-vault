@@ -154,14 +154,9 @@ export default function ScanPro() {
           <p className="text-muted-foreground mb-6">
             The Pro Scanner is optimized for mobile devices. Please use your phone or tablet for the best scanning experience.
           </p>
-          <div className="space-y-3">
-            <Button onClick={() => navigate('/scan')} className="w-full">
-              Use Desktop Scanner
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/')} className="w-full">
-              Back to Home
-            </Button>
-          </div>
+          <Button variant="outline" onClick={() => navigate('/')} className="w-full">
+            Back to Home
+          </Button>
         </Card>
       </div>
     );

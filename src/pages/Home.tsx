@@ -46,7 +46,7 @@ export default function Home() {
                     </Button>
                   </Link>
                   {isMobile ? (
-                    <Link to="/quick-scan">
+                    <Link to="/scan-pro">
                       <Button variant="glass" size="lg" className="w-full sm:w-auto">
                         <Scan className="mr-2 h-5 w-5" />
                         Scan Card

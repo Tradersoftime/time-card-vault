@@ -79,64 +79,57 @@ export function UltraScanner({ onDetected, onError, onClose }: UltraScannerProps
   }, []);
 
   const detectWithBarcodeDetector = useCallback(async () => {
-    if (!detectorRef.current || !videoRef.current || !canvasRef.current) return;
+    if (!detectorRef.current || !videoRef.current) return false;
     
     try {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) return;
-      
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-      
-      const codes = await detectorRef.current.detect(canvas);
+      const codes = await detectorRef.current.detect(videoRef.current);
       if (codes.length > 0) {
         onDetected(codes[0].rawValue);
+        return true;
       }
     } catch (err) {
       // Silent fail for BarcodeDetector
     }
+    return false;
   }, [onDetected]);
 
   const detectWithZXing = useCallback(async () => {
-    if (!zxingRef.current || !videoRef.current || !canvasRef.current) return;
+    if (!zxingRef.current || !canvasRef.current || !videoRef.current) return false;
     
     try {
       const canvas = canvasRef.current;
       const video = videoRef.current;
       const ctx = canvas.getContext('2d');
       
-      if (!ctx) return;
+      if (!ctx) return false;
       
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0);
       
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const result = await zxingRef.current.decodeFromImageData(imageData);
-      
+      const result = await zxingRef.current.decodeFromCanvas(canvas);
       if (result) {
-        onDetected(result.text);
+        onDetected(result.getText?.() ?? result.text);
+        return true;
       }
     } catch (err) {
-      // Silent fail for ZXing
+      // Silent fail for ZXing - includes NotFoundException
     }
+    return false;
   }, [onDetected]);
 
   const scanLoop = useCallback(async () => {
     if (!scanningRef.current) return;
     
-    // Try BarcodeDetector first, then ZXing
-    await detectWithBarcodeDetector();
-    if (scanningRef.current) {
+    // Try BarcodeDetector first (faster), then ZXing if no result
+    const detected = await detectWithBarcodeDetector();
+    if (!detected && scanningRef.current) {
       await detectWithZXing();
     }
     
     if (scanningRef.current) {
-      requestAnimationFrame(scanLoop);
+      // Throttle to ~8fps for better performance
+      setTimeout(() => requestAnimationFrame(scanLoop), 120);
     }
   }, [detectWithBarcodeDetector, detectWithZXing]);
 

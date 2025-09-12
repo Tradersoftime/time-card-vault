@@ -66,9 +66,9 @@ export function Navbar() {
             {user && (
               <>
                 <Link
-                  to="/scan"
+                  to="/scan-pro"
                   className={`interactive text-sm font-medium transition-colors flex items-center gap-1 ${
-                    isActive('/scan') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                    isActive('/scan-pro') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <ScanLine className="h-4 w-4" />
@@ -160,9 +160,9 @@ export function Navbar() {
               {user && (
                 <>
                   <Link
-                    to="/scan"
+                    to="/scan-pro"
                     className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive('/scan') 
+                      isActive('/scan-pro') 
                         ? 'bg-primary/10 text-primary' 
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
                     }`}

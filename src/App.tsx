@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -21,8 +21,6 @@ import MyCards from "./pages/MyCards";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
 import ResetPassword from "./pages/ResetPassword";
-import Scan from "./pages/Scan";
-import QuickScan from "./pages/QuickScan";
 import ScanPro from "./pages/ScanPro";
 import NotFound from "./pages/NotFound";
 
@@ -46,8 +44,8 @@ const App = () => (
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/auth/admin" element={<AdminLogin />} />
                 <Route path="/auth/reset" element={<ResetPassword />} />
-                <Route path="/scan" element={<Scan />} />
-                <Route path="/quick-scan" element={<QuickScan />} />
+                <Route path="/scan" element={<Navigate to="/scan-pro" replace />} />
+                <Route path="/quick-scan" element={<Navigate to="/scan-pro" replace />} />
                 <Route path="/scan-pro" element={<ScanPro />} />
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/admin/cards" element={<AdminCards />} />
