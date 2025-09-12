@@ -1,10 +1,11 @@
 // src/pages/Scan.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Html5QRScanner } from "@/components/Html5QRScanner";
-import { Camera } from "lucide-react";
+import { Camera, Zap } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type LogItem = {
   id: string;
@@ -26,6 +27,7 @@ type LogItem = {
 
 export default function Scan() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // scanner state
   const processingRef = useRef<boolean>(false);
@@ -403,6 +405,19 @@ export default function Scan() {
                   <Camera className="w-5 h-5 mr-2" />
                   Open Camera Scanner
                 </Button>
+
+                {isMobile && (
+                  <Link to="/quick-scan">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2"
+                    >
+                      <Zap className="w-4 h-4 mr-2" />
+                      Try QuickScan (Auto-Close)
+                    </Button>
+                  </Link>
+                )}
 
                 {error && (
                   <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
