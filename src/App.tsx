@@ -23,6 +23,7 @@ import AdminLogin from "./pages/AdminLogin";
 import ResetPassword from "./pages/ResetPassword";
 import Scan from "./pages/Scan";
 import QuickScan from "./pages/QuickScan";
+import ScanPro from "./pages/ScanPro";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
                 <Route path="/auth/reset" element={<ResetPassword />} />
                 <Route path="/scan" element={<Scan />} />
                 <Route path="/quick-scan" element={<QuickScan />} />
+                <Route path="/scan-pro" element={<ScanPro />} />
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/admin/cards" element={<AdminCards />} />
                 <Route path="/admin/redemptions" element={<AdminRedemptions />} />

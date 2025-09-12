@@ -44,6 +44,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.12",
     "@yudiel/react-qr-scanner": "^2.3.1",
+    "@zxing/browser": "^0.1.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

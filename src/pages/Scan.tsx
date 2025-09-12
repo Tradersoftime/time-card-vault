@@ -374,9 +374,14 @@ export default function Scan() {
       <div className="p-6 space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
-            Scan Trading Cards
+            Advanced Scanner
           </h1>
           <p className="text-muted-foreground">Point your camera at any card QR code to add it to your collection</p>
+          <div className="mt-4">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/scan-pro">Try Pro Scanner (Mobile)</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
