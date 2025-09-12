@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { CreditCard, Scan, Sparkles } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { CreditCard, Scan, Sparkles, Monitor } from 'lucide-react';
 
 export default function Home() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   return (
     <div className="min-h-screen">
@@ -43,10 +45,24 @@ export default function Home() {
                       My Collection
                     </Button>
                   </Link>
-                  <Button variant="glass" size="lg" className="w-full sm:w-auto">
-                    <Scan className="mr-2 h-5 w-5" />
-                    Scan Card
-                  </Button>
+                  {isMobile ? (
+                    <Link to="/scan">
+                      <Button variant="glass" size="lg" className="w-full sm:w-auto">
+                        <Scan className="mr-2 h-5 w-5" />
+                        Scan Card
+                      </Button>
+                    </Link>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Button variant="glass" size="lg" className="w-full sm:w-auto opacity-50" disabled>
+                        <Monitor className="mr-2 h-5 w-5" />
+                        Scanning on Desktop
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center max-w-48">
+                        Use your phone to scan QR codes
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -55,10 +71,22 @@ export default function Home() {
                       Get Started
                     </Button>
                   </Link>
-                  <Button variant="glass" size="lg" className="w-full sm:w-auto">
-                    <Scan className="mr-2 h-5 w-5" />
-                    Learn More
-                  </Button>
+                  {isMobile ? (
+                    <Button variant="glass" size="lg" className="w-full sm:w-auto">
+                      <Scan className="mr-2 h-5 w-5" />
+                      Learn More
+                    </Button>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Button variant="glass" size="lg" className="w-full sm:w-auto">
+                        <Monitor className="mr-2 h-5 w-5" />
+                        Learn More
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center max-w-48">
+                        Scanning requires a mobile device
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
             </div>
