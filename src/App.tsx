@@ -44,8 +44,8 @@ const App = () => (
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/auth/admin" element={<AdminLogin />} />
                 <Route path="/auth/reset" element={<ResetPassword />} />
-                <Route path="/scan" element={<Navigate to="/scan-pro" replace />} />
-                <Route path="/quick-scan" element={<Navigate to="/scan-pro" replace />} />
+                <Route path="/scan" element={<ScanPro />} />
+                <Route path="/quick-scan" element={<ScanPro />} />
                 <Route path="/scan-pro" element={<ScanPro />} />
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/admin/cards" element={<AdminCards />} />
