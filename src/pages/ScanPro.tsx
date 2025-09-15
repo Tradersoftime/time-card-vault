@@ -28,8 +28,7 @@ export default function ScanPro() {
   const [scanSession, setScanSession] = useState<ScanSession[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
-  const [lastScanTime, setLastScanTime] = useState(0);
-  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [cardCache, setCardCache] = useState<Record<string, string>>({}); // Cache for card names
 
   useEffect(() => {
     if (!loading && !user) {
@@ -44,25 +43,6 @@ export default function ScanPro() {
   const handleDetected = async (text: string) => {
     if (isProcessing) return; // Prevent double processing
     
-    // Check cooldown (3 seconds)
-    const now = Date.now();
-    const timeSinceLastScan = now - lastScanTime;
-    if (timeSinceLastScan < 3000) {
-      const remaining = Math.ceil((3000 - timeSinceLastScan) / 1000);
-      setCooldownRemaining(remaining);
-      setProcessingMessage(`Please wait ${remaining}s...`);
-      setIsProcessing(true);
-      
-      setTimeout(() => {
-        setIsProcessing(false);
-        setProcessingMessage('');
-        setCooldownRemaining(0);
-      }, 3000 - timeSinceLastScan);
-      
-      return;
-    }
-    
-    setLastScanTime(now);
     setIsProcessing(true);
     setProcessingMessage('Processing...');
 
@@ -90,6 +70,14 @@ export default function ScanPro() {
         () => navigate('/login')
       );
 
+      // Cache the card name if we have it
+      if (result.card?.name) {
+        setCardCache(prev => ({
+          ...prev,
+          [extracted.value]: result.card!.name
+        }));
+      }
+
       const sessionEntry: ScanSession = {
         id: Date.now().toString(),
         timestamp: Date.now(),
@@ -98,7 +86,7 @@ export default function ScanPro() {
           (result.status === 'already_owner' ? 'already_owned' : 'success') : 
           (result.status === 'not_found' ? 'not_found' : 'error'),
         message: result.message,
-        cardName: result.card?.name
+        cardName: result.card?.name || cardCache[extracted.value]
       };
 
       addToSession(sessionEntry);
@@ -111,10 +99,11 @@ export default function ScanPro() {
           variant: 'default'
         });
       } else {
+        // Use neutral toasts for all non-success cases to avoid hard-to-dismiss red errors
         toast({
           title: 'Scan Result',
           description: result.message,
-          variant: result.status === 'not_found' ? 'default' : 'destructive'
+          variant: 'default'
         });
       }
 

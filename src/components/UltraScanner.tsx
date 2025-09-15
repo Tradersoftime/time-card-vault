@@ -27,6 +27,7 @@ export function UltraScanner({ onDetected, onError, onClose }: UltraScannerProps
   const scanningRef = useRef(false);
   const detectorRef = useRef<any>(null);
   const zxingRef = useRef<any>(null);
+  const lastDetectionRef = useRef<{ value: string; time: number } | null>(null);
   
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [hasFlash, setHasFlash] = useState(false);
@@ -84,7 +85,18 @@ export function UltraScanner({ onDetected, onError, onClose }: UltraScannerProps
     try {
       const codes = await detectorRef.current.detect(videoRef.current);
       if (codes.length > 0) {
-        onDetected(codes[0].rawValue);
+        const value = codes[0].rawValue;
+        const now = Date.now();
+        
+        // Check if we detected the same code within the last 3 seconds
+        if (lastDetectionRef.current && 
+            lastDetectionRef.current.value === value && 
+            now - lastDetectionRef.current.time < 3000) {
+          return false; // Ignore duplicate detection
+        }
+        
+        lastDetectionRef.current = { value, time: now };
+        onDetected(value);
         return true;
       }
     } catch (err) {
@@ -109,7 +121,18 @@ export function UltraScanner({ onDetected, onError, onClose }: UltraScannerProps
       
       const result = await zxingRef.current.decodeFromCanvas(canvas);
       if (result) {
-        onDetected(result.getText?.() ?? result.text);
+        const value = result.getText?.() ?? result.text;
+        const now = Date.now();
+        
+        // Check if we detected the same code within the last 3 seconds
+        if (lastDetectionRef.current && 
+            lastDetectionRef.current.value === value && 
+            now - lastDetectionRef.current.time < 3000) {
+          return false; // Ignore duplicate detection
+        }
+        
+        lastDetectionRef.current = { value, time: now };
+        onDetected(value);
         return true;
       }
     } catch (err) {
