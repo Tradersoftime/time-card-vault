@@ -43,6 +43,7 @@ export default function AdminUsers() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<UserStats>({ totalUsers: 0, activeUsers: 0, blockedUsers: 0, newUsersToday: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -51,17 +52,43 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
 
+  // Admin check
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/login');
-      return;
-    }
-    
-    if (user) {
+    let mounted = true;
+    (async () => {
+      if (!loading && !user) {
+        navigate('/auth/login');
+        return;
+      }
+      
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      if (!mounted) return;
+      if (error) {
+        console.error('Error checking admin status:', error);
+        setIsAdmin(false);
+        return;
+      }
+      setIsAdmin(!!data);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [user, loading, navigate]);
+
+  // Load data when admin status is confirmed
+  useEffect(() => {
+    if (isAdmin === true) {
       loadUsers();
       calculateStats();
     }
-  }, [user, loading, searchTerm, statusFilter]);
+  }, [isAdmin, searchTerm, statusFilter]);
 
   const loadUsers = async () => {
     try {
@@ -204,7 +231,24 @@ export default function AdminUsers() {
     setSelectedUsers(newSelected);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading || isAdmin === null) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (isAdmin === false) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="glass-panel p-8 rounded-2xl text-center">
+          <div className="text-destructive text-lg font-medium">Access Denied</div>
+          <div className="text-muted-foreground mt-2">You are not authorized to access user management.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
