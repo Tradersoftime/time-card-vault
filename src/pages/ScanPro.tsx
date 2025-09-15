@@ -28,6 +28,8 @@ export default function ScanPro() {
   const [scanSession, setScanSession] = useState<ScanSession[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
+  const [lastScanTime, setLastScanTime] = useState(0);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -42,6 +44,25 @@ export default function ScanPro() {
   const handleDetected = async (text: string) => {
     if (isProcessing) return; // Prevent double processing
     
+    // Check cooldown (3 seconds)
+    const now = Date.now();
+    const timeSinceLastScan = now - lastScanTime;
+    if (timeSinceLastScan < 3000) {
+      const remaining = Math.ceil((3000 - timeSinceLastScan) / 1000);
+      setCooldownRemaining(remaining);
+      setProcessingMessage(`Please wait ${remaining}s...`);
+      setIsProcessing(true);
+      
+      setTimeout(() => {
+        setIsProcessing(false);
+        setProcessingMessage('');
+        setCooldownRemaining(0);
+      }, 3000 - timeSinceLastScan);
+      
+      return;
+    }
+    
+    setLastScanTime(now);
     setIsProcessing(true);
     setProcessingMessage('Processing...');
 
@@ -87,6 +108,7 @@ export default function ScanPro() {
         toast({
           title: result.status === 'already_owner' ? 'Already in Collection' : 'Card Claimed!',
           description: result.card?.name ? `${result.card.name} - ${result.message}` : result.message,
+          variant: 'default'
         });
       } else {
         toast({

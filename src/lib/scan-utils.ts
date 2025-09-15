@@ -170,7 +170,12 @@ export async function claimByCodeOrToken(
         message = status === "claimed" ? "Added to your collection" : "Already in your collection";
       }
 
-      const card = data.card_id ? await fetchCardById(data.card_id) : undefined;
+      let card = data.card_id ? await fetchCardById(data.card_id) : undefined;
+      
+      // For already_owner status, try to fetch card by code if we don't have card data
+      if (status === "already_owner" && !card && type === 'code') {
+        card = await fetchCardByCodeLike(value);
+      }
       
       return {
         success: true,
@@ -207,7 +212,11 @@ export async function claimByCodeOrToken(
       }
     }
 
-    const card = status === "owned_by_other" ? undefined : await fetchCardByCodeLike(value);
+    let card = undefined;
+    if (status !== "owned_by_other") {
+      // For all non-success cases except owned_by_other, try to fetch card info
+      card = type === 'code' ? await fetchCardByCodeLike(value) : undefined;
+    }
     
     return {
       success: false,
