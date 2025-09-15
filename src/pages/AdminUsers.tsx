@@ -93,20 +93,34 @@ export default function AdminUsers() {
   const loadUsers = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase.rpc('admin_list_users', {
-        p_search: searchTerm || null,
-        p_status_filter: statusFilter === 'all' ? null : statusFilter || null,
+      
+      // Build params object with only non-empty values
+      const params: any = {
         p_limit: 100,
         p_offset: 0
-      });
+      };
+      
+      // Only include search if it's a non-empty trimmed string
+      const trimmedSearch = searchTerm.trim();
+      if (trimmedSearch) {
+        params.p_search = trimmedSearch;
+      }
+      
+      // Only include status filter if it's not 'all'
+      if (statusFilter && statusFilter !== 'all') {
+        params.p_status_filter = statusFilter;
+      }
+
+      const { data, error } = await supabase.rpc('admin_list_users', params);
 
       if (error) throw error;
       setUsers(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading users:', error);
+      console.error('Error details:', error.message, error.details);
       toast({
         title: 'Error',
-        description: 'Failed to load users',
+        description: `Failed to load users: ${error.message || 'Unknown error'}`,
         variant: 'destructive'
       });
     } finally {
