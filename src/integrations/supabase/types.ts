@@ -401,6 +401,30 @@ export type Database = {
           trader_value: string
         }[]
       }
+      admin_list_users: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status_filter?: string
+        }
+        Returns: {
+          block_reason: string
+          blocked_at: string
+          blocked_by_email: string
+          created_at: string
+          credited_redemptions: number
+          email: string
+          email_confirmed_at: string
+          is_blocked: boolean
+          last_activity: string
+          last_sign_in_at: string
+          pending_redemptions: number
+          total_cards_owned: number
+          total_scans: number
+          user_id: string
+        }[]
+      }
       admin_pending_card_redemptions: {
         Args: Record<PropertyKey, never>
         Returns: {

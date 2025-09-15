@@ -265,6 +265,12 @@ export default function Admin() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Link 
+                to="/admin/users" 
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
+              >
+                User Management
+              </Link>
+              <Link 
                 to="/admin/qr" 
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
               >

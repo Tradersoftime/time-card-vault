@@ -19,6 +19,7 @@ import ClaimCard from "./pages/ClaimCard";
 import ClaimToken from "./pages/ClaimToken";
 import MyCards from "./pages/MyCards";
 import Admin from "./pages/Admin";
+import AdminUsers from "./pages/AdminUsers";
 import AdminLogin from "./pages/AdminLogin";
 import ResetPassword from "./pages/ResetPassword";
 import ScanPro from "./pages/ScanPro";
@@ -42,6 +43,7 @@ const App = () => (
                 <Route path="/claim" element={<ClaimToken />} />
                 <Route path="/me/cards" element={<MyCards />} />
                 <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/users" element={<AdminUsers />} />
                 <Route path="/auth/admin" element={<AdminLogin />} />
                 <Route path="/auth/reset" element={<ResetPassword />} />
                 <Route path="/scan" element={<ScanPro />} />
