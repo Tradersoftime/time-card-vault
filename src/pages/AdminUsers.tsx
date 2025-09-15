@@ -48,7 +48,7 @@ export default function AdminUsers() {
   const [stats, setStats] = useState<UserStats>({ totalUsers: 0, activeUsers: 0, blockedUsers: 0, newUsersToday: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
 
@@ -95,7 +95,7 @@ export default function AdminUsers() {
       setIsLoading(true);
       const { data, error } = await supabase.rpc('admin_list_users', {
         p_search: searchTerm || null,
-        p_status_filter: statusFilter || null,
+        p_status_filter: statusFilter === 'all' ? null : statusFilter || null,
         p_limit: 100,
         p_offset: 0
       });
@@ -323,7 +323,7 @@ export default function AdminUsers() {
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Users</SelectItem>
+                  <SelectItem value="all">All Users</SelectItem>
                   <SelectItem value="active">Active Only</SelectItem>
                   <SelectItem value="blocked">Blocked Only</SelectItem>
                 </SelectContent>
