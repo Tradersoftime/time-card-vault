@@ -422,6 +422,8 @@ export type Database = {
           pending_redemptions: number
           total_cards_owned: number
           total_scans: number
+          total_time_credited: number
+          total_time_owned: number
           user_id: string
         }[]
       }
