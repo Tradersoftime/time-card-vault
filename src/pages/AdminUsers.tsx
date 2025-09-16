@@ -29,6 +29,8 @@ interface User {
   credited_redemptions: number;
   total_scans: number;
   last_activity?: string;
+  total_time_credited: number;
+  total_time_owned: number;
 }
 
 interface UserStats {
@@ -407,6 +409,7 @@ export default function AdminUsers() {
                       <TableHead>Email</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Cards</TableHead>
+                      <TableHead>Time Token</TableHead>
                       <TableHead>Redemptions</TableHead>
                       <TableHead>Last Activity</TableHead>
                       <TableHead>Joined</TableHead>
@@ -437,6 +440,12 @@ export default function AdminUsers() {
                           </Badge>
                         </TableCell>
                         <TableCell>{user.total_cards_owned}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <div className="font-medium">{user.total_time_credited || 0}</div>
+                            <div className="text-muted-foreground text-xs">Credited</div>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="text-sm">
                             <div>{user.credited_redemptions} credited</div>

@@ -28,6 +28,8 @@ interface UserDetailModalProps {
     credited_redemptions: number;
     total_scans: number;
     last_activity?: string;
+    total_time_credited: number;
+    total_time_owned: number;
   };
   onClose: () => void;
   onUserUpdated: () => void;
@@ -269,6 +271,14 @@ export function UserDetailModal({ user, onClose, onUserUpdated }: UserDetailModa
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total Scans:</span>
                     <span className="font-medium">{user.total_scans}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Time Token Credited:</span>
+                    <span className="font-medium">{user.total_time_credited || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Time Token Owned:</span>
+                    <span className="font-medium">{user.total_time_owned || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Last Activity:</span>
