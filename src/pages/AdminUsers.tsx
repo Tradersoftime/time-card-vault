@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +13,8 @@ import { UserDetailModal } from '@/components/UserDetailModal';
 import { Search, Users, UserCheck, UserX, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { SortableTableHeader } from '@/components/ui/sortable-table';
 
 interface User {
   user_id: string;
@@ -53,6 +55,8 @@ export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<keyof User>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Admin check
   useEffect(() => {
@@ -247,6 +251,47 @@ export default function AdminUsers() {
     setSelectedUsers(newSelected);
   };
 
+  const handleSort = (column: keyof User) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      let aVal = a[sortBy];
+      let bVal = b[sortBy];
+      
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return sortOrder === 'asc' ? -1 : 1;
+      if (bVal == null) return sortOrder === 'asc' ? 1 : -1;
+      
+      // Handle different data types
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        const comparison = aVal.localeCompare(bVal);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      }
+      
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      
+      if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+        return sortOrder === 'asc' ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
+      }
+      
+      // Fallback to string comparison
+      const aStr = String(aVal);
+      const bStr = String(bVal);
+      const comparison = aStr.localeCompare(bStr);
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [users, sortBy, sortOrder]);
+
   if (loading || isAdmin === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -389,35 +434,71 @@ export default function AdminUsers() {
                 <LoadingSpinner />
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">
-                        <input
-                          type="checkbox"
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedUsers(new Set(users.map(u => u.user_id)));
-                            } else {
-                              setSelectedUsers(new Set());
-                            }
-                          }}
-                          checked={selectedUsers.size === users.length && users.length > 0}
+              <ScrollArea className="h-[600px]">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">
+                          <input
+                            type="checkbox"
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUsers(new Set(sortedUsers.map(u => u.user_id)));
+                              } else {
+                                setSelectedUsers(new Set());
+                              }
+                            }}
+                            checked={selectedUsers.size === sortedUsers.length && sortedUsers.length > 0}
+                          />
+                        </TableHead>
+                        <SortableTableHeader 
+                          label="Email" 
+                          active={sortBy === 'email'} 
+                          direction={sortOrder}
+                          onClick={() => handleSort('email')}
                         />
-                      </TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Cards</TableHead>
-                      <TableHead>Time Token</TableHead>
-                      <TableHead>Redemptions</TableHead>
-                      <TableHead>Last Activity</TableHead>
-                      <TableHead>Joined</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user) => (
+                        <SortableTableHeader 
+                          label="Status" 
+                          active={sortBy === 'is_blocked'} 
+                          direction={sortOrder}
+                          onClick={() => handleSort('is_blocked')}
+                        />
+                        <SortableTableHeader 
+                          label="Cards" 
+                          active={sortBy === 'total_cards_owned'} 
+                          direction={sortOrder}
+                          onClick={() => handleSort('total_cards_owned')}
+                        />
+                        <SortableTableHeader 
+                          label="Time Token" 
+                          active={sortBy === 'total_time_credited'} 
+                          direction={sortOrder}
+                          onClick={() => handleSort('total_time_credited')}
+                        />
+                        <SortableTableHeader 
+                          label="Redemptions" 
+                          active={sortBy === 'credited_redemptions'} 
+                          direction={sortOrder}
+                          onClick={() => handleSort('credited_redemptions')}
+                        />
+                        <SortableTableHeader 
+                          label="Last Activity" 
+                          active={sortBy === 'last_activity'} 
+                          direction={sortOrder}
+                          onClick={() => handleSort('last_activity')}
+                        />
+                        <SortableTableHeader 
+                          label="Joined" 
+                          active={sortBy === 'created_at'} 
+                          direction={sortOrder}
+                          onClick={() => handleSort('created_at')}
+                        />
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedUsers.map((user) => (
                       <TableRow key={user.user_id}>
                         <TableCell>
                           <input
@@ -493,12 +574,13 @@ export default function AdminUsers() {
                     ))}
                   </TableBody>
                 </Table>
-                
-                {users.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No users found matching your criteria
-                  </div>
-                )}
+              </div>
+            </ScrollArea>
+            )}
+
+            {users.length === 0 && !isLoading && (
+              <div className="text-center py-8 text-muted-foreground">
+                No users found matching your criteria
               </div>
             )}
           </CardContent>

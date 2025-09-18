@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 /* ---------- Types ---------- */
 
@@ -368,94 +369,96 @@ export default function Admin() {
           ) : creditedGrouped.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No credited redemptions yet.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50">
-                    <Th
-                      label="When"
-                      active={credSortKey === "credited_at"}
-                      dir={credSortDir}
-                      onClick={() => {
-                        setCredSortKey("credited_at");
-                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                      }}
-                    />
-                    <Th
-                      label="User"
-                      active={credSortKey === "user_email"}
-                      dir={credSortDir}
-                      onClick={() => {
-                        setCredSortKey("user_email");
-                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                      }}
-                    />
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">Codes</th>
-                    <Th
-                      label="# Credited"
-                      active={credSortKey === "credited_count"}
-                      dir={credSortDir}
-                      onClick={() => {
-                        setCredSortKey("credited_count");
-                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                      }}
-                    />
-                    <Th
-                      label="TIME Total"
-                      active={credSortKey === "total_time"}
-                      dir={credSortDir}
-                      onClick={() => {
-                        setCredSortKey("total_time");
-                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                      }}
-                    />
-                    <Th
-                      label="Redemption"
-                      active={credSortKey === "redemption_id"}
-                      dir={credSortDir}
-                      onClick={() => {
-                        setCredSortKey("redemption_id");
-                        setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                      }}
-                    />
-                  </tr>
-                </thead>
-                <tbody>
-                  {creditedGrouped.map((g) => (
-                    <tr key={g.redemption_id} className="border-b border-border/30 hover:bg-muted/5 transition-colors">
-                      <td className="py-3 pr-4 text-foreground">
-                        {g.credited_at ? new Date(g.credited_at).toLocaleString() : "—"}
-                      </td>
-                      <td className="py-3 pr-4 text-foreground">{g.user_email ?? "—"}</td>
-                      <td className="py-3 pr-4">
-                        <div className="flex flex-wrap gap-1">
-                          {g.codes.slice(0, 10).map((code) => (
-                            <span key={code} className="px-2 py-1 rounded bg-primary/10 text-primary text-xs font-mono">
-                              {code}
-                            </span>
-                          ))}
-                          {g.codes.length > 10 && (
-                            <span className="text-xs text-muted-foreground">+{g.codes.length - 10} more</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 pr-4 text-foreground font-medium">{g.credited_count}</td>
-                      <td className="py-3 pr-4 text-primary font-semibold">{g.total_time}</td>
-                      <td className="py-3 pr-4">
-                        <Link 
-                          to={`/receipt/${g.redemption_id}`} 
-                          className="text-primary hover:underline font-mono text-sm" 
-                          target="_blank" 
-                          rel="noreferrer"
-                        >
-                          {g.redemption_id.slice(0, 8)}…
-                        </Link>
-                      </td>
+            <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/50">
+                      <Th
+                        label="When"
+                        active={credSortKey === "credited_at"}
+                        dir={credSortDir}
+                        onClick={() => {
+                          setCredSortKey("credited_at");
+                          setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                        }}
+                      />
+                      <Th
+                        label="User"
+                        active={credSortKey === "user_email"}
+                        dir={credSortDir}
+                        onClick={() => {
+                          setCredSortKey("user_email");
+                          setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                        }}
+                      />
+                      <th className="py-3 pr-4 text-left font-medium text-foreground">Codes</th>
+                      <Th
+                        label="# Credited"
+                        active={credSortKey === "credited_count"}
+                        dir={credSortDir}
+                        onClick={() => {
+                          setCredSortKey("credited_count");
+                          setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                        }}
+                      />
+                      <Th
+                        label="TIME Total"
+                        active={credSortKey === "total_time"}
+                        dir={credSortDir}
+                        onClick={() => {
+                          setCredSortKey("total_time");
+                          setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                        }}
+                      />
+                      <Th
+                        label="Redemption"
+                        active={credSortKey === "redemption_id"}
+                        dir={credSortDir}
+                        onClick={() => {
+                          setCredSortKey("redemption_id");
+                          setCredSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                        }}
+                      />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {creditedGrouped.map((g) => (
+                      <tr key={g.redemption_id} className="border-b border-border/30 hover:bg-muted/5 transition-colors">
+                        <td className="py-3 pr-4 text-foreground">
+                          {g.credited_at ? new Date(g.credited_at).toLocaleString() : "—"}
+                        </td>
+                        <td className="py-3 pr-4 text-foreground">{g.user_email ?? "—"}</td>
+                        <td className="py-3 pr-4">
+                          <div className="flex flex-wrap gap-1">
+                            {g.codes.slice(0, 10).map((code) => (
+                              <span key={code} className="px-2 py-1 rounded bg-primary/10 text-primary text-xs font-mono">
+                                {code}
+                              </span>
+                            ))}
+                            {g.codes.length > 10 && (
+                              <span className="text-xs text-muted-foreground">+{g.codes.length - 10} more</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-4 text-foreground font-medium">{g.credited_count}</td>
+                        <td className="py-3 pr-4 text-primary font-semibold">{g.total_time}</td>
+                        <td className="py-3 pr-4">
+                          <Link 
+                            to={`/receipt/${g.redemption_id}`} 
+                            className="text-primary hover:underline font-mono text-sm" 
+                            target="_blank" 
+                            rel="noreferrer"
+                          >
+                            {g.redemption_id.slice(0, 8)}…
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </ScrollArea>
           )}
         </div>
 
@@ -501,115 +504,72 @@ export default function Admin() {
               <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
               <div className="text-muted-foreground">Loading scan activity...</div>
             </div>
-          ) : (
+        ) : (
+          <ScrollArea className="h-[500px]">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/50">
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">When</th>
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">Email</th>
+                    <Th
+                      label="Time"
+                      active={scanSortKey === "created_at"}
+                      dir={scanSortDir}
+                      onClick={() => {
+                        setScanSortKey("created_at");
+                        setScanSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                    />
+                    <Th
+                      label="User"
+                      active={scanSortKey === "email"}
+                      dir={scanSortDir}
+                      onClick={() => {
+                        setScanSortKey("email");
+                        setScanSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                    />
                     <th className="py-3 pr-4 text-left font-medium text-foreground">Code</th>
                     <th className="py-3 pr-4 text-left font-medium text-foreground">Outcome</th>
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">Card ID</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredScans.map((s, idx) => (
-                    <tr key={`${s.created_at}-${idx}`} className="border-b border-border/30 hover:bg-muted/5 transition-colors">
-                      <td className="py-3 pr-4 text-foreground">{new Date(s.created_at).toLocaleString()}</td>
+                  {filteredScans.map((s, i) => (
+                    <tr key={i} className="border-b border-border/30 hover:bg-muted/5 transition-colors">
+                      <td className="py-3 pr-4 text-foreground font-mono text-xs">
+                        {new Date(s.created_at).toLocaleString()}
+                      </td>
                       <td className="py-3 pr-4 text-foreground">{s.email ?? "—"}</td>
-                      <td className="py-3 pr-4 font-mono text-primary">{s.code}</td>
                       <td className="py-3 pr-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          s.outcome === 'claimed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' :
-                          s.outcome === 'already_owner' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' :
-                          s.outcome === 'owned_by_other' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' :
-                          s.outcome === 'not_found' ? 'bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-200' :
-                          s.outcome === 'blocked' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' :
-                          'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'
-                        }`}>
-                          {s.outcome}
+                        <span className="px-2 py-1 rounded bg-muted text-muted-foreground text-xs font-mono">
+                          {s.code}
                         </span>
                       </td>
-                      <td className="py-3 pr-4 font-mono text-muted-foreground">{s.card_id ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* ---------- Blocked Users ---------- */}
-        <div className="glass-panel p-6 rounded-2xl">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-            <div>
-              <h2 className="text-2xl font-semibold text-foreground mb-1">Blocked Users</h2>
-              <p className="text-sm text-muted-foreground">Manage user access restrictions</p>
-            </div>
-            <button 
-              onClick={loadBlocked} 
-              className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium"
-            >
-              Refresh List
-            </button>
-          </div>
-
-          <div className="mb-6">
-            <BlockTool onMsg={setToolMsg} onChanged={loadBlocked} />
-          </div>
-
-          {loadingBlocked ? (
-            <div className="text-center py-8">
-              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-              <div className="text-muted-foreground">Loading blocked users...</div>
-            </div>
-          ) : blocked.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No users are currently blocked.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50">
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">Email</th>
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">Reason</th>
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">Blocked At</th>
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">Blocked By</th>
-                    <th className="py-3 pr-4 text-left font-medium text-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {blocked.map((b) => (
-                    <tr key={b.user_id} className="border-b border-border/30 hover:bg-muted/5 transition-colors">
-                      <td className="py-3 pr-4 text-foreground font-medium">{b.email ?? "—"}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{b.reason ?? "—"}</td>
-                      <td className="py-3 pr-4 text-foreground">{new Date(b.blocked_at).toLocaleString()}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{b.blocked_by_email ?? "—"}</td>
                       <td className="py-3 pr-4">
-                        {b.email && (
-                          <button
-                            onClick={async () => {
-                              const { data, error } = await supabase.rpc("admin_unblock_user_by_email", {
-                                p_email: b.email!,
-                              });
-                              if (error) setToolMsg(error.message);
-                              else if ((data as any)?.ok) {
-                                setToolMsg(`✅ Unblocked ${b.email}`);
-                                await loadBlocked();
-                              }
-                            }}
-                            className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm font-medium"
-                          >
-                            Unblock
-                          </button>
-                        )}
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            s.outcome === "claimed"
+                              ? "bg-green-100 text-green-800"
+                              : s.outcome === "already_owner"
+                              ? "bg-blue-100 text-blue-800"
+                              : s.outcome === "owned_by_other"
+                              ? "bg-orange-100 text-orange-800"
+                              : s.outcome === "not_found"
+                              ? "bg-gray-100 text-gray-800"
+                              : s.outcome === "blocked"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-purple-100 text-purple-800"
+                          }`}
+                        >
+                          {s.outcome.replace("_", " ").toUpperCase()}
+                        </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
+          </ScrollArea>
+        )}
         </div>
       </div>
     </div>

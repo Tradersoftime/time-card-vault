@@ -13,6 +13,9 @@ import { CheckCircle, XCircle, DollarSign, Clock, User, Calendar, Filter, Search
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortableTableHeader } from "@/components/ui/sortable-table";
 
 interface PendingRedemption {
   redemption_id: string;
@@ -39,8 +42,8 @@ export default function AdminRedemptions() {
   const [adminNotes, setAdminNotes] = useState("");
   const [externalRef, setExternalRef] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<string>("submitted_at");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortBy, setSortBy] = useState<keyof PendingRedemption>("submitted_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [filterBy, setFilterBy] = useState<string>("all");
 
   useEffect(() => {
@@ -115,6 +118,15 @@ export default function AdminRedemptions() {
 
     return filtered;
   }, [pendingRedemptions, searchTerm, sortBy, sortOrder, filterBy]);
+
+  const handleSort = (column: keyof PendingRedemption) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
 
   const handleSelectAll = () => {
     if (selectedRedemptions.length === filteredAndSortedRedemptions.length) {
@@ -218,7 +230,7 @@ export default function AdminRedemptions() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -240,27 +252,6 @@ export default function AdminRedemptions() {
               </SelectContent>
             </Select>
 
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sort by..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="submitted_at">Submission Date</SelectItem>
-                <SelectItem value="time_value">TIME Value</SelectItem>
-                <SelectItem value="user_email">User Email</SelectItem>
-                <SelectItem value="card_name">Card Name</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="asc">Ascending</SelectItem>
-                <SelectItem value="desc">Descending</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
@@ -371,8 +362,53 @@ export default function AdminRedemptions() {
         </CardHeader>
         <CardContent>
           {filteredAndSortedRedemptions.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-              {filteredAndSortedRedemptions.map((redemption) => {
+            <div className="space-y-4">
+              {/* Sortable Table Headers */}
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <input
+                          type="checkbox"
+                          onChange={handleSelectAll}
+                          checked={selectedRedemptions.length === filteredAndSortedRedemptions.length && filteredAndSortedRedemptions.length > 0}
+                        />
+                      </TableHead>
+                      <SortableTableHeader 
+                        label="Card" 
+                        active={sortBy === 'card_name'} 
+                        direction={sortOrder}
+                        onClick={() => handleSort('card_name')}
+                      />
+                      <SortableTableHeader 
+                        label="User" 
+                        active={sortBy === 'user_email'} 
+                        direction={sortOrder}
+                        onClick={() => handleSort('user_email')}
+                      />
+                      <SortableTableHeader 
+                        label="TIME Value" 
+                        active={sortBy === 'time_value'} 
+                        direction={sortOrder}
+                        onClick={() => handleSort('time_value')}
+                      />
+                      <SortableTableHeader 
+                        label="Submitted" 
+                        active={sortBy === 'submitted_at'} 
+                        direction={sortOrder}
+                        onClick={() => handleSort('submitted_at')}
+                      />
+                      <TableHead>Rarity</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                </Table>
+              </div>
+              
+              {/* Scrollable Card Grid */}
+              <ScrollArea className="h-[600px]">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 p-2">
+                  {filteredAndSortedRedemptions.map((redemption) => {
                 const isSelected = selectedRedemptions.includes(redemption.redemption_id);
                 return (
                   <div 
@@ -438,8 +474,10 @@ export default function AdminRedemptions() {
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
