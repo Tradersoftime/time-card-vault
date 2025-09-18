@@ -434,9 +434,9 @@ export default function AdminUsers() {
                 <LoadingSpinner />
               </div>
             ) : (
-              <ScrollArea className="h-[600px]">
-                <div className="overflow-x-auto">
-                  <Table>
+              <ScrollArea className="h-[600px] w-full">
+                <div className="overflow-x-auto min-w-full">
+                  <Table className="min-w-[800px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-12">

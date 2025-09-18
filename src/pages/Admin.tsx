@@ -369,9 +369,9 @@ export default function Admin() {
           ) : creditedGrouped.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No credited redemptions yet.</div>
           ) : (
-            <ScrollArea className="h-[500px]">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+            <ScrollArea className="h-[500px] w-full">
+              <div className="overflow-x-auto min-w-full">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead>
                     <tr className="border-b border-border/50">
                       <Th
@@ -505,9 +505,9 @@ export default function Admin() {
               <div className="text-muted-foreground">Loading scan activity...</div>
             </div>
         ) : (
-          <ScrollArea className="h-[500px]">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+          <ScrollArea className="h-[500px] w-full">
+            <div className="overflow-x-auto min-w-full">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead>
                   <tr className="border-b border-border/50">
                     <Th

@@ -406,7 +406,7 @@ export default function AdminRedemptions() {
               </div>
               
               {/* Scrollable Card Grid */}
-              <ScrollArea className="h-[600px]">
+              <ScrollArea className="h-[600px] w-full">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 p-2">
                   {filteredAndSortedRedemptions.map((redemption) => {
                 const isSelected = selectedRedemptions.includes(redemption.redemption_id);
