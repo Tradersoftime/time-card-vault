@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, Copy, Download, Edit, Eye, Image as ImageIcon, Palette, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ImageLibraryView } from '@/components/ImageLibraryView';
+import { AdminDataExport } from '@/components/AdminDataExport';
 
 /* ---------------- Types ---------------- */
 
@@ -853,6 +854,9 @@ export default function AdminQR() {
           {msg}
         </div>
       )}
+
+      {/* Data Export Section */}
+      <AdminDataExport />
 
       {/* QR Color Controls */}
       <section className="card-premium rounded-xl p-4 space-y-3">

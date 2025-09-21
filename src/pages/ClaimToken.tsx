@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export default function ClaimToken() {
   const [searchParams] = useSearchParams();
+  const params = useParams();
   const navigate = useNavigate();
   const [msg, setMsg] = useState("Checking token...");
-  const token = searchParams.get("token");
+  
+  // Get token from either query parameter (?token=) or URL parameter (/c/:token)
+  const token = params.token || searchParams.get("token");
 
   useEffect(() => {
     if (!token) {

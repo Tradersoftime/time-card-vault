@@ -41,6 +41,7 @@ const App = () => (
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/r/:code" element={<CardRedirect />} />
                 <Route path="/claim" element={<ClaimToken />} />
+                <Route path="/c/:token" element={<ClaimToken />} />
                 <Route path="/me/cards" element={<MyCards />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/admin/users" element={<AdminUsers />} />
