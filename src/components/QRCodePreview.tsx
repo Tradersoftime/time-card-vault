@@ -51,7 +51,8 @@ export const QRCodePreview = ({
       
       const dataUrl = await QRCode.toDataURL(claimUrl, {
         width: size,
-        margin: 2,
+        margin: 4,
+        errorCorrectionLevel: 'H',
         color: {
           dark: darkColor,
           light: lightColor
@@ -115,7 +116,8 @@ export const QRCodePreview = ({
         const svgString = await QRCode.toString(claimUrl, {
           type: 'svg',
           width: downloadSize,
-          margin: 2,
+          margin: 4,
+          errorCorrectionLevel: 'H',
           color: {
             dark: darkColor,
             light: lightColor
@@ -125,7 +127,8 @@ export const QRCodePreview = ({
       } else {
         dataUrl = await QRCode.toDataURL(claimUrl, {
           width: downloadSize,
-          margin: 2,
+          margin: 4,
+          errorCorrectionLevel: 'H',
           color: {
             dark: darkColor,
             light: lightColor
@@ -158,6 +161,35 @@ export const QRCodePreview = ({
   const isValidHex = (hex: string): boolean => {
     return /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/.test(hex);
   };
+
+  // Calculate contrast ratio for accessibility
+  const getContrastRatio = (color1: string, color2: string): number => {
+    const getLuminance = (hex: string): number => {
+      const rgb = parseInt(hex.slice(1), 16);
+      const r = (rgb >> 16) & 0xff;
+      const g = (rgb >> 8) & 0xff;
+      const b = (rgb >> 0) & 0xff;
+      
+      const [rs, gs, bs] = [r, g, b].map(c => {
+        c = c / 255;
+        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      });
+      
+      return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+    };
+
+    const lum1 = getLuminance(color1);
+    const lum2 = getLuminance(color2);
+    const brightest = Math.max(lum1, lum2);
+    const darkest = Math.min(lum1, lum2);
+    
+    return (brightest + 0.05) / (darkest + 0.05);
+  };
+
+  const contrastRatio = isValidHex(darkColor) && isValidHex(lightColor) 
+    ? getContrastRatio(darkColor, lightColor) 
+    : null;
+  const hasLowContrast = contrastRatio !== null && contrastRatio < 4.5;
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -244,6 +276,24 @@ export const QRCodePreview = ({
           <Button
             variant="outline"
             size="sm"
+            onClick={() => downloadQR('png', 2048)}
+            className="text-xs"
+          >
+            <Download className="h-3 w-3 mr-1" />
+            2048px PNG
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadQR('png', 4096)}
+            className="text-xs"
+          >
+            <Download className="h-3 w-3 mr-1" />
+            4096px PNG
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => downloadQR('svg')}
             className="text-xs"
           >
@@ -317,6 +367,21 @@ export const QRCodePreview = ({
               )}
             </div>
           </div>
+
+          {/* Contrast Warning */}
+          {hasLowContrast && (
+            <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+              <div className="flex items-start gap-2">
+                <span className="text-destructive text-sm font-medium">⚠️ Low Contrast Warning</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Contrast ratio: {contrastRatio?.toFixed(2)}:1 (recommended: 4.5:1+)
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Low contrast QR codes may fail to scan. Use darker/lighter colors for better reliability.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
