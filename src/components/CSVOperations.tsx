@@ -222,20 +222,17 @@ export function CSVOperations({
         const lines = csv.split('\n');
         const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
         
-        // Check if this is simplified format (no card_id/code column)
-        const hasFullFormat = headers.includes('card_id') || headers.includes('code');
-        const hasSimplifiedFormat = headers.includes('name') && headers.includes('suit') && headers.includes('rank');
+        // Validate headers
+        const hasRequiredFields = headers.includes('name') && headers.includes('suit') && headers.includes('rank') && headers.includes('era');
         
-        if (!hasFullFormat && !hasSimplifiedFormat) {
+        if (!hasRequiredFields) {
           toast({
             title: "Invalid CSV format",
-            description: "CSV must have either full format (with card_id/code) or simplified format (with name, suit, rank, era)",
+            description: "CSV must have at minimum: name, suit, rank, era",
             variant: "destructive",
           });
           return;
         }
-
-        setUseSimplifiedFormat(!hasFullFormat && hasSimplifiedFormat);
 
         const data = lines.slice(1)
           .filter(line => line.trim())
@@ -247,6 +244,12 @@ export function CSVOperations({
             });
             return row;
           });
+
+        // Detect if any rows need auto-generation (row-level detection)
+        const hasAnyRowNeedingGeneration = data.some(row => 
+          (!row.card_id || !row.card_id.trim()) && (!row.code || !row.code.trim())
+        );
+        setUseSimplifiedFormat(hasAnyRowNeedingGeneration);
 
         setImportPreview(data);
         setShowImportDialog(true);
@@ -295,24 +298,42 @@ export function CSVOperations({
               resolvedImageUrl = imageCodeMappings[cleanRow.image_code];
             }
 
-            // Generate code for simplified format
+            // Generate code if needed (row-level detection)
             let generatedCode = cleanRow.code;
-            if (useSimplifiedFormat && (!cleanRow.code || !cleanRow.code.trim())) {
-              // Call database function to generate unique code
+            const hasCardId = cleanRow.card_id && cleanRow.card_id.trim();
+            const hasCode = cleanRow.code && cleanRow.code.trim();
+            
+            if (!hasCardId && !hasCode) {
+              // This row needs code generation
               if (!cleanRow.suit || !cleanRow.rank) {
                 errors.push(`Row ${index + 1}: Missing suit or rank for code generation`);
                 return null;
               }
               
+              // Map common rank shorthands to full names for better codes
+              const rankMapping: Record<string, string> = {
+                'A': 'Ace',
+                'K': 'King', 
+                'Q': 'Queen',
+                'J': 'Jack'
+              };
+              const normalizedRank = rankMapping[cleanRow.rank] || cleanRow.rank;
+              
               const { data: codeData, error: codeError } = await supabase
                 .rpc('generate_card_code', { 
                   p_suit: cleanRow.suit, 
-                  p_rank: cleanRow.rank,
+                  p_rank: normalizedRank,
                   p_batch_id: currentBatchId 
                 });
               
-              if (codeError || !codeData) {
-                errors.push(`Row ${index + 1}: Failed to generate card code`);
+              if (codeError) {
+                console.error('Code generation error:', codeError);
+                errors.push(`Row ${index + 1}: Failed to generate card code - ${codeError.message}`);
+                return null;
+              }
+              
+              if (!codeData) {
+                errors.push(`Row ${index + 1}: Code generation returned empty result`);
                 return null;
               }
               
@@ -320,7 +341,6 @@ export function CSVOperations({
             }
 
             // Validate required fields for new cards
-            const hasCardId = cleanRow.card_id && cleanRow.card_id.trim();
             if (!hasCardId) {
               // New card - validate required fields
               const missing = [];
@@ -352,13 +372,17 @@ export function CSVOperations({
               image_url: resolvedImageUrl,
               description: cleanRow.description || null,
               status: validatedStatus,
-              is_active: cleanRow.is_active === 'true' || cleanRow.is_active === true || cleanRow.is_active === 1,
               current_target: cleanRow.current_target || null,
               qr_dark: cleanRow.qr_dark || null,
               qr_light: cleanRow.qr_light || null,
               print_batch_id: currentBatchId || null, // Assign to current batch
               ...(cleanRow.claim_token && { claim_token: cleanRow.claim_token })
             };
+
+            // Only set is_active if explicitly provided
+            if (cleanRow.is_active !== undefined && cleanRow.is_active !== '') {
+              cardData.is_active = cleanRow.is_active === 'true' || cleanRow.is_active === true || cleanRow.is_active === 1;
+            }
 
             // Add card_id if provided (for updates)
             if (hasCardId) {
@@ -515,10 +539,10 @@ export function CSVOperations({
                     <tbody>
                       {importPreview.map((row, index) => {
                         const isUpdate = row.card_id && row.card_id.trim();
-                        const hasRequiredFields = useSimplifiedFormat 
-                          ? (row.name && row.suit && row.rank && row.era) // Simplified: code not required
-                          : (row.code && row.name && row.suit && row.rank && row.era); // Full: code required
-                        const isValid = isUpdate || hasRequiredFields;
+                        const hasCode = row.code && row.code.trim();
+                        const needsCodeGen = !isUpdate && !hasCode;
+                        const hasRequiredFields = row.name && row.suit && row.rank && row.era;
+                        const isValid = isUpdate || (hasRequiredFields && (hasCode || needsCodeGen));
                         
                         return (
                           <tr key={index} className={`border-t ${!isValid ? 'bg-destructive/10' : ''}`}>
@@ -532,7 +556,9 @@ export function CSVOperations({
                                 </div>
                               )}
                             </td>
-                            <td className="p-2 font-mono text-sm">{row.code || row.card_id}</td>
+                            <td className="p-2 font-mono text-sm">
+                              {hasCode ? row.code : (needsCodeGen ? <span className="text-muted-foreground italic text-xs">Auto-generated</span> : row.card_id)}
+                            </td>
                             <td className="p-2">{row.name || '—'}</td>
                             <td className="p-2">{row.suit || '—'}</td>
                             <td className="p-2">{row.rank || '—'}</td>
