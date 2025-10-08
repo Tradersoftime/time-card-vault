@@ -65,9 +65,10 @@ interface CSVOperationsProps {
   selectedCards: CardData[];
   onImportComplete: () => void;
   currentBatchId?: string | null; // Added for batch-aware import
+  showBatchContext?: boolean; // Show batch context in import dialog
 }
 
-export function CSVOperations({ selectedCards, onImportComplete, currentBatchId }: CSVOperationsProps) {
+export function CSVOperations({ selectedCards, onImportComplete, currentBatchId, showBatchContext = true }: CSVOperationsProps) {
   const { toast } = useToast();
   const [isImporting, setIsImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);

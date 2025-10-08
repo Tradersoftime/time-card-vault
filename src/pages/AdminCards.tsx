@@ -1,25 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, LayoutGrid, List, QrCode, Eye, Filter, ArrowUpDown, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSearchParams } from 'react-router-dom';
-import { AdminTradingCard } from '@/components/AdminTradingCard';
 import { CardEditModal } from '@/components/CardEditModal';
 import { CardCreateModal } from '@/components/CardCreateModal';
 import { CSVOperations } from '@/components/CSVOperations';
 import { QRCodePreview } from '@/components/QRCodePreview';
 import { ImageDownloadButton } from '@/components/ImageDownloadButton';
 import { BulkActionsBar } from '@/components/BulkActionsBar';
-import { PrintBatchSelector } from '@/components/PrintBatchSelector';
-import { cn } from '@/lib/utils';
-import QRCode from 'qrcode';
+import { BatchSection } from '@/components/BatchSection';
+import { BatchCreateForm } from '@/components/BatchCreateForm';
+import { PrintBatch } from '@/types/printBatch';
 
 interface CardData {
   id: string;
@@ -47,20 +43,15 @@ interface CardData {
 const AdminCards = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [cards, setCards] = useState<CardData[]>([]);
+  const [batches, setBatches] = useState<PrintBatch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [batchFilter, setBatchFilter] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
-  const [qrCodes, setQrCodes] = useState<Map<string, string>>(new Map());
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
   
   // View mode state
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => 
-    (localStorage.getItem('adminCards_viewMode') as 'grid' | 'list') || 'grid'
-  );
   const [cardSize, setCardSize] = useState<'sm' | 'md' | 'lg'>(() => 
     (localStorage.getItem('adminCards_cardSize') as 'sm' | 'md' | 'lg') || 'md'
   );
@@ -72,79 +63,67 @@ const AdminCards = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState('');
   const [modalImageName, setModalImageName] = useState('');
-
-  // Sorting state
-  const [sortField, setSortField] = useState<string>(() => 
-    localStorage.getItem('adminCards_sortField') || 'created_at'
-  );
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => 
-    (localStorage.getItem('adminCards_sortDirection') as 'asc' | 'desc') || 'desc'
-  );
+  const [csvImportBatchId, setCsvImportBatchId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
-      fetchCards();
+      loadData();
     }
   }, [user]);
 
-  // Check for query parameters on mount
+  // Load expanded state from localStorage
   useEffect(() => {
-    const codeParam = searchParams.get('code');
-    if (codeParam) {
-      setSearchTerm(codeParam);
+    const stored = localStorage.getItem('adminCards_expandedBatches');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setExpandedBatches(new Set(parsed));
+      } catch (e) {
+        console.error('Failed to parse expanded batches:', e);
+      }
     }
-  }, [searchParams, cards]);
+  }, []);
 
-  // Utility functions
-  const generateQRCode = async (code: string, qrDark?: string | null, qrLight?: string | null): Promise<string> => {
-    try {
-      // Use tot.cards domain for production QRs
-      const baseUrl = import.meta.env.PUBLIC_CLAIM_BASE_URL || 'https://tot.cards/claim?token=';
-      const shortUrl = import.meta.env.PUBLIC_SHORT_CLAIM_BASE_URL;
-      
-      const claimUrl = shortUrl ? `${shortUrl}${code}` : `${baseUrl}${code}`;
-      
-      return await QRCode.toDataURL(claimUrl, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: qrDark || '#000000',
-          light: qrLight || '#FFFFFF'
-        }
-      });
-    } catch (error) {
-      console.error('Error generating QR code:', error);
-      return '';
-    }
-  };
+  // Save expanded state to localStorage
+  useEffect(() => {
+    localStorage.setItem('adminCards_expandedBatches', JSON.stringify(Array.from(expandedBatches)));
+  }, [expandedBatches]);
 
-  const loadQRCode = async (card: CardData) => {
-    if (!qrCodes.has(card.id)) {
-      // Use claim_token for QR code generation, fallback to code if no claim_token
-      const token = card.claim_token || card.code;
-      const qrDataUrl = await generateQRCode(token, card.qr_dark, card.qr_light);
-      setQrCodes(prev => new Map(prev).set(card.id, qrDataUrl));
-    }
-  };
-
-  const fetchCards = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Load batches
+      const { data: batchesData, error: batchesError } = await supabase
+        .from('print_batches')
+        .select('*')
+        .eq('is_active', true)
+        .order('print_date', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+
+      if (batchesError) throw batchesError;
+      
+      // Load cards
+      const { data: cardsData, error: cardsError } = await supabase
         .from('cards')
         .select('*, qr_dark, qr_light, image_code, claim_token')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setCards(data || []);
-      // Load QR codes for all cards
-      (data || []).forEach(card => loadQRCode(card));
+      if (cardsError) throw cardsError;
+
+      setBatches(batchesData || []);
+      setCards(cardsData || []);
+
+      // Auto-expand most recent batch on first load
+      if (batchesData && batchesData.length > 0 && expandedBatches.size === 0) {
+        setExpandedBatches(new Set([batchesData[0].id]));
+      }
     } catch (error) {
-      console.error('Error fetching cards:', error);
+      console.error('Error loading data:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch cards",
+        description: "Failed to load data",
         variant: "destructive",
       });
     } finally {
@@ -152,71 +131,31 @@ const AdminCards = () => {
     }
   };
 
-  // Sorting function
-  const sortCards = (cardsToSort: CardData[]) => {
-    return [...cardsToSort].sort((a, b) => {
-      let aValue: any = a[sortField as keyof CardData];
-      let bValue: any = b[sortField as keyof CardData];
-      
-      // Handle null/undefined values
-      if (aValue == null) aValue = '';
-      if (bValue == null) bValue = '';
-      
-      // Convert to appropriate types for comparison
-      if (sortField === 'time_value') {
-        aValue = Number(aValue);
-        bValue = Number(bValue);
-      } else if (sortField === 'created_at') {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      } else if (sortField === 'rarity') {
-        // Use rarity ranking for proper sorting order
-        const rarityRank = (r?: string | null): number => {
-          const rarities = ["degen", "trader", "investor", "market maker", "whale"];
-          const index = rarities.indexOf(r?.toLowerCase() || "");
-          return index === -1 ? 0 : index;
-        };
-        aValue = rarityRank(String(aValue));
-        bValue = rarityRank(String(bValue));
-      } else {
-        aValue = String(aValue).toLowerCase();
-        bValue = String(bValue).toLowerCase();
-      }
-      
-      // Compare values
-      let comparison = 0;
-      if (aValue < bValue) comparison = -1;
-      if (aValue > bValue) comparison = 1;
-      
-      return sortDirection === 'desc' ? -comparison : comparison;
+  // Group cards by batch
+  const cardsByBatch = useMemo(() => {
+    const grouped = new Map<string, CardData[]>();
+    
+    // Group cards by batch
+    batches.forEach(batch => {
+      grouped.set(batch.id, cards.filter(c => c.print_batch_id === batch.id));
     });
-  };
+    
+    // Unassigned cards
+    grouped.set('unassigned', cards.filter(c => !c.print_batch_id));
+    
+    return grouped;
+  }, [cards, batches]);
 
-  const filteredCards = sortCards(
-    cards.filter(card => {
-      const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        card.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        card.suit.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        card.era.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'all' || 
-        (statusFilter === 'complete' && card.status === 'active' && card.name !== 'Unknown') ||
-        (statusFilter === 'draft' && (card.status === 'draft' || card.name === 'Unknown')) ||
-        (statusFilter === 'active' && card.is_active) ||
-        (statusFilter === 'inactive' && !card.is_active);
-      
-      const matchesBatch = !batchFilter || 
-        (batchFilter === 'unassigned' && !card.print_batch_id) ||
-        card.print_batch_id === batchFilter;
-        
-      return matchesSearch && matchesStatus && matchesBatch;
-    })
-  );
-
-  // View mode functions
-  const setViewModeAndSave = (mode: 'grid' | 'list') => {
-    setViewMode(mode);
-    localStorage.setItem('adminCards_viewMode', mode);
+  const toggleBatch = (batchId: string) => {
+    setExpandedBatches(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(batchId)) {
+        newSet.delete(batchId);
+      } else {
+        newSet.add(batchId);
+      }
+      return newSet;
+    });
   };
 
   const setCardSizeAndSave = (size: 'sm' | 'md' | 'lg') => {
@@ -233,7 +172,6 @@ const AdminCards = () => {
   const handleViewQR = (card: CardData) => {
     setSelectedCard(card);
     setShowQRModal(true);
-    loadQRCode(card);
   };
 
   const handleViewImage = (imageUrl: string, cardName: string) => {
@@ -253,7 +191,7 @@ const AdminCards = () => {
   };
 
   const handleSaveCard = () => {
-    fetchCards();
+    loadData();
     handleModalClose();
   };
 
@@ -270,7 +208,7 @@ const AdminCards = () => {
           title: "Success",
           description: "Card deleted successfully",
         });
-        fetchCards();
+        loadData();
       } else {
         throw new Error(data.error || 'Delete failed');
       }
@@ -296,60 +234,72 @@ const AdminCards = () => {
     });
   };
 
-  const selectAllCards = () => {
-    setSelectedCards(new Set(filteredCards.map(card => card.id)));
-  };
-
   const deselectAllCards = () => {
     setSelectedCards(new Set());
   };
 
-  const toggleSelectAll = () => {
-    if (selectedCards.size === filteredCards.length && selectedCards.size > 0) {
-      deselectAllCards();
-    } else {
-      selectAllCards();
+  const handleEditBatch = async (batch: PrintBatch) => {
+    const name = prompt('Batch name:', batch.name);
+    if (!name) return;
+
+    try {
+      const { error } = await supabase
+        .from('print_batches')
+        .update({ name: name.trim() })
+        .eq('id', batch.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Batch updated" });
+      loadData();
+    } catch (error) {
+      console.error('Error updating batch:', error);
+      toast({ title: "Error", description: "Failed to update batch", variant: "destructive" });
     }
   };
 
-  const isAllSelected = filteredCards.length > 0 && selectedCards.size === filteredCards.length;
+  const handleArchiveBatch = async (batch: PrintBatch) => {
+    if (!confirm(`Archive "${batch.name}"? It will be hidden from this view.`)) return;
 
-  // Get status counts for filter badges
-  const statusCounts = {
-    all: cards.length,
-    complete: cards.filter(card => card.status === 'active' && card.name !== 'Unknown').length,
-    draft: cards.filter(card => card.status === 'draft' || card.name === 'Unknown').length,
-    active: cards.filter(card => card.is_active).length,
-    inactive: cards.filter(card => !card.is_active).length
+    try {
+      const { error } = await supabase
+        .from('print_batches')
+        .update({ is_active: false })
+        .eq('id', batch.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Batch archived" });
+      loadData();
+    } catch (error) {
+      console.error('Error archiving batch:', error);
+      toast({ title: "Error", description: "Failed to archive batch", variant: "destructive" });
+    }
   };
 
-  // Handle sort changes with localStorage persistence
-  const handleSortChange = (field: string) => {
-    const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
-    setSortField(field);
-    setSortDirection(newDirection);
-    localStorage.setItem('adminCards_sortField', field);
-    localStorage.setItem('adminCards_sortDirection', newDirection);
+  const handleDeleteBatch = async (batch: PrintBatch) => {
+    if (!confirm(`Delete "${batch.name}"? This cannot be undone.`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('print_batches')
+        .delete()
+        .eq('id', batch.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Batch deleted" });
+      loadData();
+    } catch (error) {
+      console.error('Error deleting batch:', error);
+      toast({ title: "Error", description: "Failed to delete batch", variant: "destructive" });
+    }
   };
 
-  const toggleSortDirection = () => {
-    const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-    setSortDirection(newDirection);
-    localStorage.setItem('adminCards_sortDirection', newDirection);
+  const handleImportCSV = (batchId: string | null) => {
+    setCsvImportBatchId(batchId);
+    // CSVOperations component will handle the actual import
   };
-
-  // Sort options for the dropdown
-  const sortOptions = [
-    { value: 'name', label: 'Name' },
-    { value: 'code', label: 'Code' },
-    { value: 'era', label: 'Era' },
-    { value: 'suit', label: 'Suit' },
-    { value: 'rank', label: 'Rank' },
-    { value: 'time_value', label: 'TIME Value' },
-    { value: 'created_at', label: 'Created Date' },
-    { value: 'status', label: 'Status' },
-    { value: 'rarity', label: 'Rarity' }
-  ];
 
   if (loading) {
     return (
@@ -370,121 +320,11 @@ const AdminCards = () => {
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
-                Card Collection Manager
+                📦 Card Management
               </h1>
-              <p className="text-muted-foreground">Visual card management with CSV operations and modal editing</p>
+              <p className="text-muted-foreground">Organize cards by print batches</p>
             </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add New Card
-              </Button>
-              <CSVOperations 
-                selectedCards={filteredCards.filter(card => selectedCards.has(card.id))}
-                onImportComplete={fetchCards}
-                currentBatchId={batchFilter}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Controls Bar */}
-        <div className="glass-panel p-4 rounded-2xl mb-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-1">
-              {/* Select All Checkbox */}
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Checkbox
-                    checked={isAllSelected}
-                    onCheckedChange={toggleSelectAll}
-                    className="h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                  />
-                  <div 
-                    className="absolute -inset-2 cursor-pointer" 
-                    onClick={toggleSelectAll}
-                  />
-                </div>
-                <label 
-                  className="text-sm text-muted-foreground cursor-pointer select-none"
-                  onClick={toggleSelectAll}
-                >
-                  Select All ({filteredCards.length})
-                </label>
-              </div>
-
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search cards..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-60"
-                />
-              </div>
-
-              {/* Status Filter */}
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Cards ({statusCounts.all})</SelectItem>
-                  <SelectItem value="active">Active ({statusCounts.active})</SelectItem>
-                  <SelectItem value="inactive">Inactive ({statusCounts.inactive})</SelectItem>
-                  <SelectItem value="complete">Complete ({statusCounts.complete})</SelectItem>
-                  <SelectItem value="draft">Draft ({statusCounts.draft})</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Batch Filter */}
-              <PrintBatchSelector
-                value={batchFilter}
-                onChange={setBatchFilter}
-                className="w-48"
-              />
-
-              {/* Sort */}
-              <Select value={sortField} onValueChange={(value) => handleSortChange(value)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortOptions.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleSortDirection}
-                className="flex items-center gap-2"
-              >
-                <ArrowUpDown className="h-4 w-4" />
-                {sortDirection === 'asc' ? 'Asc' : 'Desc'}
-              </Button>
-            </div>
-
-            {/* View Controls */}
-            <div className="flex items-center gap-2">
-              {/* Selection Controls */}
-              {selectedCards.size > 0 && (
-                <div className="flex items-center gap-2 mr-4">
-                  <Badge variant="secondary">{selectedCards.size} selected</Badge>
-                  <Button variant="outline" size="sm" onClick={deselectAllCards}>
-                    Clear
-                  </Button>
-                </div>
-              )}
-
+            <div className="flex gap-2 items-center">
               {/* Card Size */}
               <Select value={cardSize} onValueChange={(value: 'sm' | 'md' | 'lg') => setCardSizeAndSave(value)}>
                 <SelectTrigger className="w-20">
@@ -496,77 +336,84 @@ const AdminCards = () => {
                   <SelectItem value="lg">LG</SelectItem>
                 </SelectContent>
               </Select>
-
-              {/* View Mode Toggle */}
-              <div className="flex bg-muted/20 rounded-lg p-1">
-                <Button
-                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewModeAndSave('grid')}
-                  className="h-8 px-3"
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewModeAndSave('list')}
-                  className="h-8 px-3"
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
+              
+              <Button 
+                onClick={() => setShowCreateModal(true)}
+                className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add New Card
+              </Button>
+              <CSVOperations 
+                selectedCards={[]}
+                onImportComplete={loadData}
+                currentBatchId={csvImportBatchId}
+              />
             </div>
           </div>
-
         </div>
 
-        {/* Main Content */}
-        {viewMode === 'grid' ? (
-          <div className="glass-panel p-6 rounded-2xl">
-            <div className="grid gap-4 justify-items-center" style={{
-              gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize === 'sm' ? '160px' : cardSize === 'md' ? '200px' : '250px'}, 1fr))`
-            }}>
-              {filteredCards.map(card => (
-                <AdminTradingCard
-                  key={card.id}
-                  card={card}
-                  baseWidth={cardSize === 'sm' ? 160 : cardSize === 'md' ? 200 : 250}
-                  isSelected={selectedCards.has(card.id)}
-                  onSelect={toggleCardSelection}
-                  onEdit={handleEditCard}
-                  onViewQR={handleViewQR}
-                  onViewImage={handleViewImage}
-                  onDelete={handleDeleteCard}
-                  onCopyToken={(token) => {
-                    navigator.clipboard.writeText(token);
-                    toast({
-                      title: "Copied",
-                      description: "Claim token copied to clipboard",
-                    });
-                  }}
-                />
-              ))}
-            </div>
+        {/* Batch Creation Form */}
+        <BatchCreateForm onBatchCreated={loadData} batchCount={batches.length} />
 
-            {filteredCards.length === 0 && (
-              <div className="text-center py-12">
-                <div className="text-muted-foreground mb-4">No cards found</div>
-                {searchTerm && (
-                  <Button variant="outline" onClick={() => setSearchTerm('')}>
-                    Clear search
-                  </Button>
-                )}
+        {/* Batch Sections */}
+        <div className="space-y-4">
+          {batches.map((batch) => (
+            <BatchSection
+              key={batch.id}
+              batch={batch}
+              cards={cardsByBatch.get(batch.id) || []}
+              isExpanded={expandedBatches.has(batch.id)}
+              onToggle={() => toggleBatch(batch.id)}
+              onEdit={handleEditBatch}
+              onArchive={handleArchiveBatch}
+              onDelete={handleDeleteBatch}
+              onImportCSV={() => handleImportCSV(batch.id)}
+              cardSize={cardSize}
+              selectedCards={selectedCards}
+              onSelectCard={toggleCardSelection}
+              onEditCard={handleEditCard}
+              onViewQR={handleViewQR}
+              onViewImage={handleViewImage}
+              onDeleteCard={handleDeleteCard}
+              onCopyToken={(token) => {
+                navigator.clipboard.writeText(token);
+                toast({ title: "Copied", description: "Claim token copied to clipboard" });
+              }}
+            />
+          ))}
+
+          {/* Unassigned Cards Section */}
+          {(cardsByBatch.get('unassigned')?.length || 0) > 0 && (
+            <BatchSection
+              cards={cardsByBatch.get('unassigned') || []}
+              isExpanded={expandedBatches.has('unassigned')}
+              onToggle={() => toggleBatch('unassigned')}
+              onImportCSV={() => handleImportCSV(null)}
+              cardSize={cardSize}
+              selectedCards={selectedCards}
+              onSelectCard={toggleCardSelection}
+              onEditCard={handleEditCard}
+              onViewQR={handleViewQR}
+              onViewImage={handleViewImage}
+              onDeleteCard={handleDeleteCard}
+              onCopyToken={(token) => {
+                navigator.clipboard.writeText(token);
+                toast({ title: "Copied", description: "Claim token copied to clipboard" });
+              }}
+              isUnassigned
+            />
+          )}
+
+          {/* Empty State */}
+          {batches.length === 0 && cards.length === 0 && (
+            <div className="glass-panel p-12 rounded-2xl text-center">
+              <div className="text-muted-foreground mb-4">
+                No batches or cards yet. Create your first batch above to get started.
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="text-center text-muted-foreground">
-              List view coming soon - use grid view for now
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Modals */}
         <CardEditModal
@@ -619,7 +466,6 @@ const AdminCards = () => {
                       </Button>
                     </div>
                   )}
-                  <p>QR URL: {import.meta.env.PUBLIC_CLAIM_BASE_URL || 'https://tot.cards/claim?token='}{selectedCard.claim_token || selectedCard.code}</p>
                 </div>
               </div>
             )}
@@ -654,7 +500,7 @@ const AdminCards = () => {
             selectedCount={selectedCards.size}
             selectedCardIds={Array.from(selectedCards)}
             onClearSelection={deselectAllCards}
-            onRefresh={fetchCards}
+            onRefresh={loadData}
           />
         )}
       </div>

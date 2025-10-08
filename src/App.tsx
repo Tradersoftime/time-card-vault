@@ -2,7 +2,6 @@ import Receipt from "./pages/Receipt";
 import AdminQR from "./pages/AdminQR";
 import AdminCards from "./pages/AdminCards";
 import AdminRedemptions from "./pages/AdminRedemptions";
-import AdminPrintBatches from "./pages/AdminPrintBatches";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -53,7 +52,6 @@ const App = () => (
                 <Route path="/scan-pro" element={<ScanPro />} />
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/admin/cards" element={<AdminCards />} />
-                <Route path="/admin/batches" element={<AdminPrintBatches />} />
                 <Route path="/admin/redemptions" element={<AdminRedemptions />} />
                 <Route path="/receipt/:id" element={<Receipt />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
