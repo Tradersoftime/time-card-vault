@@ -17,6 +17,7 @@ import { CSVOperations } from '@/components/CSVOperations';
 import { QRCodePreview } from '@/components/QRCodePreview';
 import { ImageDownloadButton } from '@/components/ImageDownloadButton';
 import { BulkActionsBar } from '@/components/BulkActionsBar';
+import { PrintBatchSelector } from '@/components/PrintBatchSelector';
 import { cn } from '@/lib/utils';
 import QRCode from 'qrcode';
 
@@ -39,7 +40,8 @@ interface CardData {
   current_target?: string | null;
   qr_dark?: string | null;
   qr_light?: string | null;
-  claim_token?: string | null; // Added for secure token-based claiming
+  claim_token?: string | null;
+  print_batch_id?: string | null;
 }
 
 const AdminCards = () => {
@@ -50,6 +52,7 @@ const AdminCards = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [batchFilter, setBatchFilter] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const [qrCodes, setQrCodes] = useState<Map<string, string>>(new Map());
@@ -201,8 +204,12 @@ const AdminCards = () => {
         (statusFilter === 'draft' && (card.status === 'draft' || card.name === 'Unknown')) ||
         (statusFilter === 'active' && card.is_active) ||
         (statusFilter === 'inactive' && !card.is_active);
+      
+      const matchesBatch = !batchFilter || 
+        (batchFilter === 'unassigned' && !card.print_batch_id) ||
+        card.print_batch_id === batchFilter;
         
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesStatus && matchesBatch;
     })
   );
 
@@ -378,6 +385,7 @@ const AdminCards = () => {
               <CSVOperations 
                 selectedCards={filteredCards.filter(card => selectedCards.has(card.id))}
                 onImportComplete={fetchCards}
+                currentBatchId={batchFilter}
               />
             </div>
           </div>
@@ -432,6 +440,13 @@ const AdminCards = () => {
                   <SelectItem value="draft">Draft ({statusCounts.draft})</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Batch Filter */}
+              <PrintBatchSelector
+                value={batchFilter}
+                onChange={setBatchFilter}
+                className="w-48"
+              />
 
               {/* Sort */}
               <Select value={sortField} onValueChange={(value) => handleSortChange(value)}>

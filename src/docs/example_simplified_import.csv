@@ -1,0 +1,7 @@
+name,suit,rank,era,rarity,time_value,image_code,description
+Legendary Ace,Spades,Ace,Vintage,Legendary,100,a1,The most valuable card in the collection
+Mythic King,Hearts,King,Modern,Mythic,150,a2,A king among kings with unmatched power
+Divine Queen,Diamonds,Queen,Classic,Divine,200,a3,Radiant and powerful royal card
+Epic Jack,Clubs,Jack,Retro,Epic,75,a4,A jack of all trades with versatile abilities
+Rare Ten,Spades,10,Vintage,Rare,50,,A solid high-value card
+Common Nine,Hearts,9,Modern,Common,25,,A reliable mid-tier card

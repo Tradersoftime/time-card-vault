@@ -103,6 +103,7 @@ export type Database = {
       }
       cards: {
         Row: {
+          batch_sort_order: number | null
           claim_token: string
           claimed_at: string | null
           claimed_by: string | null
@@ -119,6 +120,7 @@ export type Database = {
           is_active: boolean
           is_claimed: boolean
           name: string
+          print_batch_id: string | null
           qr_dark: string | null
           qr_light: string | null
           rank: string
@@ -129,6 +131,7 @@ export type Database = {
           trader_value: string | null
         }
         Insert: {
+          batch_sort_order?: number | null
           claim_token?: string
           claimed_at?: string | null
           claimed_by?: string | null
@@ -145,6 +148,7 @@ export type Database = {
           is_active?: boolean
           is_claimed?: boolean
           name: string
+          print_batch_id?: string | null
           qr_dark?: string | null
           qr_light?: string | null
           rank: string
@@ -155,6 +159,7 @@ export type Database = {
           trader_value?: string | null
         }
         Update: {
+          batch_sort_order?: number | null
           claim_token?: string
           claimed_at?: string | null
           claimed_by?: string | null
@@ -171,6 +176,7 @@ export type Database = {
           is_active?: boolean
           is_claimed?: boolean
           name?: string
+          print_batch_id?: string | null
           qr_dark?: string | null
           qr_light?: string | null
           rank?: string
@@ -180,7 +186,15 @@ export type Database = {
           time_value?: number
           trader_value?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "cards_print_batch_id_fkey"
+            columns: ["print_batch_id"]
+            isOneToOne: false
+            referencedRelation: "print_batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       image_codes: {
         Row: {
@@ -209,6 +223,39 @@ export type Database = {
           id?: string
           public_url?: string
           storage_path?: string
+        }
+        Relationships: []
+      }
+      print_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          print_date: string | null
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          print_date?: string | null
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          print_date?: string | null
+          sort_order?: number
         }
         Relationships: []
       }
@@ -548,6 +595,10 @@ export type Database = {
       delete_user_card: {
         Args: { p_card_id: string }
         Returns: Json
+      }
+      generate_card_code: {
+        Args: { p_batch_id?: string; p_rank: string; p_suit: string }
+        Returns: string
       }
       generate_claim_token: {
         Args: Record<PropertyKey, never>

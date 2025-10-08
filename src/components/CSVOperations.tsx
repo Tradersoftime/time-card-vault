@@ -3,25 +3,32 @@
  * 
  * Provides standardized CSV export/import functionality for trading cards.
  * 
- * STANDARDIZED CSV FORMAT:
- * card_id,code,name,suit,rank,era,rarity,time_value,trader_value,image_code,image_url,description,status,is_active,current_target,qr_dark,qr_light
+ * SUPPORTED CSV FORMATS:
+ * 1. SIMPLIFIED FORMAT (Recommended for new cards):
+ *    name,suit,rank,era,rarity,time_value,image_code,description
+ *    - Auto-generates: code, card_id, claim_token
+ *    - Assigns to selected print batch automatically
+ * 
+ * 2. FULL FORMAT (For updates or manual control):
+ *    card_id,code,name,suit,rank,era,rarity,time_value,trader_value,image_code,image_url,description,status,is_active,current_target,qr_dark,qr_light
  * 
  * KEY FEATURES:
- * - Image Code Support: Use image_code (e.g., "a1", "hero_001") instead of full URLs
+ * - Simplified Format: Only include essential fields (name, suit, rank, era)
+ * - Auto-Generation: System generates unique codes like SPA-ACE-001
+ * - Batch Assignment: Cards automatically assigned to selected batch
+ * - Image Code Support: Use image_code (e.g., "a1") instead of full URLs
  * - Automatic Resolution: image_code is resolved to image_url during import
- * - Reverse Lookup: During export, image_url is converted to image_code if found in database
- * - Consistent Field Order: Same as AdminQR bulk import and ImageLibraryView exports
- * - Robust Validation: Validates card_id as first column for data integrity
+ * - Reverse Lookup: During export, image_url is converted to image_code if found
  * 
  * IMPORT BEHAVIOR:
- * - Updates existing cards by card_id (immutable identifier)
- * - image_code takes priority over image_url if both provided
- * - Automatically resolves image codes from image_codes table
+ * - Simplified: Leave code blank, system auto-generates unique codes
+ * - Updates: Provide card_id to update existing cards
+ * - Batch Assignment: Cards assigned to currentBatchId if provided
+ * - Image Resolution: image_code takes priority over image_url
  * 
  * EXPORT BEHAVIOR:
+ * - Always exports full format for maximum compatibility
  * - Prioritizes image_code over image_url in CSV output
- * - Includes both fields for maximum compatibility
- * - Uses standardized field order across all CSV operations
  */
 
 import { useState, useEffect } from 'react';
@@ -57,14 +64,16 @@ interface CardData {
 interface CSVOperationsProps {
   selectedCards: CardData[];
   onImportComplete: () => void;
+  currentBatchId?: string | null; // Added for batch-aware import
 }
 
-export function CSVOperations({ selectedCards, onImportComplete }: CSVOperationsProps) {
+export function CSVOperations({ selectedCards, onImportComplete, currentBatchId }: CSVOperationsProps) {
   const { toast } = useToast();
   const [isImporting, setIsImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [imageCodeMappings, setImageCodeMappings] = useState<Record<string, string>>({});
+  const [useSimplifiedFormat, setUseSimplifiedFormat] = useState(false);
 
   // Load image code mappings on component mount
   const loadImageCodeMappings = async () => {
@@ -199,15 +208,20 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
         const lines = csv.split('\n');
         const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
         
-        // Validate that either card_id or code is the first column
-        if (headers[0] !== 'card_id' && headers[0] !== 'code') {
+        // Check if this is simplified format (no card_id/code column)
+        const hasFullFormat = headers.includes('card_id') || headers.includes('code');
+        const hasSimplifiedFormat = headers.includes('name') && headers.includes('suit') && headers.includes('rank');
+        
+        if (!hasFullFormat && !hasSimplifiedFormat) {
           toast({
             title: "Invalid CSV format",
-            description: "First column must be either 'card_id' (for updates) or 'code' (for creates/updates)",
+            description: "CSV must have either full format (with card_id/code) or simplified format (with name, suit, rank, era)",
             variant: "destructive",
           });
           return;
         }
+
+        setUseSimplifiedFormat(!hasFullFormat && hasSimplifiedFormat);
 
         const data = lines.slice(1)
           .filter(line => line.trim())
@@ -267,18 +281,43 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
               resolvedImageUrl = imageCodeMappings[cleanRow.image_code];
             }
 
-            // Validate required fields for new cards (when card_id is blank)
+            // Generate code for simplified format
+            let generatedCode = cleanRow.code;
+            if (useSimplifiedFormat && (!cleanRow.code || !cleanRow.code.trim())) {
+              // Call database function to generate unique code
+              if (!cleanRow.suit || !cleanRow.rank) {
+                errors.push(`Row ${index + 1}: Missing suit or rank for code generation`);
+                return null;
+              }
+              
+              const { data: codeData, error: codeError } = await supabase
+                .rpc('generate_card_code', { 
+                  p_suit: cleanRow.suit, 
+                  p_rank: cleanRow.rank,
+                  p_batch_id: currentBatchId 
+                });
+              
+              if (codeError || !codeData) {
+                errors.push(`Row ${index + 1}: Failed to generate card code`);
+                return null;
+              }
+              
+              generatedCode = codeData;
+            }
+
+            // Validate required fields for new cards
             const hasCardId = cleanRow.card_id && cleanRow.card_id.trim();
             if (!hasCardId) {
               // New card - validate required fields
-              if (!cleanRow.code || !cleanRow.name || !cleanRow.suit || !cleanRow.rank || !cleanRow.era) {
-                const missing = [];
-                if (!cleanRow.code) missing.push('code');
-                if (!cleanRow.name) missing.push('name');
-                if (!cleanRow.suit) missing.push('suit');
-                if (!cleanRow.rank) missing.push('rank');
-                if (!cleanRow.era) missing.push('era');
-                errors.push(`Row ${index + 1}: Missing required fields for new card: ${missing.join(', ')}`);
+              const missing = [];
+              if (!generatedCode) missing.push('code');
+              if (!cleanRow.name) missing.push('name');
+              if (!cleanRow.suit) missing.push('suit');
+              if (!cleanRow.rank) missing.push('rank');
+              if (!cleanRow.era) missing.push('era');
+              
+              if (missing.length > 0) {
+                errors.push(`Row ${index + 1}: Missing required fields: ${missing.join(', ')}`);
                 return null;
               }
             }
@@ -288,7 +327,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
             
             // Prepare card data for upsert
             const cardData: any = {
-              code: cleanRow.code,
+              code: generatedCode,
               name: cleanRow.name || null,
               suit: cleanRow.suit || null,
               rank: cleanRow.rank || null,
@@ -303,7 +342,7 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
               current_target: cleanRow.current_target || null,
               qr_dark: cleanRow.qr_dark || null,
               qr_light: cleanRow.qr_light || null,
-              // Include claim_token if provided (optional)
+              print_batch_id: currentBatchId || null, // Assign to current batch
               ...(cleanRow.claim_token && { claim_token: cleanRow.claim_token })
             };
 
@@ -407,17 +446,18 @@ export function CSVOperations({ selectedCards, onImportComplete }: CSVOperations
             <DialogTitle>Import Cards from CSV</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
+            <div className="space-y-4">
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
                   <div className="text-sm">
                     <p className="font-medium text-blue-500">CSV Import Requirements</p>
                     <ul className="text-muted-foreground mt-1 space-y-1 list-disc list-inside">
-                      <li><strong>New Cards:</strong> Leave <code className="bg-muted px-1 rounded">card_id</code> blank, provide required fields: <code className="bg-muted px-1 rounded">code, name, suit, rank, era</code></li>
+                      <li><strong>Simplified Format (Recommended):</strong> Only include: <code className="bg-muted px-1 rounded">name, suit, rank, era</code> - system auto-generates codes!</li>
+                      <li><strong>Full Format:</strong> Leave <code className="bg-muted px-1 rounded">card_id</code> blank for new cards, include <code className="bg-muted px-1 rounded">code</code></li>
                       <li><strong>Update Cards:</strong> Provide <code className="bg-muted px-1 rounded">card_id</code> to update existing cards</li>
                       <li>Use <code className="bg-muted px-1 rounded">image_code</code> to reference images from your library</li>
-                      <li>Cards are identified by <code className="bg-muted px-1 rounded">code</code> - duplicates will be updated</li>
+                      {currentBatchId && <li><strong>Batch Assignment:</strong> Cards will be added to the currently selected batch</li>}
                       <li>Use the exported CSV format as a template</li>
                     </ul>
                   </div>
