@@ -66,15 +66,28 @@ interface CSVOperationsProps {
   onImportComplete: () => void;
   currentBatchId?: string | null; // Added for batch-aware import
   showBatchContext?: boolean; // Show batch context in import dialog
+  isOpen?: boolean; // External dialog control
+  onOpenChange?: (open: boolean) => void; // External dialog control
 }
 
-export function CSVOperations({ selectedCards, onImportComplete, currentBatchId, showBatchContext = true }: CSVOperationsProps) {
+export function CSVOperations({ 
+  selectedCards, 
+  onImportComplete, 
+  currentBatchId, 
+  showBatchContext = true, 
+  isOpen, 
+  onOpenChange 
+}: CSVOperationsProps) {
   const { toast } = useToast();
   const [isImporting, setIsImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
-  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [internalShowDialog, setInternalShowDialog] = useState(false);
   const [imageCodeMappings, setImageCodeMappings] = useState<Record<string, string>>({});
   const [useSimplifiedFormat, setUseSimplifiedFormat] = useState(false);
+
+  // Use external control if provided, otherwise use internal state
+  const showImportDialog = isOpen !== undefined ? isOpen : internalShowDialog;
+  const setShowImportDialog = onOpenChange || setInternalShowDialog;
 
   // Load image code mappings on component mount
   const loadImageCodeMappings = async () => {
@@ -502,7 +515,9 @@ export function CSVOperations({ selectedCards, onImportComplete, currentBatchId,
                     <tbody>
                       {importPreview.map((row, index) => {
                         const isUpdate = row.card_id && row.card_id.trim();
-                        const hasRequiredFields = row.code && row.name && row.suit && row.rank && row.era;
+                        const hasRequiredFields = useSimplifiedFormat 
+                          ? (row.name && row.suit && row.rank && row.era) // Simplified: code not required
+                          : (row.code && row.name && row.suit && row.rank && row.era); // Full: code required
                         const isValid = isUpdate || hasRequiredFields;
                         
                         return (

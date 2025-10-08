@@ -64,6 +64,7 @@ const AdminCards = () => {
   const [modalImageUrl, setModalImageUrl] = useState('');
   const [modalImageName, setModalImageName] = useState('');
   const [csvImportBatchId, setCsvImportBatchId] = useState<string | null>(null);
+  const [showCsvImportDialog, setShowCsvImportDialog] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -298,7 +299,7 @@ const AdminCards = () => {
 
   const handleImportCSV = (batchId: string | null) => {
     setCsvImportBatchId(batchId);
-    // CSVOperations component will handle the actual import
+    setShowCsvImportDialog(true);
   };
 
   if (loading) {
@@ -348,6 +349,9 @@ const AdminCards = () => {
                 selectedCards={[]}
                 onImportComplete={loadData}
                 currentBatchId={csvImportBatchId}
+                showBatchContext={!!csvImportBatchId}
+                isOpen={showCsvImportDialog}
+                onOpenChange={setShowCsvImportDialog}
               />
             </div>
           </div>
