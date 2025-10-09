@@ -85,9 +85,18 @@ export function CSVOperations({
   const [imageCodeMappings, setImageCodeMappings] = useState<Record<string, string>>({});
   const [useSimplifiedFormat, setUseSimplifiedFormat] = useState(false);
   const [duplicates, setDuplicates] = useState<{
-    withinCsv: number[];
-    inDatabase: number[];
-  }>({ withinCsv: [], inDatabase: [] });
+    codeDuplicates: {
+      withinCsv: number[];
+      inDatabase: number[];
+    };
+    contentDuplicates: {
+      withinCsv: number[];
+      inDatabase: number[];
+    };
+  }>({ 
+    codeDuplicates: { withinCsv: [], inDatabase: [] },
+    contentDuplicates: { withinCsv: [], inDatabase: [] }
+  });
 
   // Use external control if provided, otherwise use internal state
   const showImportDialog = isOpen !== undefined ? isOpen : internalShowDialog;
@@ -215,6 +224,32 @@ export function CSVOperations({
     });
   };
 
+  // Helper: Normalize rank for comparison
+  const normalizeRank = (rank: string): string => {
+    if (!rank) return '';
+    const normalized = rank.trim().toUpperCase();
+    const rankMap: Record<string, string> = {
+      'A': 'ACE',
+      'K': 'KING',
+      'Q': 'QUEEN',
+      'J': 'JACK',
+      '1': 'ACE',
+      '11': 'JACK',
+      '12': 'QUEEN',
+      '13': 'KING'
+    };
+    return rankMap[normalized] || normalized;
+  };
+
+  // Helper: Create content signature for duplicate detection
+  const createContentSignature = (row: any): string => {
+    const name = String(row.name || '').trim().toLowerCase();
+    const suit = String(row.suit || '').trim().toLowerCase();
+    const rank = normalizeRank(row.rank);
+    const era = String(row.era || '').trim().toLowerCase();
+    return `${name}|${suit}|${rank}|${era}`;
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -249,9 +284,9 @@ export function CSVOperations({
             return row;
           });
 
-        // Check for duplicates within CSV
+        // === CODE DUPLICATE DETECTION ===
         const codesInCsv: Record<string, number[]> = {};
-        const duplicateRowsInCsv: number[] = [];
+        const codeDuplicateRowsInCsv: number[] = [];
         
         data.forEach((row, index) => {
           const code = String(row.code || '').trim();
@@ -266,13 +301,13 @@ export function CSVOperations({
         // Mark rows that have duplicate codes within the CSV
         Object.values(codesInCsv).forEach(indices => {
           if (indices.length > 1) {
-            duplicateRowsInCsv.push(...indices);
+            codeDuplicateRowsInCsv.push(...indices);
           }
         });
 
-        // Check for duplicates in database
+        // Check for code duplicates in database
         const nonEmptyCodes = Object.keys(codesInCsv);
-        let duplicateRowsInDb: number[] = [];
+        let codeDuplicateRowsInDb: number[] = [];
         
         if (nonEmptyCodes.length > 0) {
           const { data: existingCards } = await supabase
@@ -285,15 +320,82 @@ export function CSVOperations({
             data.forEach((row, index) => {
               const code = String(row.code || '').trim();
               if (code && existingCodesSet.has(code)) {
-                duplicateRowsInDb.push(index);
+                codeDuplicateRowsInDb.push(index);
+              }
+            });
+          }
+        }
+
+        // === CONTENT DUPLICATE DETECTION ===
+        const contentSignaturesInCsv: Record<string, number[]> = {};
+        const contentDuplicateRowsInCsv: number[] = [];
+        
+        data.forEach((row, index) => {
+          // Only check content duplicates for rows without code/card_id
+          const hasIdentifier = (row.code && row.code.trim()) || (row.card_id && row.card_id.trim());
+          if (!hasIdentifier) {
+            const signature = createContentSignature(row);
+            if (signature !== '|||') { // Only if has content
+              if (!contentSignaturesInCsv[signature]) {
+                contentSignaturesInCsv[signature] = [];
+              }
+              contentSignaturesInCsv[signature].push(index);
+            }
+          }
+        });
+        
+        // Mark rows with duplicate content within CSV
+        Object.values(contentSignaturesInCsv).forEach(indices => {
+          if (indices.length > 1) {
+            contentDuplicateRowsInCsv.push(...indices);
+          }
+        });
+
+        // Check for content duplicates in database
+        let contentDuplicateRowsInDb: number[] = [];
+        
+        // Build unique signatures to check
+        const uniqueSignatures = Object.keys(contentSignaturesInCsv);
+        if (uniqueSignatures.length > 0) {
+          // Query database for potential matches
+          const { data: existingCards } = await supabase
+            .from('cards')
+            .select('name, suit, rank, era')
+            .not('deleted_at', 'is', null); // Include only active cards
+          
+          if (existingCards && existingCards.length > 0) {
+            const existingSignatures = new Set(
+              existingCards.map(card => 
+                createContentSignature({
+                  name: card.name,
+                  suit: card.suit,
+                  rank: card.rank,
+                  era: card.era
+                })
+              )
+            );
+            
+            data.forEach((row, index) => {
+              const hasIdentifier = (row.code && row.code.trim()) || (row.card_id && row.card_id.trim());
+              if (!hasIdentifier) {
+                const signature = createContentSignature(row);
+                if (signature !== '|||' && existingSignatures.has(signature)) {
+                  contentDuplicateRowsInDb.push(index);
+                }
               }
             });
           }
         }
 
         setDuplicates({
-          withinCsv: duplicateRowsInCsv,
-          inDatabase: duplicateRowsInDb
+          codeDuplicates: {
+            withinCsv: codeDuplicateRowsInCsv,
+            inDatabase: codeDuplicateRowsInDb
+          },
+          contentDuplicates: {
+            withinCsv: contentDuplicateRowsInCsv,
+            inDatabase: contentDuplicateRowsInDb
+          }
         });
 
         // Detect if any rows need auto-generation (row-level detection)
@@ -306,13 +408,17 @@ export function CSVOperations({
         setShowImportDialog(true);
         
         // Show duplicate warnings
-        if (duplicateRowsInCsv.length > 0 || duplicateRowsInDb.length > 0) {
-          const csvDupeCount = new Set(duplicateRowsInCsv).size;
-          const dbDupeCount = new Set(duplicateRowsInDb).size;
+        const totalCodeDupes = new Set([...codeDuplicateRowsInCsv, ...codeDuplicateRowsInDb]).size;
+        const totalContentDupes = new Set([...contentDuplicateRowsInCsv, ...contentDuplicateRowsInDb]).size;
+        
+        if (totalCodeDupes > 0 || totalContentDupes > 0) {
+          const messages = [];
+          if (totalCodeDupes > 0) messages.push(`${totalCodeDupes} duplicate code(s)`);
+          if (totalContentDupes > 0) messages.push(`${totalContentDupes} duplicate card(s) by content`);
           
           toast({
-            title: "⚠️ Duplicate Codes Detected",
-            description: `${csvDupeCount > 0 ? `${csvDupeCount} duplicate(s) within CSV. ` : ''}${dbDupeCount > 0 ? `${dbDupeCount} already exist in database.` : ''}`,
+            title: "⚠️ Duplicates Detected",
+            description: messages.join(', '),
             variant: "destructive"
           });
         }
@@ -338,11 +444,14 @@ export function CSVOperations({
   };
 
   const executeImport = async () => {
-    // Prevent import if duplicates are detected
-    if (duplicates.withinCsv.length > 0 || duplicates.inDatabase.length > 0) {
+    // Check for any duplicates
+    const hasCodeDuplicates = duplicates.codeDuplicates.withinCsv.length > 0 || duplicates.codeDuplicates.inDatabase.length > 0;
+    const hasContentDuplicates = duplicates.contentDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.inDatabase.length > 0;
+    
+    if (hasCodeDuplicates || hasContentDuplicates) {
       toast({
         title: "Cannot Import",
-        description: "Please resolve duplicate codes before importing.",
+        description: "Please resolve duplicates before importing.",
         variant: "destructive"
       });
       return;
@@ -520,7 +629,10 @@ export function CSVOperations({
       
       setShowImportDialog(false);
       setImportPreview([]);
-      setDuplicates({ withinCsv: [], inDatabase: [] });
+      setDuplicates({ 
+        codeDuplicates: { withinCsv: [], inDatabase: [] },
+        contentDuplicates: { withinCsv: [], inDatabase: [] }
+      });
     } catch (error) {
       console.error('Import error:', error);
       toast({
@@ -576,25 +688,55 @@ export function CSVOperations({
                 </div>
               </div>
 
-            {(duplicates.withinCsv.length > 0 || duplicates.inDatabase.length > 0) && (
-              <div className="bg-destructive/10 border border-destructive rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                  <div className="text-sm">
-                    <p className="font-semibold text-destructive">⚠️ Duplicate Codes Detected</p>
-                    {duplicates.withinCsv.length > 0 && (
-                      <p className="text-foreground mt-1">
-                        • <strong>{new Set(duplicates.withinCsv).size} duplicate(s) within CSV</strong> (rows: {Array.from(new Set(duplicates.withinCsv)).map(i => i + 1).join(', ')})
-                      </p>
-                    )}
-                    {duplicates.inDatabase.length > 0 && (
-                      <p className="text-foreground mt-1">
-                        • <strong>{new Set(duplicates.inDatabase).size} code(s) already exist in database</strong> (rows: {Array.from(new Set(duplicates.inDatabase)).map(i => i + 1).join(', ')})
-                      </p>
-                    )}
-                    <p className="text-foreground mt-2 font-semibold">Import is disabled until duplicates are resolved.</p>
+            {(duplicates.codeDuplicates.withinCsv.length > 0 || duplicates.codeDuplicates.inDatabase.length > 0 || 
+              duplicates.contentDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.inDatabase.length > 0) && (
+              <div className="space-y-2">
+                {/* Code Duplicates Warning */}
+                {(duplicates.codeDuplicates.withinCsv.length > 0 || duplicates.codeDuplicates.inDatabase.length > 0) && (
+                  <div className="bg-destructive/10 border border-destructive rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-destructive">⚠️ Duplicate Codes Detected</p>
+                        {duplicates.codeDuplicates.withinCsv.length > 0 && (
+                          <p className="text-foreground mt-1">
+                            • <strong>{new Set(duplicates.codeDuplicates.withinCsv).size} duplicate(s) within CSV</strong> (rows: {Array.from(new Set(duplicates.codeDuplicates.withinCsv)).map(i => i + 1).join(', ')})
+                          </p>
+                        )}
+                        {duplicates.codeDuplicates.inDatabase.length > 0 && (
+                          <p className="text-foreground mt-1">
+                            • <strong>{new Set(duplicates.codeDuplicates.inDatabase).size} code(s) already exist in database</strong> (rows: {Array.from(new Set(duplicates.codeDuplicates.inDatabase)).map(i => i + 1).join(', ')})
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Content Duplicates Warning */}
+                {(duplicates.contentDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.inDatabase.length > 0) && (
+                  <div className="bg-amber-500/10 border border-amber-500 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-amber-600 dark:text-amber-400">⚠️ Potential Duplicate Cards by Content</p>
+                        {duplicates.contentDuplicates.withinCsv.length > 0 && (
+                          <p className="text-foreground mt-1">
+                            • <strong>{new Set(duplicates.contentDuplicates.withinCsv).size} potential duplicate(s) within CSV</strong> (rows: {Array.from(new Set(duplicates.contentDuplicates.withinCsv)).map(i => i + 1).join(', ')})
+                          </p>
+                        )}
+                        {duplicates.contentDuplicates.inDatabase.length > 0 && (
+                          <p className="text-foreground mt-1">
+                            • <strong>{new Set(duplicates.contentDuplicates.inDatabase).size} card(s) with same name/suit/rank/era already exist in database</strong> (rows: {Array.from(new Set(duplicates.contentDuplicates.inDatabase)).map(i => i + 1).join(', ')})
+                          </p>
+                        )}
+                        <p className="text-foreground mt-2 text-xs italic">Cards with identical name, suit, rank, and era are considered duplicates.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <p className="text-sm font-semibold text-destructive">Import is disabled until duplicates are resolved.</p>
               </div>
             )}
 
@@ -632,72 +774,98 @@ export function CSVOperations({
                        </tr>
                      </thead>
                      <tbody>
-                       {importPreview.map((row, index) => {
-                         const isUpdate = row.card_id && row.card_id.trim();
-                         const hasCode = row.code && row.code.trim();
-                         const needsCodeGen = !isUpdate && !hasCode;
-                         const hasRequiredFields = row.name && row.suit && row.rank && row.era;
-                         const isValid = isUpdate || (hasRequiredFields && (hasCode || needsCodeGen));
-                         
-                         const isDuplicateInCsv = duplicates.withinCsv.includes(index);
-                         const isDuplicateInDb = duplicates.inDatabase.includes(index);
-                         const hasDuplicate = isDuplicateInCsv || isDuplicateInDb;
-                         
-                         return (
-                           <tr key={index} className={`border-t ${hasDuplicate ? 'bg-destructive/10' : !isValid ? 'bg-destructive/5' : ''}`}>
-                             <td className="p-2 font-medium text-muted-foreground">{index + 1}</td>
-                             <td className="p-2">
-                               <Badge variant={isUpdate ? 'secondary' : 'default'} className="text-xs">
-                                 {isUpdate ? 'Update' : 'Create'}
-                               </Badge>
-                               {!isValid && (
-                                 <div className="text-xs text-destructive mt-1">
-                                   {isUpdate ? 'Invalid ID' : 'Missing required fields'}
-                                 </div>
-                               )}
-                             </td>
-                             <td className="p-2">
-                               <div className="font-mono text-sm">
-                                 {hasCode ? row.code : (needsCodeGen ? <span className="text-muted-foreground italic text-xs">Auto-generated</span> : row.card_id)}
-                               </div>
-                               {hasDuplicate && (
-                                 <div className="text-xs text-destructive font-semibold mt-1">
-                                   {isDuplicateInCsv && "DUPLICATE IN CSV"}
-                                   {isDuplicateInCsv && isDuplicateInDb && " & "}
-                                   {isDuplicateInDb && "EXISTS IN DB"}
-                                 </div>
-                               )}
-                             </td>
-                             <td className="p-2">{row.name || '—'}</td>
-                             <td className="p-2">{row.suit || '—'}</td>
-                             <td className="p-2">{row.rank || '—'}</td>
-                             <td className="p-2">{row.era || '—'}</td>
-                           </tr>
-                         );
-                       })}
+                        {importPreview.map((row, index) => {
+                          const isUpdate = row.card_id && row.card_id.trim();
+                          const hasCode = row.code && row.code.trim();
+                          const needsCodeGen = !isUpdate && !hasCode;
+                          const hasRequiredFields = row.name && row.suit && row.rank && row.era;
+                          const isValid = isUpdate || (hasRequiredFields && (hasCode || needsCodeGen));
+                          
+                          // Check all types of duplicates
+                          const isCodeDuplicateInCsv = duplicates.codeDuplicates.withinCsv.includes(index);
+                          const isCodeDuplicateInDb = duplicates.codeDuplicates.inDatabase.includes(index);
+                          const isContentDuplicateInCsv = duplicates.contentDuplicates.withinCsv.includes(index);
+                          const isContentDuplicateInDb = duplicates.contentDuplicates.inDatabase.includes(index);
+                          
+                          const hasCodeDuplicate = isCodeDuplicateInCsv || isCodeDuplicateInDb;
+                          const hasContentDuplicate = isContentDuplicateInCsv || isContentDuplicateInDb;
+                          const hasAnyDuplicate = hasCodeDuplicate || hasContentDuplicate;
+                          
+                          return (
+                            <tr key={index} className={`border-t ${
+                              hasCodeDuplicate ? 'bg-destructive/10' : 
+                              hasContentDuplicate ? 'bg-amber-500/10' : 
+                              !isValid ? 'bg-destructive/5' : ''
+                            }`}>
+                              <td className="p-2 font-medium text-muted-foreground">{index + 1}</td>
+                              <td className="p-2">
+                                <Badge variant={isUpdate ? 'secondary' : 'default'} className="text-xs">
+                                  {isUpdate ? 'Update' : 'Create'}
+                                </Badge>
+                                {!isValid && (
+                                  <div className="text-xs text-destructive mt-1">
+                                    {isUpdate ? 'Invalid ID' : 'Missing required fields'}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2">
+                                <div className="font-mono text-sm">
+                                  {hasCode ? row.code : (needsCodeGen ? <span className="text-muted-foreground italic text-xs">Auto-generated</span> : row.card_id)}
+                                </div>
+                                {hasCodeDuplicate && (
+                                  <div className="text-xs text-destructive font-semibold mt-1">
+                                    {isCodeDuplicateInCsv && "DUPLICATE CODE IN CSV"}
+                                    {isCodeDuplicateInCsv && isCodeDuplicateInDb && " & "}
+                                    {isCodeDuplicateInDb && "CODE EXISTS IN DB"}
+                                  </div>
+                                )}
+                                {hasContentDuplicate && (
+                                  <div className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-1">
+                                    {isContentDuplicateInCsv && "DUPLICATE CONTENT IN CSV"}
+                                    {isContentDuplicateInCsv && isContentDuplicateInDb && " & "}
+                                    {isContentDuplicateInDb && "SIMILAR CARD IN DB"}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2">{row.name || '—'}</td>
+                              <td className="p-2">{row.suit || '—'}</td>
+                              <td className="p-2">{row.rank || '—'}</td>
+                              <td className="p-2">{row.era || '—'}</td>
+                            </tr>
+                          );
+                        })}
                      </tbody>
                    </table>
                  </div>
 
-                 <div className="flex justify-end gap-2 mt-4">
-                   <Button
-                     variant="outline"
-                     onClick={() => {
-                       setShowImportDialog(false);
-                       setDuplicates({ withinCsv: [], inDatabase: [] });
-                     }}
-                     disabled={isImporting}
-                   >
-                     Cancel
-                   </Button>
-                   <Button
-                     onClick={executeImport}
-                     disabled={isImporting || duplicates.withinCsv.length > 0 || duplicates.inDatabase.length > 0}
-                     className="bg-gradient-to-r from-primary to-primary-glow"
-                   >
-                     {isImporting ? 'Importing...' : 'Import Cards'}
-                   </Button>
-                 </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowImportDialog(false);
+                        setDuplicates({ 
+                          codeDuplicates: { withinCsv: [], inDatabase: [] },
+                          contentDuplicates: { withinCsv: [], inDatabase: [] }
+                        });
+                      }}
+                      disabled={isImporting}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={executeImport}
+                      disabled={
+                        isImporting || 
+                        duplicates.codeDuplicates.withinCsv.length > 0 || 
+                        duplicates.codeDuplicates.inDatabase.length > 0 ||
+                        duplicates.contentDuplicates.withinCsv.length > 0 ||
+                        duplicates.contentDuplicates.inDatabase.length > 0
+                      }
+                      className="bg-gradient-to-r from-primary to-primary-glow"
+                    >
+                      {isImporting ? 'Importing...' : 'Import Cards'}
+                    </Button>
+                  </div>
               </div>
             )}
           </div>
