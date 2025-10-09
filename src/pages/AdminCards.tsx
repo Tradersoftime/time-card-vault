@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Search, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSearchParams } from 'react-router-dom';
 import { CardEditModal } from '@/components/CardEditModal';
@@ -56,6 +57,15 @@ const AdminCards = () => {
     (localStorage.getItem('adminCards_cardSize') as 'sm' | 'md' | 'lg') || 'md'
   );
   
+  // Search and sort state
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [sortBy, setSortBy] = useState<string>(() => 
+    localStorage.getItem('adminCards_sortBy') || 'created_at'
+  );
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => 
+    (localStorage.getItem('adminCards_sortDirection') as 'asc' | 'desc') || 'desc'
+  );
+  
   // Modal states
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -89,6 +99,12 @@ const AdminCards = () => {
   useEffect(() => {
     localStorage.setItem('adminCards_expandedBatches', JSON.stringify(Array.from(expandedBatches)));
   }, [expandedBatches]);
+
+  // Save sort preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem('adminCards_sortBy', sortBy);
+    localStorage.setItem('adminCards_sortDirection', sortDirection);
+  }, [sortBy, sortDirection]);
 
   const loadData = async () => {
     try {
@@ -132,20 +148,90 @@ const AdminCards = () => {
     }
   };
 
-  // Group cards by batch
+  // Filter and sort cards, then group by batch
   const cardsByBatch = useMemo(() => {
+    // Filter cards by global search
+    let filteredCards = cards;
+    if (globalSearch.trim()) {
+      const searchLower = globalSearch.toLowerCase();
+      filteredCards = cards.filter(card => 
+        card.code.toLowerCase().includes(searchLower) ||
+        card.name.toLowerCase().includes(searchLower) ||
+        card.suit.toLowerCase().includes(searchLower) ||
+        card.rank.toLowerCase().includes(searchLower) ||
+        card.era.toLowerCase().includes(searchLower) ||
+        (card.rarity && card.rarity.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Sort cards
+    const sortedCards = [...filteredCards].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'code':
+          comparison = a.code.localeCompare(b.code);
+          break;
+        case 'suit':
+          const suitOrder = { 'spades': 1, 'hearts': 2, 'diamonds': 3, 'clubs': 4 };
+          comparison = (suitOrder[a.suit.toLowerCase() as keyof typeof suitOrder] || 999) - 
+                      (suitOrder[b.suit.toLowerCase() as keyof typeof suitOrder] || 999);
+          break;
+        case 'rank':
+          const rankOrder: Record<string, number> = { 
+            'ace': 1, 'king': 2, 'queen': 3, 'jack': 4, 
+            '10': 5, '9': 6, '8': 7, '7': 8, '6': 9, '5': 10, '4': 11, '3': 12, '2': 13 
+          };
+          comparison = (rankOrder[a.rank.toLowerCase()] || 999) - 
+                      (rankOrder[b.rank.toLowerCase()] || 999);
+          break;
+        case 'era':
+          comparison = a.era.localeCompare(b.era);
+          break;
+        case 'rarity':
+          const rarityOrder: Record<string, number> = { 
+            'common': 1, 'uncommon': 2, 'rare': 3, 'epic': 4, 'legendary': 5 
+          };
+          comparison = (rarityOrder[(a.rarity || '').toLowerCase()] || 999) - 
+                      (rarityOrder[(b.rarity || '').toLowerCase()] || 999);
+          break;
+        case 'time_value':
+          comparison = a.time_value - b.time_value;
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'created_at':
+        default:
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    // Group sorted/filtered cards by batch
     const grouped = new Map<string, CardData[]>();
     
-    // Group cards by batch
     batches.forEach(batch => {
-      grouped.set(batch.id, cards.filter(c => c.print_batch_id === batch.id));
+      grouped.set(batch.id, sortedCards.filter(c => c.print_batch_id === batch.id));
     });
     
     // Unassigned cards
-    grouped.set('unassigned', cards.filter(c => !c.print_batch_id));
+    grouped.set('unassigned', sortedCards.filter(c => !c.print_batch_id));
     
     return grouped;
-  }, [cards, batches]);
+  }, [cards, batches, globalSearch, sortBy, sortDirection]);
+
+  // Count total filtered cards
+  const totalFilteredCards = useMemo(() => {
+    let count = 0;
+    cardsByBatch.forEach(cards => count += cards.length);
+    return count;
+  }, [cardsByBatch]);
 
   const toggleBatch = (batchId: string) => {
     setExpandedBatches(prev => {
@@ -318,41 +404,104 @@ const AdminCards = () => {
       <div className="container mx-auto py-8 px-4">
         {/* Header */}
         <div className="glass-panel p-6 rounded-2xl mb-6">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
-                📦 Card Management
-              </h1>
-              <p className="text-muted-foreground">Organize cards by print batches</p>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
+                  📦 Card Management
+                </h1>
+                <p className="text-muted-foreground">Organize cards by print batches</p>
+              </div>
+              <div className="flex gap-2 items-center flex-wrap">
+                {/* Card Size */}
+                <Select value={cardSize} onValueChange={(value: 'sm' | 'md' | 'lg') => setCardSizeAndSave(value)}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sm">SM</SelectItem>
+                    <SelectItem value="md">MD</SelectItem>
+                    <SelectItem value="lg">LG</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Button 
+                  onClick={() => setShowCreateModal(true)}
+                  className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add New Card
+                </Button>
+                <CSVOperations 
+                  selectedCards={[]}
+                  onImportComplete={loadData}
+                  currentBatchId={csvImportBatchId}
+                  showBatchContext={!!csvImportBatchId}
+                  isOpen={showCsvImportDialog}
+                  onOpenChange={setShowCsvImportDialog}
+                />
+              </div>
             </div>
-            <div className="flex gap-2 items-center">
-              {/* Card Size */}
-              <Select value={cardSize} onValueChange={(value: 'sm' | 'md' | 'lg') => setCardSizeAndSave(value)}>
-                <SelectTrigger className="w-20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sm">SM</SelectItem>
-                  <SelectItem value="md">MD</SelectItem>
-                  <SelectItem value="lg">LG</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Button 
-                onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add New Card
-              </Button>
-              <CSVOperations 
-                selectedCards={[]}
-                onImportComplete={loadData}
-                currentBatchId={csvImportBatchId}
-                showBatchContext={!!csvImportBatchId}
-                isOpen={showCsvImportDialog}
-                onOpenChange={setShowCsvImportDialog}
-              />
+
+            {/* Search and Sort Bar */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Global Search */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search all cards by code, name, suit, rank, era, rarity..."
+                  value={globalSearch}
+                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  className="pl-9 pr-9"
+                />
+                {globalSearch && (
+                  <button
+                    onClick={() => setGlobalSearch('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Sort Controls */}
+              <div className="flex gap-2">
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">Created Date</SelectItem>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="code">Code</SelectItem>
+                    <SelectItem value="suit">Suit</SelectItem>
+                    <SelectItem value="rank">Rank</SelectItem>
+                    <SelectItem value="era">Era</SelectItem>
+                    <SelectItem value="rarity">Rarity</SelectItem>
+                    <SelectItem value="time_value">Time Value</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Select value={sortDirection} onValueChange={(value: 'asc' | 'desc') => setSortDirection(value)}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Ascending</SelectItem>
+                    <SelectItem value="desc">Descending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Results Count */}
+            <div className="text-sm text-muted-foreground">
+              {globalSearch ? (
+                <span>Showing {totalFilteredCards} of {cards.length} cards</span>
+              ) : (
+                <span>Showing all {cards.length} cards</span>
+              )}
             </div>
           </div>
         </div>
