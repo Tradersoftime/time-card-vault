@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Upload } from 'lucide-react';
 import { PrintBatch } from '@/types/printBatch';
@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BatchFilters, BatchFiltersState } from './BatchFilters';
 
 interface CardData {
   id: string;
@@ -30,6 +31,7 @@ interface CardData {
   qr_light?: string | null;
   claim_token?: string | null;
   print_batch_id?: string | null;
+  claimed_by?: string | null;
 }
 
 interface BatchSectionProps {
@@ -72,12 +74,105 @@ export function BatchSection({
   isUnassigned = false,
 }: BatchSectionProps) {
   const [sectionSearch, setSectionSearch] = useState('');
+  
+  // Get storage key for this batch
+  const storageKey = `batch-filters-${batch?.id || 'unassigned'}`;
+  
+  // Initialize filters from localStorage
+  const [filters, setFilters] = useState<BatchFiltersState>(() => {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return {
+          suits: [],
+          ranks: [],
+          eras: [],
+          rarities: [],
+          statuses: [],
+          timeValueMin: null,
+          timeValueMax: null,
+          traderValues: [],
+          claimedStatus: 'all' as const,
+        };
+      }
+    }
+    return {
+      suits: [],
+      ranks: [],
+      eras: [],
+      rarities: [],
+      statuses: [],
+      timeValueMin: null,
+      timeValueMax: null,
+      traderValues: [],
+      claimedStatus: 'all' as const,
+    };
+  });
 
-  const filteredCards = cards.filter(card =>
-    card.name.toLowerCase().includes(sectionSearch.toLowerCase()) ||
-    card.code.toLowerCase().includes(sectionSearch.toLowerCase()) ||
-    card.suit.toLowerCase().includes(sectionSearch.toLowerCase())
-  );
+  // Save filters to localStorage
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(filters));
+  }, [filters, storageKey]);
+
+  // Extract unique options for dynamic filters
+  const availableOptions = useMemo(() => {
+    const eras = [...new Set(cards.map(c => c.era).filter(Boolean))].sort();
+    const traderValues = [...new Set(cards.map(c => c.trader_value).filter(Boolean))].sort() as string[];
+    return { eras, traderValues };
+  }, [cards]);
+
+  // Apply all filters
+  const filteredCards = useMemo(() => {
+    return cards.filter(card => {
+      // Text search
+      const matchesSearch = 
+        card.name.toLowerCase().includes(sectionSearch.toLowerCase()) ||
+        card.code.toLowerCase().includes(sectionSearch.toLowerCase()) ||
+        card.suit.toLowerCase().includes(sectionSearch.toLowerCase());
+      
+      if (!matchesSearch) return false;
+
+      // Suit filter
+      if (filters.suits.length > 0 && !filters.suits.includes(card.suit)) return false;
+
+      // Rank filter
+      if (filters.ranks.length > 0 && !filters.ranks.includes(card.rank)) return false;
+
+      // Era filter
+      if (filters.eras.length > 0 && !filters.eras.includes(card.era)) return false;
+
+      // Rarity filter
+      if (filters.rarities.length > 0) {
+        if (!card.rarity || !filters.rarities.includes(card.rarity)) return false;
+      }
+
+      // Status filter
+      if (filters.statuses.length > 0) {
+        const cardStatus = card.is_active ? 'Active' : 'Inactive';
+        if (!filters.statuses.includes(cardStatus)) return false;
+      }
+
+      // Time Value range
+      if (filters.timeValueMin !== null && card.time_value < filters.timeValueMin) return false;
+      if (filters.timeValueMax !== null && card.time_value > filters.timeValueMax) return false;
+
+      // Trader Value filter
+      if (filters.traderValues.length > 0) {
+        if (!card.trader_value || !filters.traderValues.includes(card.trader_value)) return false;
+      }
+
+      // Claimed status
+      if (filters.claimedStatus !== 'all') {
+        const isClaimed = !!card.claimed_by;
+        if (filters.claimedStatus === 'claimed' && !isClaimed) return false;
+        if (filters.claimedStatus === 'unclaimed' && isClaimed) return false;
+      }
+
+      return true;
+    });
+  }, [cards, sectionSearch, filters]);
 
   const cardWidth = cardSize === 'sm' ? 160 : cardSize === 'md' ? 200 : 250;
 
@@ -97,6 +192,13 @@ export function BatchSection({
 
       <CollapsibleContent>
         <div className="border-t border-border/50 p-6 space-y-4">
+          {/* Advanced Filters */}
+          <BatchFilters
+            filters={filters}
+            onChange={setFilters}
+            availableOptions={availableOptions}
+          />
+
           {/* Batch Actions */}
           <div className="flex items-center gap-4 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
@@ -113,6 +215,13 @@ export function BatchSection({
               Import CSV to {isUnassigned ? 'Unassigned' : 'This Batch'}
             </Button>
           </div>
+
+          {/* Results Counter */}
+          {filteredCards.length !== cards.length && (
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredCards.length} of {cards.length} cards
+            </div>
+          )}
 
           {/* Cards Grid */}
           <div
