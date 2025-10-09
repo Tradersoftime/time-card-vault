@@ -38,6 +38,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Download, Upload, FileText, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface CardData {
   id: string;
@@ -97,6 +98,7 @@ export function CSVOperations({
     codeDuplicates: { withinCsv: [], inDatabase: [] },
     contentDuplicates: { withinCsv: [], inDatabase: [] }
   });
+  const [duplicatesAcknowledged, setDuplicatesAcknowledged] = useState(false);
 
   // Use external control if provided, otherwise use internal state
   const showImportDialog = isOpen !== undefined ? isOpen : internalShowDialog;
@@ -397,6 +399,7 @@ export function CSVOperations({
             inDatabase: contentDuplicateRowsInDb
           }
         });
+        setDuplicatesAcknowledged(false); // Reset acknowledgment on new file
 
         // Detect if any rows need auto-generation (row-level detection)
         const hasAnyRowNeedingGeneration = data.some(row => 
@@ -444,19 +447,6 @@ export function CSVOperations({
   };
 
   const executeImport = async () => {
-    // Check for any duplicates
-    const hasCodeDuplicates = duplicates.codeDuplicates.withinCsv.length > 0 || duplicates.codeDuplicates.inDatabase.length > 0;
-    const hasContentDuplicates = duplicates.contentDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.inDatabase.length > 0;
-    
-    if (hasCodeDuplicates || hasContentDuplicates) {
-      toast({
-        title: "Cannot Import",
-        description: "Please resolve duplicates before importing.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     setIsImporting(true);
     try {
       let createdCount = 0;
@@ -736,7 +726,18 @@ export function CSVOperations({
                   </div>
                 )}
                 
-                <p className="text-sm font-semibold text-destructive">Import is disabled until duplicates are resolved.</p>
+                {/* Acknowledgment Checkbox */}
+                <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                  <Checkbox 
+                    id="acknowledge-duplicates"
+                    checked={duplicatesAcknowledged}
+                    onCheckedChange={(checked) => setDuplicatesAcknowledged(checked as boolean)}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor="acknowledge-duplicates" className="text-sm cursor-pointer leading-tight">
+                    <strong>I understand there are duplicates</strong> and want to proceed with import anyway. This will create duplicate cards in the system.
+                  </label>
+                </div>
               </div>
             )}
 
@@ -847,6 +848,7 @@ export function CSVOperations({
                           codeDuplicates: { withinCsv: [], inDatabase: [] },
                           contentDuplicates: { withinCsv: [], inDatabase: [] }
                         });
+                        setDuplicatesAcknowledged(false);
                       }}
                       disabled={isImporting}
                     >
@@ -856,10 +858,13 @@ export function CSVOperations({
                       onClick={executeImport}
                       disabled={
                         isImporting || 
-                        duplicates.codeDuplicates.withinCsv.length > 0 || 
-                        duplicates.codeDuplicates.inDatabase.length > 0 ||
-                        duplicates.contentDuplicates.withinCsv.length > 0 ||
-                        duplicates.contentDuplicates.inDatabase.length > 0
+                        (
+                          (duplicates.codeDuplicates.withinCsv.length > 0 || 
+                           duplicates.codeDuplicates.inDatabase.length > 0 ||
+                           duplicates.contentDuplicates.withinCsv.length > 0 ||
+                           duplicates.contentDuplicates.inDatabase.length > 0) && 
+                          !duplicatesAcknowledged
+                        )
                       }
                       className="bg-gradient-to-r from-primary to-primary-glow"
                     >
