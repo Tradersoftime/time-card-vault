@@ -84,6 +84,10 @@ export function CSVOperations({
   const [internalShowDialog, setInternalShowDialog] = useState(false);
   const [imageCodeMappings, setImageCodeMappings] = useState<Record<string, string>>({});
   const [useSimplifiedFormat, setUseSimplifiedFormat] = useState(false);
+  const [duplicates, setDuplicates] = useState<{
+    withinCsv: number[];
+    inDatabase: number[];
+  }>({ withinCsv: [], inDatabase: [] });
 
   // Use external control if provided, otherwise use internal state
   const showImportDialog = isOpen !== undefined ? isOpen : internalShowDialog;
@@ -211,12 +215,12 @@ export function CSVOperations({
     });
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const csv = e.target?.result as string;
         const lines = csv.split('\n');
@@ -245,6 +249,53 @@ export function CSVOperations({
             return row;
           });
 
+        // Check for duplicates within CSV
+        const codesInCsv: Record<string, number[]> = {};
+        const duplicateRowsInCsv: number[] = [];
+        
+        data.forEach((row, index) => {
+          const code = String(row.code || '').trim();
+          if (code) {
+            if (!codesInCsv[code]) {
+              codesInCsv[code] = [];
+            }
+            codesInCsv[code].push(index);
+          }
+        });
+        
+        // Mark rows that have duplicate codes within the CSV
+        Object.values(codesInCsv).forEach(indices => {
+          if (indices.length > 1) {
+            duplicateRowsInCsv.push(...indices);
+          }
+        });
+
+        // Check for duplicates in database
+        const nonEmptyCodes = Object.keys(codesInCsv);
+        let duplicateRowsInDb: number[] = [];
+        
+        if (nonEmptyCodes.length > 0) {
+          const { data: existingCards } = await supabase
+            .from('cards')
+            .select('code')
+            .in('code', nonEmptyCodes);
+          
+          if (existingCards && existingCards.length > 0) {
+            const existingCodesSet = new Set(existingCards.map(c => c.code));
+            data.forEach((row, index) => {
+              const code = String(row.code || '').trim();
+              if (code && existingCodesSet.has(code)) {
+                duplicateRowsInDb.push(index);
+              }
+            });
+          }
+        }
+
+        setDuplicates({
+          withinCsv: duplicateRowsInCsv,
+          inDatabase: duplicateRowsInDb
+        });
+
         // Detect if any rows need auto-generation (row-level detection)
         const hasAnyRowNeedingGeneration = data.some(row => 
           (!row.card_id || !row.card_id.trim()) && (!row.code || !row.code.trim())
@@ -253,6 +304,18 @@ export function CSVOperations({
 
         setImportPreview(data);
         setShowImportDialog(true);
+        
+        // Show duplicate warnings
+        if (duplicateRowsInCsv.length > 0 || duplicateRowsInDb.length > 0) {
+          const csvDupeCount = new Set(duplicateRowsInCsv).size;
+          const dbDupeCount = new Set(duplicateRowsInDb).size;
+          
+          toast({
+            title: "⚠️ Duplicate Codes Detected",
+            description: `${csvDupeCount > 0 ? `${csvDupeCount} duplicate(s) within CSV. ` : ''}${dbDupeCount > 0 ? `${dbDupeCount} already exist in database.` : ''}`,
+            variant: "destructive"
+          });
+        }
       } catch (error) {
         toast({
           title: "Error reading file",
@@ -275,6 +338,16 @@ export function CSVOperations({
   };
 
   const executeImport = async () => {
+    // Prevent import if duplicates are detected
+    if (duplicates.withinCsv.length > 0 || duplicates.inDatabase.length > 0) {
+      toast({
+        title: "Cannot Import",
+        description: "Please resolve duplicate codes before importing.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setIsImporting(true);
     try {
       let createdCount = 0;
@@ -447,6 +520,7 @@ export function CSVOperations({
       
       setShowImportDialog(false);
       setImportPreview([]);
+      setDuplicates({ withinCsv: [], inDatabase: [] });
     } catch (error) {
       console.error('Import error:', error);
       toast({
@@ -502,6 +576,28 @@ export function CSVOperations({
                 </div>
               </div>
 
+            {(duplicates.withinCsv.length > 0 || duplicates.inDatabase.length > 0) && (
+              <div className="bg-destructive/10 border border-destructive rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-destructive">⚠️ Duplicate Codes Detected</p>
+                    {duplicates.withinCsv.length > 0 && (
+                      <p className="text-foreground mt-1">
+                        • <strong>{new Set(duplicates.withinCsv).size} duplicate(s) within CSV</strong> (rows: {Array.from(new Set(duplicates.withinCsv)).map(i => i + 1).join(', ')})
+                      </p>
+                    )}
+                    {duplicates.inDatabase.length > 0 && (
+                      <p className="text-foreground mt-1">
+                        • <strong>{new Set(duplicates.inDatabase).size} code(s) already exist in database</strong> (rows: {Array.from(new Set(duplicates.inDatabase)).map(i => i + 1).join(', ')})
+                      </p>
+                    )}
+                    <p className="text-foreground mt-2 font-semibold">Import is disabled until duplicates are resolved.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {importPreview.length === 0 ? (
               <div className="border-2 border-dashed border-muted rounded-lg p-8 text-center">
                 <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
@@ -524,88 +620,84 @@ export function CSVOperations({
                 
                 <div className="max-h-60 overflow-y-auto border rounded-lg">
                   <table className="w-full text-sm">
-                    <thead className="bg-muted/50 sticky top-0">
-                      <tr>
-                        <th className="p-2 text-left">Action</th>
-                        <th className="p-2 text-left">Code</th>
-                        <th className="p-2 text-left">Name</th>
-                        <th className="p-2 text-left">Suit</th>
-                        <th className="p-2 text-left">Rank</th>
-                        <th className="p-2 text-left">Era</th>
-                        <th className="p-2 text-left">Image</th>
-                        <th className="p-2 text-left">Token</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {importPreview.map((row, index) => {
-                        const isUpdate = row.card_id && row.card_id.trim();
-                        const hasCode = row.code && row.code.trim();
-                        const needsCodeGen = !isUpdate && !hasCode;
-                        const hasRequiredFields = row.name && row.suit && row.rank && row.era;
-                        const isValid = isUpdate || (hasRequiredFields && (hasCode || needsCodeGen));
-                        
-                        return (
-                          <tr key={index} className={`border-t ${!isValid ? 'bg-destructive/10' : ''}`}>
-                            <td className="p-2">
-                              <Badge variant={isUpdate ? 'secondary' : 'default'} className="text-xs">
-                                {isUpdate ? 'Update' : 'Create'}
-                              </Badge>
-                              {!isValid && (
-                                <div className="text-xs text-destructive mt-1">
-                                  {isUpdate ? 'Invalid ID' : 'Missing required fields'}
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-2 font-mono text-sm">
-                              {hasCode ? row.code : (needsCodeGen ? <span className="text-muted-foreground italic text-xs">Auto-generated</span> : row.card_id)}
-                            </td>
-                            <td className="p-2">{row.name || '—'}</td>
-                            <td className="p-2">{row.suit || '—'}</td>
-                            <td className="p-2">{row.rank || '—'}</td>
-                            <td className="p-2">{row.era || '—'}</td>
-                            <td className="p-2 text-xs">
-                              {row.image_code ? (
-                                <span className="bg-blue-100 text-blue-800 px-1 rounded">
-                                  {row.image_code}
-                                </span>
-                              ) : row.image_url ? (
-                                <span className="text-muted-foreground">URL</span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="p-2 text-xs">
-                              {row.claim_token ? (
-                                <span className="bg-green-100 text-green-800 px-1 rounded font-mono">
-                                  {row.claim_token.substring(0, 8)}...
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">Auto-generated</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                     <thead className="bg-muted/50 sticky top-0">
+                       <tr>
+                         <th className="p-2 text-left">Row</th>
+                         <th className="p-2 text-left">Action</th>
+                         <th className="p-2 text-left">Code</th>
+                         <th className="p-2 text-left">Name</th>
+                         <th className="p-2 text-left">Suit</th>
+                         <th className="p-2 text-left">Rank</th>
+                         <th className="p-2 text-left">Era</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {importPreview.map((row, index) => {
+                         const isUpdate = row.card_id && row.card_id.trim();
+                         const hasCode = row.code && row.code.trim();
+                         const needsCodeGen = !isUpdate && !hasCode;
+                         const hasRequiredFields = row.name && row.suit && row.rank && row.era;
+                         const isValid = isUpdate || (hasRequiredFields && (hasCode || needsCodeGen));
+                         
+                         const isDuplicateInCsv = duplicates.withinCsv.includes(index);
+                         const isDuplicateInDb = duplicates.inDatabase.includes(index);
+                         const hasDuplicate = isDuplicateInCsv || isDuplicateInDb;
+                         
+                         return (
+                           <tr key={index} className={`border-t ${hasDuplicate ? 'bg-destructive/10' : !isValid ? 'bg-destructive/5' : ''}`}>
+                             <td className="p-2 font-medium text-muted-foreground">{index + 1}</td>
+                             <td className="p-2">
+                               <Badge variant={isUpdate ? 'secondary' : 'default'} className="text-xs">
+                                 {isUpdate ? 'Update' : 'Create'}
+                               </Badge>
+                               {!isValid && (
+                                 <div className="text-xs text-destructive mt-1">
+                                   {isUpdate ? 'Invalid ID' : 'Missing required fields'}
+                                 </div>
+                               )}
+                             </td>
+                             <td className="p-2">
+                               <div className="font-mono text-sm">
+                                 {hasCode ? row.code : (needsCodeGen ? <span className="text-muted-foreground italic text-xs">Auto-generated</span> : row.card_id)}
+                               </div>
+                               {hasDuplicate && (
+                                 <div className="text-xs text-destructive font-semibold mt-1">
+                                   {isDuplicateInCsv && "DUPLICATE IN CSV"}
+                                   {isDuplicateInCsv && isDuplicateInDb && " & "}
+                                   {isDuplicateInDb && "EXISTS IN DB"}
+                                 </div>
+                               )}
+                             </td>
+                             <td className="p-2">{row.name || '—'}</td>
+                             <td className="p-2">{row.suit || '—'}</td>
+                             <td className="p-2">{row.rank || '—'}</td>
+                             <td className="p-2">{row.era || '—'}</td>
+                           </tr>
+                         );
+                       })}
+                     </tbody>
+                   </table>
+                 </div>
 
-                <div className="flex justify-end gap-2 mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowImportDialog(false)}
-                    disabled={isImporting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={executeImport}
-                    disabled={isImporting}
-                    className="bg-gradient-to-r from-primary to-primary-glow"
-                  >
-                    {isImporting ? 'Importing...' : 'Import Cards'}
-                  </Button>
-                </div>
+                 <div className="flex justify-end gap-2 mt-4">
+                   <Button
+                     variant="outline"
+                     onClick={() => {
+                       setShowImportDialog(false);
+                       setDuplicates({ withinCsv: [], inDatabase: [] });
+                     }}
+                     disabled={isImporting}
+                   >
+                     Cancel
+                   </Button>
+                   <Button
+                     onClick={executeImport}
+                     disabled={isImporting || duplicates.withinCsv.length > 0 || duplicates.inDatabase.length > 0}
+                     className="bg-gradient-to-r from-primary to-primary-glow"
+                   >
+                     {isImporting ? 'Importing...' : 'Import Cards'}
+                   </Button>
+                 </div>
               </div>
             )}
           </div>
