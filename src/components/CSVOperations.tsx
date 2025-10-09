@@ -312,10 +312,11 @@ export function CSVOperations({
         let codeDuplicateRowsInDb: number[] = [];
         
         if (nonEmptyCodes.length > 0) {
-          const { data: existingCards } = await supabase
-            .from('cards')
-            .select('code')
-            .in('code', nonEmptyCodes);
+      const { data: existingCards } = await supabase
+        .from('cards')
+        .select('code')
+        .is('deleted_at', null)
+        .in('code', nonEmptyCodes);
           
           if (existingCards && existingCards.length > 0) {
             const existingCodesSet = new Set(existingCards.map(c => c.code));
@@ -363,7 +364,7 @@ export function CSVOperations({
           const { data: existingCards } = await supabase
             .from('cards')
             .select('name, suit, rank, era')
-            .not('deleted_at', 'is', null); // Include only active cards
+            .is('deleted_at', null);
           
           if (existingCards && existingCards.length > 0) {
             const existingSignatures = new Set(
@@ -570,6 +571,37 @@ export function CSVOperations({
       );
 
       const validRows = processedRows.filter(row => row !== null);
+
+      // Check for duplicate codes within the processed batch
+      const codeMap = new Map<string, number[]>();
+      validRows.forEach((row) => {
+        if (row) {
+          const code = row.cardData.code;
+          if (!codeMap.has(code)) {
+            codeMap.set(code, []);
+          }
+          codeMap.get(code)!.push(row.rowIndex);
+        }
+      });
+
+      const duplicateCodes = Array.from(codeMap.entries())
+        .filter(([_, indices]) => indices.length > 1);
+
+      if (duplicateCodes.length > 0) {
+        const dupeMessage = duplicateCodes
+          .map(([code, indices]) => 
+            `Code "${code}" appears ${indices.length} times (CSV rows: ${indices.join(', ')})`
+          )
+          .join('\n');
+        
+        toast({
+          title: "Duplicate codes detected",
+          description: `Cannot import - multiple rows would generate the same code:\n${dupeMessage}`,
+          variant: "destructive"
+        });
+        setIsImporting(false);
+        return;
+      }
 
       if (errors.length > 0) {
         toast({
