@@ -193,7 +193,7 @@ const AdminCards = () => {
           break;
         case 'rarity':
           const rarityOrder: Record<string, number> = { 
-            'dgen': 1, 'trader': 2, 'investor': 3, 'market maker': 4, 'whale': 5 
+            'degen': 1, 'trader': 2, 'investor': 3, 'market maker': 4, 'whale': 5 
           };
           comparison = (rarityOrder[(a.rarity || '').toLowerCase()] || 999) - 
                       (rarityOrder[(b.rarity || '').toLowerCase()] || 999);

@@ -459,9 +459,24 @@ export function CSVOperations({
       const processedRows = await Promise.all(
         importPreview.map(async (row, index) => {
           try {
-            // Clean and trim text fields
+            // Clean and trim text fields, normalize case for categorical fields
             const cleanRow = Object.keys(row).reduce((acc, key) => {
-              acc[key] = typeof row[key] === 'string' ? row[key].trim() : row[key];
+              let value = typeof row[key] === 'string' ? row[key].trim() : row[key];
+              
+              // Normalize case for categorical fields to ensure consistency
+              if (typeof value === 'string') {
+                const normalizeFields = ['suit', 'rank', 'era', 'rarity', 'trader_value', 'status'];
+                if (normalizeFields.includes(key) && value) {
+                  // Title case: first letter uppercase, rest lowercase
+                  value = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                  // Special handling for "Market Maker" rarity
+                  if (key === 'rarity' && value.toLowerCase() === 'market maker') {
+                    value = 'Market Maker';
+                  }
+                }
+              }
+              
+              acc[key] = value;
               return acc;
             }, {} as any);
 

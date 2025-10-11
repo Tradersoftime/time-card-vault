@@ -29,7 +29,7 @@ interface BatchFiltersProps {
 
 const SUITS = ['Spades', 'Hearts', 'Diamonds', 'Clubs'];
 const RANKS = ['Ace', 'King', 'Queen', 'Jack', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
-const RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
+const RARITIES = ['Degen', 'Trader', 'Investor', 'Market Maker', 'Whale'];
 const STATUSES = ['Active', 'Inactive'];
 
 export function BatchFilters({ filters, onChange, availableOptions }: BatchFiltersProps) {

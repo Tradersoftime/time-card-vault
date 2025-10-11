@@ -675,6 +675,23 @@ export default function AdminQR() {
     e.currentTarget.value = ""; // reset input
   }
 
+  // Helper to normalize categorical fields (case-insensitive)
+  function normalizeField(value: string | undefined | null): string | undefined {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    
+    // Title case: first letter uppercase, rest lowercase
+    const normalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    
+    // Special case for "Market Maker" rarity
+    if (normalized.toLowerCase() === 'market maker') {
+      return 'Market Maker';
+    }
+    
+    return normalized;
+  }
+
   async function validateAndNormalize(rows: CsvRow[]): Promise<{ ok: CardUpsert[]; errors: string[] }> {
     const errors: string[] = [];
     const ok: CardUpsert[] = [];
@@ -696,11 +713,11 @@ export default function AdminQR() {
       }
       seen.add(code.toLowerCase());
 
-      // Validate required fields for complete cards
+      // Validate required fields for complete cards (with case normalization)
       const name = r.name ? norm(r.name) : undefined;
-      const suit = r.suit ? norm(r.suit) : undefined;
-      const rank = r.rank ? norm(r.rank) : undefined;
-      const era = r.era ? norm(r.era) : undefined;
+      const suit = normalizeField(r.suit);
+      const rank = normalizeField(r.rank);
+      const era = normalizeField(r.era);
 
       // If any card details are provided, warn about missing required fields
       if ((name || suit || rank || era) && (!name || !suit || !rank || !era)) {
@@ -772,13 +789,13 @@ export default function AdminQR() {
         suit,
         rank,
         era,
-        rarity: r.rarity ? norm(r.rarity) : undefined,
-        trader_value: r.trader_value ? norm(r.trader_value) : undefined,
+        rarity: normalizeField(r.rarity),
+        trader_value: normalizeField(r.trader_value),
         time_value: r.time_value ? Number(r.time_value) || 0 : 0,
         image_url: imageUrl,
         description: r.description ? norm(r.description) : undefined,
         current_target: r.current_target ? norm(r.current_target) : undefined,
-        status: r.status ? norm(r.status) : 'active',
+        status: normalizeField(r.status) || 'active',
         is_active: true, // Default to active
         qr_dark: qrDarkColor,
         qr_light: qrLightColor,
