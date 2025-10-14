@@ -564,6 +564,8 @@ export function CSVOperations({
               qr_dark: cleanRow.qr_dark || null,
               qr_light: cleanRow.qr_light || null,
               print_batch_id: currentBatchId || null, // Assign to current batch
+              deleted_at: null, // Clear soft-delete when importing
+              deleted_by: null, // Clear soft-delete when importing
               ...(cleanRow.claim_token && { claim_token: cleanRow.claim_token })
             };
 

@@ -58,6 +58,8 @@ type CardUpsert = {
   is_active?: boolean;
   qr_dark?: string | null;
   qr_light?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type CsvRow = Partial<CardUpsert> & { code?: string | null; image_code?: string | null };
@@ -799,6 +801,8 @@ export default function AdminQR() {
         is_active: true, // Default to active
         qr_dark: qrDarkColor,
         qr_light: qrLightColor,
+        deleted_at: null, // Clear soft-delete when importing
+        deleted_by: null, // Clear soft-delete when importing
       };
       
       // Override is_active if explicitly provided
