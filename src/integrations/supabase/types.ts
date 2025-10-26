@@ -399,16 +399,13 @@ export type Database = {
         Args: { p_card_ids: string[]; p_is_active: boolean }
         Returns: Json
       }
-      admin_bulk_soft_delete: {
-        Args: { p_card_ids: string[] }
-        Returns: Json
-      }
+      admin_bulk_soft_delete: { Args: { p_card_ids: string[] }; Returns: Json }
       admin_delete_pending_redemptions: {
         Args: { p_redemption_ids: string[] }
         Returns: Json
       }
       admin_list_blocked: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           blocked_at: string
           blocked_by: string
@@ -418,36 +415,60 @@ export type Database = {
           user_id: string
         }[]
       }
-      admin_list_cards: {
-        Args:
-          | {
+      admin_list_cards:
+        | {
+            Args: { p_limit?: number; p_offset?: number; p_search?: string }
+            Returns: {
+              code: string
+              created_at: string
+              era: string
+              id: string
+              image_url: string
+              is_active: boolean
+              is_credited: boolean
+              is_in_pending_redemption: boolean
+              name: string
+              owner_email: string
+              owner_user_id: string
+              rank: string
+              rarity: string
+              redirect: string
+              status: string
+              suit: string
+              time_value: number
+              trader_value: string
+            }[]
+          }
+        | {
+            Args: {
               p_include_deleted?: boolean
               p_limit?: number
               p_offset?: number
               p_search?: string
             }
-          | { p_limit?: number; p_offset?: number; p_search?: string }
-        Returns: {
-          code: string
-          created_at: string
-          era: string
-          id: string
-          image_url: string
-          is_active: boolean
-          is_credited: boolean
-          is_in_pending_redemption: boolean
-          name: string
-          owner_email: string
-          owner_user_id: string
-          rank: string
-          rarity: string
-          redirect: string
-          status: string
-          suit: string
-          time_value: number
-          trader_value: string
-        }[]
-      }
+            Returns: {
+              code: string
+              created_at: string
+              deleted_at: string
+              deleted_by: string
+              era: string
+              id: string
+              image_url: string
+              is_active: boolean
+              is_credited: boolean
+              is_in_pending_redemption: boolean
+              name: string
+              owner_email: string
+              owner_user_id: string
+              rank: string
+              rarity: string
+              redirect: string
+              status: string
+              suit: string
+              time_value: number
+              trader_value: string
+            }[]
+          }
       admin_list_users: {
         Args: {
           p_limit?: number
@@ -475,7 +496,7 @@ export type Database = {
         }[]
       }
       admin_pending_card_redemptions: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           card_era: string
           card_id: string
@@ -505,10 +526,7 @@ export type Database = {
           user_id: string
         }[]
       }
-      admin_restore_cards: {
-        Args: { p_card_ids: string[] }
-        Returns: Json
-      }
+      admin_restore_cards: { Args: { p_card_ids: string[] }; Returns: Json }
       admin_scan_events: {
         Args: { p_limit?: number }
         Returns: {
@@ -520,18 +538,9 @@ export type Database = {
           user_id: string
         }[]
       }
-      admin_soft_delete_card: {
-        Args: { p_card_id: string }
-        Returns: Json
-      }
-      admin_soft_delete_cards: {
-        Args: { p_card_ids: string[] }
-        Returns: Json
-      }
-      admin_unblock_user_by_email: {
-        Args: { p_email: string }
-        Returns: Json
-      }
+      admin_soft_delete_card: { Args: { p_card_id: string }; Returns: Json }
+      admin_soft_delete_cards: { Args: { p_card_ids: string[] }; Returns: Json }
+      admin_unblock_user_by_email: { Args: { p_email: string }; Returns: Json }
       admin_update_card: {
         Args: {
           p_id: string
@@ -544,7 +553,7 @@ export type Database = {
         Returns: undefined
       }
       card_claims_with_time_status: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           card_id: string
           claimed_at: string
@@ -576,34 +585,21 @@ export type Database = {
           trader_value: string
         }[]
       }
-      claim_card: {
-        Args: { p_code: string } | { p_code: string; p_source?: string }
-        Returns: Json
-      }
+      claim_card:
+        | { Args: { p_code: string }; Returns: Json }
+        | { Args: { p_code: string; p_source?: string }; Returns: Json }
       claim_card_and_log: {
         Args: { p_code: string; p_source?: string }
         Returns: Json
       }
-      claim_card_by_token: {
-        Args: { p_token: string }
-        Returns: Json
-      }
-      cleanup_old_deleted_cards: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      delete_user_card: {
-        Args: { p_card_id: string }
-        Returns: Json
-      }
+      claim_card_by_token: { Args: { p_token: string }; Returns: Json }
+      cleanup_old_deleted_cards: { Args: never; Returns: Json }
+      delete_user_card: { Args: { p_card_id: string }; Returns: Json }
       generate_card_code: {
         Args: { p_batch_id?: string; p_rank: string; p_suit: string }
         Returns: string
       }
-      generate_claim_token: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      generate_claim_token: { Args: never; Returns: string }
       redemption_receipt: {
         Args: { p_id: string }
         Returns: {
@@ -619,20 +615,14 @@ export type Database = {
           user_id: string
         }[]
       }
-      resolve_image_code: {
-        Args: { p_code: string }
-        Returns: string
-      }
+      resolve_image_code: { Args: { p_code: string }; Returns: string }
       resubmit_rejected_card: {
         Args: { p_redemption_id: string }
         Returns: Json
       }
-      submit_card_for_redemption: {
-        Args: { p_card_id: string }
-        Returns: Json
-      }
+      submit_card_for_redemption: { Args: { p_card_id: string }; Returns: Json }
       user_card_collection: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           admin_notes: string
           card_id: string
