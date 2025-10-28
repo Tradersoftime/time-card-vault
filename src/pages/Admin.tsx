@@ -284,6 +284,12 @@ export default function Admin() {
                 Card Management
               </Link>
               <Link 
+                to="/admin/card-builder" 
+                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium"
+              >
+                Card Builder
+              </Link>
+              <Link 
                 to="/admin/redemptions" 
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium glow-primary"
               >

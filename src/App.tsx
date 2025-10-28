@@ -24,6 +24,7 @@ import AdminLogin from "./pages/AdminLogin";
 import ResetPassword from "./pages/ResetPassword";
 import ScanPro from "./pages/ScanPro";
 import NotFound from "./pages/NotFound";
+import AdminCardBuilder from "./pages/AdminCardBuilder";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
                 <Route path="/scan-pro" element={<ScanPro />} />
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/admin/cards" element={<AdminCards />} />
+                <Route path="/admin/card-builder" element={<AdminCardBuilder />} />
                 <Route path="/admin/redemptions" element={<AdminRedemptions />} />
                 <Route path="/receipt/:id" element={<Receipt />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
