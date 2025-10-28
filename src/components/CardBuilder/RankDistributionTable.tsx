@@ -1,8 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { BatchFilterDropdown } from '@/components/BatchFilterDropdown';
-import { RankDistribution, RANK_OPTIONS, SUIT_OPTIONS, ERA_OPTIONS, RARITY_OPTIONS, TRADER_VALUE_OPTIONS } from './utils';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RankDistribution, RANK_OPTIONS, SUIT_OPTIONS, ERA_OPTIONS, RARITY_OPTIONS } from './utils';
 
 interface RankDistributionTableProps {
   distributions: RankDistribution[];
@@ -53,7 +52,6 @@ export function RankDistributionTable({ distributions, totalCards, onChange, onE
               <th className="text-left p-2 font-medium">Trader Leverage</th>
               <th className="text-left p-2 font-medium">Multiplier</th>
               <th className="text-left p-2 font-medium">Time Value</th>
-              <th className="text-left p-2 font-medium">Trader Value</th>
             </tr>
           </thead>
           <tbody>
@@ -122,23 +120,6 @@ export function RankDistributionTable({ distributions, totalCards, onChange, onE
                     <span className="text-sm text-muted-foreground font-medium">
                       {timeValue}
                     </span>
-                  </td>
-                  <td className="p-2">
-                    <Select
-                      value={dist.traderValue}
-                      onValueChange={(value) => updateDistribution(index, { traderValue: value })}
-                    >
-                      <SelectTrigger className="w-28 h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TRADER_VALUE_OPTIONS.map(option => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </td>
                 </tr>
               );

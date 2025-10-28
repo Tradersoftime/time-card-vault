@@ -6,7 +6,6 @@ export interface RankDistribution {
   rarities: string[];
   traderLeverage: number;
   multiplier: number;
-  traderValue: string;
 }
 
 export interface RarityDistribution {
@@ -119,7 +118,7 @@ export function generateCards(template: CardTemplate): GeneratedCard[] {
         era,
         rarity,
         time_value: timeValue,
-        trader_value: distribution.traderValue,
+        trader_value: 'Standard',
         image_code: template.imageCode,
         description: interpolate(template.descriptionPattern, values),
         status: template.defaultStatus,
@@ -169,9 +168,27 @@ export function exportToCSV(cards: GeneratedCard[], filename: string): void {
   document.body.removeChild(link);
 }
 
+// Helper to calculate even split quantities across ranks
+export function calculateEvenSplitQuantities(totalCards: number, numRanks: number): number[] {
+  const baseQuantity = Math.floor(totalCards / numRanks);
+  const remainder = totalCards % numRanks;
+  
+  const quantities: number[] = [];
+  for (let i = 0; i < numRanks; i++) {
+    quantities.push(baseQuantity + (i < remainder ? 1 : 0));
+  }
+  
+  return quantities;
+}
+
+// Helper to get average trader leverage across all rarities
+export function getAverageTraderLeverage(): number {
+  const total = Object.values(TRADER_LEVERAGE_RANGES).reduce((sum, range) => sum + range.default, 0);
+  return Math.round(total / Object.keys(TRADER_LEVERAGE_RANGES).length);
+}
+
 export const RANK_OPTIONS = ['Ace', 'King', 'Queen', 'Jack', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
 export const SUIT_OPTIONS = SUITS;
 export const ERA_OPTIONS = ERAS;
 export const RARITY_OPTIONS = RARITIES;
 export const STATUS_OPTIONS = ['active', 'unprinted', 'printed', 'retired'];
-export const TRADER_VALUE_OPTIONS = ['Elite', 'Premium', 'Standard', 'Basic'];
