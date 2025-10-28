@@ -17,7 +17,8 @@ export function QuickFillButtons({ totalCards, onDistribute }: QuickFillButtonsP
       suits: [],
       eras: [],
       rarities: [],
-      timeValue: 0,
+      traderLeverage: 10,
+      multiplier: 1,
       traderValue: 'Standard',
     }));
     
@@ -50,7 +51,8 @@ export function QuickFillButtons({ totalCards, onDistribute }: QuickFillButtonsP
       suits: [],
       eras: [],
       rarities: [],
-      timeValue: 0,
+      traderLeverage: 10,
+      multiplier: 1,
       traderValue: 'Standard',
     }));
     
@@ -70,7 +72,8 @@ export function QuickFillButtons({ totalCards, onDistribute }: QuickFillButtonsP
       suits: [],
       eras: [],
       rarities: [],
-      timeValue: 0,
+      traderLeverage: 10,
+      multiplier: 1,
       traderValue: 'Standard',
     }));
     

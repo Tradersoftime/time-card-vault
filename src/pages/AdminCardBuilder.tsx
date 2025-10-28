@@ -4,11 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Download, Wand2 } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { TemplateForm } from '@/components/CardBuilder/TemplateForm';
 import { RankDistributionTable } from '@/components/CardBuilder/RankDistributionTable';
 import { QuickFillButtons } from '@/components/CardBuilder/QuickFillButtons';
-import { generateCards, exportToCSV, RANK_OPTIONS, RankDistribution } from '@/components/CardBuilder/utils';
+import { BulkFillSection } from '@/components/CardBuilder/BulkFillSection';
+import { RarityDistributionSection } from '@/components/CardBuilder/RarityDistributionSection';
+import { generateCards, exportToCSV, RANK_OPTIONS, RARITY_OPTIONS, TRADER_LEVERAGE_RANGES, RankDistribution, RarityDistribution } from '@/components/CardBuilder/utils';
 
 const AdminCardBuilder = () => {
   const { toast } = useToast();
@@ -29,10 +31,65 @@ const AdminCardBuilder = () => {
       suits: [],
       eras: [],
       rarities: [],
-      timeValue: 0,
+      traderLeverage: 10,
+      multiplier: 1,
       traderValue: 'Standard',
     }))
   );
+  
+  // Rarity distribution state
+  const [rarityDistributions, setRarityDistributions] = useState<RarityDistribution[]>(
+    RARITY_OPTIONS.map(rarity => ({
+      rarity,
+      quantity: 0,
+      traderLeverageRange: TRADER_LEVERAGE_RANGES[rarity],
+    }))
+  );
+  
+  // Bulk fill state
+  const [bulkSuits, setBulkSuits] = useState<string[]>([]);
+  const [bulkEras, setBulkEras] = useState<string[]>([]);
+  const [bulkTraderLeverage, setBulkTraderLeverage] = useState(10);
+  const [bulkMultiplier, setBulkMultiplier] = useState(1);
+  
+  const handleApplyBulkFill = () => {
+    const newDistributions = distributions.map(dist => ({
+      ...dist,
+      suits: bulkSuits.length > 0 ? [...bulkSuits] : dist.suits,
+      eras: bulkEras.length > 0 ? [...bulkEras] : dist.eras,
+      traderLeverage: bulkTraderLeverage,
+      multiplier: bulkMultiplier,
+    }));
+    setDistributions(newDistributions);
+    
+    toast({
+      title: 'Bulk Fill Applied',
+      description: 'All rank fields have been updated',
+    });
+  };
+  
+  const handleEvenSplitRanks = () => {
+    const perRank = Math.floor(totalCards / RANK_OPTIONS.length);
+    const remainder = totalCards % RANK_OPTIONS.length;
+    
+    const newDistributions = RANK_OPTIONS.map((rank, index) => ({
+      rank,
+      quantity: perRank + (index < remainder ? 1 : 0),
+      suits: [],
+      eras: [],
+      rarities: [],
+      traderLeverage: 10,
+      multiplier: 1,
+      traderValue: 'Standard',
+    }));
+    
+    setDistributions(newDistributions);
+    
+    toast({
+      title: 'Even Split Applied',
+      description: 'Cards distributed evenly across all ranks',
+    });
+  };
   
   const handleExport = () => {
     // Validation
@@ -131,6 +188,19 @@ const AdminCardBuilder = () => {
                 onDefaultStatusChange={setDefaultStatus}
               />
               
+              {/* Bulk Fill Section */}
+              <BulkFillSection
+                bulkSuits={bulkSuits}
+                onBulkSuitsChange={setBulkSuits}
+                bulkEras={bulkEras}
+                onBulkErasChange={setBulkEras}
+                bulkTraderLeverage={bulkTraderLeverage}
+                onBulkTraderLeverageChange={setBulkTraderLeverage}
+                bulkMultiplier={bulkMultiplier}
+                onBulkMultiplierChange={setBulkMultiplier}
+                onApplyAll={handleApplyBulkFill}
+              />
+              
               {/* Total Cards Input */}
               <div className="p-4 bg-muted/30 rounded-lg border border-border/50">
                 <div className="flex items-center gap-4 flex-wrap">
@@ -155,11 +225,19 @@ const AdminCardBuilder = () => {
                 </div>
               </div>
               
+              {/* Rarity Distribution Section */}
+              <RarityDistributionSection
+                rarityDistributions={rarityDistributions}
+                totalCards={totalCards}
+                onChange={setRarityDistributions}
+              />
+              
               {/* Rank Distribution Table */}
               <RankDistributionTable
                 distributions={distributions}
                 totalCards={totalCards}
                 onChange={setDistributions}
+                onEvenSplitRanks={handleEvenSplitRanks}
               />
               
               {/* Export Button */}

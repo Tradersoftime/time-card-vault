@@ -1,4 +1,5 @@
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { BatchFilterDropdown } from '@/components/BatchFilterDropdown';
 import { RankDistribution, RANK_OPTIONS, SUIT_OPTIONS, ERA_OPTIONS, RARITY_OPTIONS, TRADER_VALUE_OPTIONS } from './utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,9 +8,10 @@ interface RankDistributionTableProps {
   distributions: RankDistribution[];
   totalCards: number;
   onChange: (distributions: RankDistribution[]) => void;
+  onEvenSplitRanks: () => void;
 }
 
-export function RankDistributionTable({ distributions, totalCards, onChange }: RankDistributionTableProps) {
+export function RankDistributionTable({ distributions, totalCards, onChange, onEvenSplitRanks }: RankDistributionTableProps) {
   const allocatedTotal = distributions.reduce((sum, d) => sum + d.quantity, 0);
   const isValid = allocatedTotal === totalCards;
   const validationColor = isValid ? 'text-green-600' : 'text-destructive';
@@ -22,10 +24,20 @@ export function RankDistributionTable({ distributions, totalCards, onChange }: R
   
   return (
     <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-border/50">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-lg font-semibold">Rank Distribution</h3>
-        <div className={`text-sm font-medium ${validationColor}`}>
-          Allocated: {allocatedTotal}/{totalCards} {isValid ? '✓' : '⚠️'}
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onEvenSplitRanks}
+          >
+            Even Split Ranks
+          </Button>
+          <div className={`text-sm font-medium ${validationColor}`}>
+            Allocated: {allocatedTotal}/{totalCards} {isValid ? '✓' : '⚠️'}
+          </div>
         </div>
       </div>
       
@@ -35,17 +47,18 @@ export function RankDistributionTable({ distributions, totalCards, onChange }: R
             <tr className="border-b border-border">
               <th className="text-left p-2 font-medium">Rank</th>
               <th className="text-left p-2 font-medium">Quantity</th>
-              <th className="text-left p-2 font-medium">%</th>
               <th className="text-left p-2 font-medium">Suits</th>
               <th className="text-left p-2 font-medium">Eras</th>
               <th className="text-left p-2 font-medium">Rarities</th>
+              <th className="text-left p-2 font-medium">Trader Leverage</th>
+              <th className="text-left p-2 font-medium">Multiplier</th>
               <th className="text-left p-2 font-medium">Time Value</th>
               <th className="text-left p-2 font-medium">Trader Value</th>
             </tr>
           </thead>
           <tbody>
             {distributions.map((dist, index) => {
-              const percentage = totalCards > 0 ? ((dist.quantity / totalCards) * 100).toFixed(1) : '0.0';
+              const timeValue = dist.traderLeverage * dist.multiplier;
               
               return (
                 <tr key={dist.rank} className="border-b border-border/50 hover:bg-muted/50">
@@ -59,7 +72,6 @@ export function RankDistributionTable({ distributions, totalCards, onChange }: R
                       className="w-20 h-9"
                     />
                   </td>
-                  <td className="p-2 text-muted-foreground">{percentage}%</td>
                   <td className="p-2">
                     <BatchFilterDropdown
                       label="Suits"
@@ -90,11 +102,26 @@ export function RankDistributionTable({ distributions, totalCards, onChange }: R
                   <td className="p-2">
                     <Input
                       type="number"
-                      min="0"
-                      value={dist.timeValue}
-                      onChange={(e) => updateDistribution(index, { timeValue: parseInt(e.target.value) || 0 })}
+                      min="10"
+                      max="100"
+                      value={dist.traderLeverage}
+                      onChange={(e) => updateDistribution(index, { traderLeverage: parseInt(e.target.value) || 10 })}
                       className="w-20 h-9"
                     />
+                  </td>
+                  <td className="p-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={dist.multiplier}
+                      onChange={(e) => updateDistribution(index, { multiplier: parseInt(e.target.value) || 1 })}
+                      className="w-20 h-9"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <span className="text-sm text-muted-foreground font-medium">
+                      {timeValue}
+                    </span>
                   </td>
                   <td className="p-2">
                     <Select

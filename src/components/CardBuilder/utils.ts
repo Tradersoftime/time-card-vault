@@ -4,8 +4,15 @@ export interface RankDistribution {
   suits: string[];
   eras: string[];
   rarities: string[];
-  timeValue: number;
+  traderLeverage: number;
+  multiplier: number;
   traderValue: string;
+}
+
+export interface RarityDistribution {
+  rarity: string;
+  quantity: number;
+  traderLeverageRange: { min: number; max: number; default: number };
 }
 
 export interface CardTemplate {
@@ -31,8 +38,16 @@ export interface GeneratedCard {
 }
 
 const SUITS = ['Spades', 'Hearts', 'Diamonds', 'Clubs'];
-const ERAS = ['Ancient', 'Vintage', 'Modern', 'Classic', 'Retro'];
-const RARITIES = ['Degen', 'Trader', 'Investor', 'Market Maker', 'Whale'];
+const ERAS = ['Prehistoric', 'Ancient', 'Medieval', 'Modern', 'Future'];
+const RARITIES = ['Degen', 'Day Trader', 'Investor', 'Market Maker', 'Whale'];
+
+export const TRADER_LEVERAGE_RANGES: Record<string, { min: number; max: number; default: number }> = {
+  'Degen': { min: 10, max: 19, default: 15 },
+  'Day Trader': { min: 20, max: 29, default: 25 },
+  'Investor': { min: 30, max: 39, default: 35 },
+  'Market Maker': { min: 40, max: 49, default: 45 },
+  'Whale': { min: 50, max: 100, default: 60 },
+};
 
 // Helper to evenly distribute items across a quantity
 function distributeEvenly<T>(items: T[], quantity: number): T[] {
@@ -95,13 +110,15 @@ export function generateCards(template: CardTemplate): GeneratedCard[] {
         rarity,
       };
       
+      const timeValue = distribution.traderLeverage * distribution.multiplier;
+      
       cards.push({
         name: interpolate(template.namePattern, values),
         suit,
         rank: distribution.rank,
         era,
         rarity,
-        time_value: distribution.timeValue,
+        time_value: timeValue,
         trader_value: distribution.traderValue,
         image_code: template.imageCode,
         description: interpolate(template.descriptionPattern, values),
