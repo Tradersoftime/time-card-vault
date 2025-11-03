@@ -62,16 +62,8 @@ const AdminCardBuilder = () => {
     )
   );
   
-  const validateConfig = (): boolean => {
-    if (!selectedBatchId) {
-      toast({
-        title: 'No Batch Selected',
-        description: 'Please select or create a print batch',
-        variant: 'destructive',
-      });
-      return false;
-    }
-    
+  // Minimal validation for CSV export
+  const validateForCSV = (): boolean => {
     if (totalCards <= 0) {
       toast({
         title: 'Invalid Card Count',
@@ -80,113 +72,170 @@ const AdminCardBuilder = () => {
       });
       return false;
     }
+    return true;
+  };
+
+  // Smart validation for database generation with warnings
+  const validateForDatabase = (): { isValid: boolean; warnings: string[] } => {
+    const warnings: string[] = [];
     
-    const totalPercentage = Object.values(rarityPercentages).reduce((sum, val) => sum + val, 0);
-    if (Math.abs(totalPercentage - 100) > 0.01) {
+    // Hard requirement: batch selection
+    if (!selectedBatchId) {
       toast({
-        title: 'Invalid Rarity Distribution',
-        description: `Rarity percentages must total 100% (currently ${totalPercentage.toFixed(2)}%)`,
+        title: 'No Batch Selected',
+        description: 'Please select or create a print batch',
         variant: 'destructive',
       });
-      return false;
+      return { isValid: false, warnings: [] };
+    }
+    
+    // Hard requirement: total cards > 0
+    if (totalCards <= 0) {
+      toast({
+        title: 'Invalid Card Count',
+        description: 'Total cards must be greater than 0',
+        variant: 'destructive',
+      });
+      return { isValid: false, warnings: [] };
+    }
+    
+    // Soft validations (warnings only)
+    const totalPercentage = Object.values(rarityPercentages).reduce((sum, val) => sum + val, 0);
+    if (Math.abs(totalPercentage - 100) > 0.01) {
+      warnings.push(`Rarity percentages total ${totalPercentage.toFixed(1)}% (will be normalized to 100%)`);
     }
     
     const validTraderNames = traderNames.filter(n => n.trim());
     if (validTraderNames.length === 0) {
-      toast({
-        title: 'No Trader Names',
-        description: 'Please add at least one trader name',
-        variant: 'destructive',
-      });
-      return false;
+      warnings.push('No trader names specified (will use default "Trader")');
     }
     
     if (selectedEras.length === 0) {
-      toast({
-        title: 'No Eras Selected',
-        description: 'Please select at least one era',
-        variant: 'destructive',
-      });
-      return false;
+      warnings.push('No eras selected (will use all eras evenly)');
     }
     
     if (selectedSuits.length === 0) {
-      toast({
-        title: 'No Suits Selected',
-        description: 'Please select at least one suit',
-        variant: 'destructive',
-      });
-      return false;
+      warnings.push('No suits selected (will use all suits evenly)');
     }
     
     if (!imageCode.trim()) {
-      toast({
-        title: 'Missing Image Code',
-        description: 'Please enter an image code',
-        variant: 'destructive',
-      });
-      return false;
+      warnings.push('No image code specified (cards will have empty image code)');
     }
     
-    // Validate suit card counts
     const suitTotal = Object.values(suitCardCounts).reduce((sum, count) => sum + count, 0);
-    if (suitTotal !== totalCards) {
-      toast({
-        title: 'Invalid Suit Distribution',
-        description: `Suit card counts must total ${totalCards} (currently ${suitTotal})`,
-        variant: 'destructive',
-      });
-      return false;
+    if (suitTotal > 0 && suitTotal !== totalCards) {
+      warnings.push(`Suit counts total ${suitTotal} (will be proportionally adjusted to ${totalCards})`);
     }
     
-    // Validate era card counts
     const eraTotal = Object.values(eraCardCounts).reduce((sum, count) => sum + count, 0);
-    if (eraTotal !== totalCards) {
-      toast({
-        title: 'Invalid Era Distribution',
-        description: `Era card counts must total ${totalCards} (currently ${eraTotal})`,
-        variant: 'destructive',
-      });
-      return false;
+    if (eraTotal > 0 && eraTotal !== totalCards) {
+      warnings.push(`Era counts total ${eraTotal} (will be proportionally adjusted to ${totalCards})`);
     }
     
-    // Validate TLV ranges
+    // Check TLV ranges
     for (const rarity of RARITY_OPTIONS) {
       const range = tlvRanges[rarity];
       if (range && range.max <= range.min) {
-        toast({
-          title: 'Invalid TLV Range',
-          description: `${rarity}: Max TLV must be greater than Min TLV`,
-          variant: 'destructive',
-        });
-        return false;
+        warnings.push(`${rarity} TLV range invalid (will swap min/max or use default)`);
       }
     }
     
-    return true;
+    return { isValid: true, warnings };
+  };
+
+  // Helper to build config with smart defaults
+  const buildConfigWithDefaults = (): RowBasedCardConfig => {
+    // Normalize rarity percentages if needed
+    const totalPercentage = Object.values(rarityPercentages).reduce((sum, val) => sum + val, 0);
+    const normalizedRarities = totalPercentage > 0 && totalPercentage !== 100
+      ? Object.fromEntries(
+          Object.entries(rarityPercentages).map(([rarity, pct]) => [
+            rarity,
+            (pct / totalPercentage) * 100
+          ])
+        )
+      : rarityPercentages;
+    
+    // Use valid trader names or default
+    const validTraderNames = traderNames.filter(n => n.trim());
+    const finalTraderNames = validTraderNames.length > 0 
+      ? validTraderNames 
+      : ['Trader'];
+    
+    // Use selected eras or all eras
+    const finalEras = selectedEras.length > 0 
+      ? selectedEras 
+      : ['Prehistoric', 'Ancient', 'Medieval', 'Modern', 'Future'];
+    
+    // Use selected suits or all suits
+    const finalSuits = selectedSuits.length > 0 
+      ? selectedSuits 
+      : ['Spades', 'Hearts', 'Diamonds', 'Clubs'];
+    
+    // Normalize era/suit counts if needed
+    const eraTotal = Object.values(eraCardCounts).reduce((sum, count) => sum + count, 0);
+    const normalizedEraCardCounts = eraTotal > 0 && eraTotal !== totalCards
+      ? Object.fromEntries(
+          Object.entries(eraCardCounts).map(([era, count]) => [
+            era,
+            Math.round((count / eraTotal) * totalCards)
+          ])
+        )
+      : eraCardCounts;
+    
+    const suitTotal = Object.values(suitCardCounts).reduce((sum, count) => sum + count, 0);
+    const normalizedSuitCardCounts = suitTotal > 0 && suitTotal !== totalCards
+      ? Object.fromEntries(
+          Object.entries(suitCardCounts).map(([suit, count]) => [
+            suit,
+            Math.round((count / suitTotal) * totalCards)
+          ])
+        )
+      : suitCardCounts;
+    
+    // Fix invalid TLV ranges
+    const fixedTlvRanges = Object.fromEntries(
+      Object.entries(tlvRanges).map(([rarity, range]) => [
+        rarity,
+        range.max <= range.min 
+          ? { min: range.min, max: range.min + 10 }
+          : range
+      ])
+    );
+    
+    return {
+      totalCards,
+      rarityPercentages: normalizedRarities,
+      traderNames: finalTraderNames,
+      eras: finalEras,
+      suits: finalSuits,
+      eraCardCounts: normalizedEraCardCounts,
+      suitCardCounts: normalizedSuitCardCounts,
+      tlvRanges: fixedTlvRanges,
+      tlvMultiplier,
+      imageCode: imageCode.trim() || 'DEFAULT',
+      batchId: selectedBatchId,
+      status,
+    };
   };
   
   const handleGenerateAndAddToBatch = async () => {
-    if (!validateConfig()) return;
+    const { isValid, warnings } = validateForDatabase();
+    if (!isValid) return;
+    
+    // Show warnings if any exist
+    if (warnings.length > 0) {
+      toast({
+        title: 'Configuration Warnings',
+        description: `${warnings.length} warning(s): ${warnings[0]}${warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ''}`,
+        variant: 'default',
+      });
+    }
     
     setIsGenerating(true);
     
     try {
-      const config: RowBasedCardConfig = {
-        totalCards,
-        rarityPercentages,
-        traderNames: traderNames.filter(n => n.trim()),
-        eras: selectedEras,
-        suits: selectedSuits,
-        eraCardCounts,
-        suitCardCounts,
-        tlvRanges,
-        tlvMultiplier,
-        imageCode,
-        batchId: selectedBatchId,
-        status,
-      };
-      
+      const config = buildConfigWithDefaults();
       const cards = generateCardsFromRows(config);
       
       // Insert cards into database with batch_id
@@ -222,23 +271,9 @@ const AdminCardBuilder = () => {
   };
   
   const handleExportToCSV = () => {
-    if (!validateConfig()) return;
+    if (!validateForCSV()) return;
     
-    const config: RowBasedCardConfig = {
-      totalCards,
-      rarityPercentages,
-      traderNames: traderNames.filter(n => n.trim()),
-      eras: selectedEras,
-      suits: selectedSuits,
-      eraCardCounts,
-      suitCardCounts,
-      tlvRanges,
-      tlvMultiplier,
-      imageCode,
-      batchId: selectedBatchId,
-      status,
-    };
-    
+    const config = buildConfigWithDefaults();
     const cards = generateCardsFromRows(config);
     const filename = `cards_${totalCards}_${new Date().toISOString().split('T')[0]}.csv`;
     exportToCSV(cards, filename);
