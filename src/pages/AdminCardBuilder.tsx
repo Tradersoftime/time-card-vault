@@ -10,7 +10,7 @@ import { TraderNameRow } from '@/components/CardBuilder/TraderNameRow';
 import { EraRow } from '@/components/CardBuilder/EraRow';
 import { SuitsRow } from '@/components/CardBuilder/SuitsRow';
 import { TLVRow } from '@/components/CardBuilder/TLVRow';
-import { generateCardsFromRows, exportToCSV, RARITY_OPTIONS, RowBasedCardConfig } from '@/components/CardBuilder/utils';
+import { generateCardsFromRows, exportToCSV, RARITY_OPTIONS, TRADER_LEVERAGE_RANGES, RowBasedCardConfig } from '@/components/CardBuilder/utils';
 import { supabase } from '@/lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 
@@ -37,10 +37,30 @@ const AdminCardBuilder = () => {
   
   // Eras and Suits
   const [selectedEras, setSelectedEras] = useState<string[]>(['Ancient', 'Modern', 'Future']);
-  const [selectedSuits, setSelectedSuits] = useState<string[]>(['Spades', 'Hearts', 'Diamonds', 'Clubs']);
+  const [eraCardCounts, setEraCardCounts] = useState<Record<string, number>>({
+    'Ancient': 33,
+    'Modern': 33,
+    'Future': 34,
+  });
   
-  // TLV multiplier
+  const [selectedSuits, setSelectedSuits] = useState<string[]>(['Spades', 'Hearts', 'Diamonds', 'Clubs']);
+  const [suitCardCounts, setSuitCardCounts] = useState<Record<string, number>>({
+    'Spades': 25,
+    'Hearts': 25,
+    'Diamonds': 25,
+    'Clubs': 25,
+  });
+  
+  // TLV multiplier and ranges
   const [tlvMultiplier, setTlvMultiplier] = useState(10);
+  const [tlvRanges, setTlvRanges] = useState<Record<string, { min: number; max: number }>>(
+    Object.fromEntries(
+      Object.entries(TRADER_LEVERAGE_RANGES).map(([rarity, range]) => [
+        rarity,
+        { min: range.min, max: range.max },
+      ])
+    )
+  );
   
   const validateConfig = (): boolean => {
     if (!selectedBatchId) {
@@ -108,6 +128,41 @@ const AdminCardBuilder = () => {
       return false;
     }
     
+    // Validate suit card counts
+    const suitTotal = Object.values(suitCardCounts).reduce((sum, count) => sum + count, 0);
+    if (suitTotal !== totalCards) {
+      toast({
+        title: 'Invalid Suit Distribution',
+        description: `Suit card counts must total ${totalCards} (currently ${suitTotal})`,
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    // Validate era card counts
+    const eraTotal = Object.values(eraCardCounts).reduce((sum, count) => sum + count, 0);
+    if (eraTotal !== totalCards) {
+      toast({
+        title: 'Invalid Era Distribution',
+        description: `Era card counts must total ${totalCards} (currently ${eraTotal})`,
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    // Validate TLV ranges
+    for (const rarity of RARITY_OPTIONS) {
+      const range = tlvRanges[rarity];
+      if (range && range.max <= range.min) {
+        toast({
+          title: 'Invalid TLV Range',
+          description: `${rarity}: Max TLV must be greater than Min TLV`,
+          variant: 'destructive',
+        });
+        return false;
+      }
+    }
+    
     return true;
   };
   
@@ -123,6 +178,9 @@ const AdminCardBuilder = () => {
         traderNames: traderNames.filter(n => n.trim()),
         eras: selectedEras,
         suits: selectedSuits,
+        eraCardCounts,
+        suitCardCounts,
+        tlvRanges,
         tlvMultiplier,
         imageCode,
         batchId: selectedBatchId,
@@ -172,6 +230,9 @@ const AdminCardBuilder = () => {
       traderNames: traderNames.filter(n => n.trim()),
       eras: selectedEras,
       suits: selectedSuits,
+      eraCardCounts,
+      suitCardCounts,
+      tlvRanges,
       tlvMultiplier,
       imageCode,
       batchId: selectedBatchId,
@@ -285,15 +346,23 @@ const AdminCardBuilder = () => {
           {/* Era Row */}
           <EraRow
             selectedEras={selectedEras}
+            eraCardCounts={eraCardCounts}
             totalCards={totalCards}
-            onChange={setSelectedEras}
+            onChange={(newEras, newCounts) => {
+              setSelectedEras(newEras);
+              setEraCardCounts(newCounts);
+            }}
           />
           
           {/* Suits Row */}
           <SuitsRow
             selectedSuits={selectedSuits}
+            suitCardCounts={suitCardCounts}
             totalCards={totalCards}
-            onChange={setSelectedSuits}
+            onChange={(newSuits, newCounts) => {
+              setSelectedSuits(newSuits);
+              setSuitCardCounts(newCounts);
+            }}
           />
           
           {/* TLV Row */}
@@ -301,7 +370,11 @@ const AdminCardBuilder = () => {
             multiplier={tlvMultiplier}
             rarityPercentages={rarityPercentages}
             totalCards={totalCards}
-            onChange={setTlvMultiplier}
+            tlvRanges={tlvRanges}
+            onChange={(newMultiplier, newRanges) => {
+              setTlvMultiplier(newMultiplier);
+              setTlvRanges(newRanges);
+            }}
           />
           
           {/* Action Buttons */}

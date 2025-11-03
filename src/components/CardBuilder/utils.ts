@@ -200,6 +200,9 @@ export interface RowBasedCardConfig {
   traderNames: string[];
   eras: string[];
   suits: string[];
+  eraCardCounts: Record<string, number>;
+  suitCardCounts: Record<string, number>;
+  tlvRanges: Record<string, { min: number; max: number }>;
   tlvMultiplier: number;
   imageCode: string;
   batchId: string | null;
@@ -236,20 +239,37 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
   // Distribute evenly across ranks
   const rankQuantities = calculateEvenSplitQuantities(config.totalCards, RANK_OPTIONS.length);
   
+  // Build distribution arrays respecting manual counts
+  const eraDistribution: string[] = [];
+  Object.entries(config.eraCardCounts).forEach(([era, count]) => {
+    for (let i = 0; i < count; i++) {
+      eraDistribution.push(era);
+    }
+  });
+  
+  const suitDistribution: string[] = [];
+  Object.entries(config.suitCardCounts).forEach(([suit, count]) => {
+    for (let i = 0; i < count; i++) {
+      suitDistribution.push(suit);
+    }
+  });
+  
+  let cardIndex = 0;
+  
   // Generate cards for each rarity
   RARITY_OPTIONS.forEach((rarity) => {
     const numCards = rarityCards[rarity];
     if (numCards === 0) return;
     
-    const tlvRange = TRADER_LEVERAGE_RANGES[rarity];
+    const tlvRange = config.tlvRanges[rarity] || TRADER_LEVERAGE_RANGES[rarity];
     const tlvValues = generateEvenDistribution(tlvRange.min, tlvRange.max, numCards);
     
     // Distribute across trader names, eras, suits, and ranks
     for (let i = 0; i < numCards; i++) {
-      const traderName = validTraderNames[i % validTraderNames.length];
-      const era = config.eras[i % config.eras.length];
-      const suit = config.suits[i % config.suits.length];
-      const rank = RANK_OPTIONS[i % RANK_OPTIONS.length];
+      const traderName = validTraderNames[cardIndex % validTraderNames.length];
+      const era = eraDistribution[cardIndex % eraDistribution.length];
+      const suit = suitDistribution[cardIndex % suitDistribution.length];
+      const rank = RANK_OPTIONS[cardIndex % RANK_OPTIONS.length];
       const tlv = tlvValues[i];
       const timeValue = tlv * config.tlvMultiplier;
       
@@ -265,6 +285,8 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
         description: `A ${era} era ${rank} featuring ${traderName}`,
         status: config.status,
       });
+      
+      cardIndex++;
     }
   });
   

@@ -1,32 +1,66 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Clock, Check } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Clock, Check, AlertCircle } from 'lucide-react';
 import { ERA_OPTIONS } from './utils';
 
 interface EraRowProps {
   selectedEras: string[];
+  eraCardCounts: Record<string, number>;
   totalCards: number;
-  onChange: (eras: string[]) => void;
+  onChange: (eras: string[], cardCounts: Record<string, number>) => void;
 }
 
-export function EraRow({ selectedEras, totalCards, onChange }: EraRowProps) {
+export function EraRow({ selectedEras, eraCardCounts, totalCards, onChange }: EraRowProps) {
   const handleEvenSplit = () => {
-    onChange(ERA_OPTIONS);
+    const cardsPerEra = Math.floor(totalCards / ERA_OPTIONS.length);
+    const remainder = totalCards % ERA_OPTIONS.length;
+    const newCounts: Record<string, number> = {};
+    
+    ERA_OPTIONS.forEach((era, index) => {
+      newCounts[era] = cardsPerEra + (index < remainder ? 1 : 0);
+    });
+    
+    onChange(ERA_OPTIONS, newCounts);
   };
 
   const handleToggleEra = (era: string) => {
     if (selectedEras.includes(era)) {
-      onChange(selectedEras.filter(e => e !== era));
+      const newEras = selectedEras.filter(e => e !== era);
+      const newCounts = { ...eraCardCounts };
+      delete newCounts[era];
+      
+      // Redistribute cards
+      if (newEras.length > 0) {
+        const cardsPerEra = Math.floor(totalCards / newEras.length);
+        const remainder = totalCards % newEras.length;
+        newEras.forEach((e, index) => {
+          newCounts[e] = cardsPerEra + (index < remainder ? 1 : 0);
+        });
+      }
+      
+      onChange(newEras, newCounts);
     } else {
-      onChange([...selectedEras, era]);
+      const newEras = [...selectedEras, era];
+      const cardsPerEra = Math.floor(totalCards / newEras.length);
+      const remainder = totalCards % newEras.length;
+      const newCounts: Record<string, number> = { ...eraCardCounts };
+      
+      newEras.forEach((e, index) => {
+        newCounts[e] = cardsPerEra + (index < remainder ? 1 : 0);
+      });
+      
+      onChange(newEras, newCounts);
     }
   };
 
-  const getCardsPerEra = () => {
-    if (selectedEras.length === 0) return 0;
-    return Math.floor(totalCards / selectedEras.length);
+  const handleCardCountChange = (era: string, value: number) => {
+    const newCounts = { ...eraCardCounts, [era]: Math.max(0, value) };
+    onChange(selectedEras, newCounts);
   };
+
+  const allocatedTotal = Object.values(eraCardCounts).reduce((sum, count) => sum + count, 0);
+  const isValid = allocatedTotal === totalCards;
 
   return (
     <div className="glass-panel p-6 rounded-2xl space-y-4">
@@ -58,9 +92,17 @@ export function EraRow({ selectedEras, totalCards, onChange }: EraRowProps) {
                 <label className="text-sm font-medium cursor-pointer">{era}</label>
               </div>
               {isSelected && (
-                <Badge variant="secondary" className="w-full justify-center">
-                  ~{getCardsPerEra()} cards
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={eraCardCounts[era] || 0}
+                    onChange={(e) => handleCardCountChange(era, parseInt(e.target.value) || 0)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-9"
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">cards</span>
+                </div>
               )}
             </div>
           );
@@ -71,9 +113,19 @@ export function EraRow({ selectedEras, totalCards, onChange }: EraRowProps) {
         <span className="text-sm text-muted-foreground">
           {selectedEras.length} of {ERA_OPTIONS.length} selected
         </span>
-        {selectedEras.length > 0 && (
-          <span className="text-sm font-medium">~{getCardsPerEra()} cards per era</span>
-        )}
+        <div className="flex items-center gap-2">
+          {isValid ? (
+            <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+              <Check className="h-4 w-4" />
+              Total: {allocatedTotal}/{totalCards} cards
+            </span>
+          ) : (
+            <span className="text-sm font-medium text-destructive flex items-center gap-1">
+              <AlertCircle className="h-4 w-4" />
+              Total: {allocatedTotal}/{totalCards} ({allocatedTotal - totalCards > 0 ? '+' : ''}{allocatedTotal - totalCards})
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

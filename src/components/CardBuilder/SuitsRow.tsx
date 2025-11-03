@@ -1,32 +1,66 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Spade, Check } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Spade, Check, AlertCircle } from 'lucide-react';
 import { SUIT_OPTIONS } from './utils';
 
 interface SuitsRowProps {
   selectedSuits: string[];
+  suitCardCounts: Record<string, number>;
   totalCards: number;
-  onChange: (suits: string[]) => void;
+  onChange: (suits: string[], cardCounts: Record<string, number>) => void;
 }
 
-export function SuitsRow({ selectedSuits, totalCards, onChange }: SuitsRowProps) {
+export function SuitsRow({ selectedSuits, suitCardCounts, totalCards, onChange }: SuitsRowProps) {
   const handleEvenSplit = () => {
-    onChange(SUIT_OPTIONS);
+    const cardsPerSuit = Math.floor(totalCards / SUIT_OPTIONS.length);
+    const remainder = totalCards % SUIT_OPTIONS.length;
+    const newCounts: Record<string, number> = {};
+    
+    SUIT_OPTIONS.forEach((suit, index) => {
+      newCounts[suit] = cardsPerSuit + (index < remainder ? 1 : 0);
+    });
+    
+    onChange(SUIT_OPTIONS, newCounts);
   };
 
   const handleToggleSuit = (suit: string) => {
     if (selectedSuits.includes(suit)) {
-      onChange(selectedSuits.filter(s => s !== suit));
+      const newSuits = selectedSuits.filter(s => s !== suit);
+      const newCounts = { ...suitCardCounts };
+      delete newCounts[suit];
+      
+      // Redistribute cards
+      if (newSuits.length > 0) {
+        const cardsPerSuit = Math.floor(totalCards / newSuits.length);
+        const remainder = totalCards % newSuits.length;
+        newSuits.forEach((s, index) => {
+          newCounts[s] = cardsPerSuit + (index < remainder ? 1 : 0);
+        });
+      }
+      
+      onChange(newSuits, newCounts);
     } else {
-      onChange([...selectedSuits, suit]);
+      const newSuits = [...selectedSuits, suit];
+      const cardsPerSuit = Math.floor(totalCards / newSuits.length);
+      const remainder = totalCards % newSuits.length;
+      const newCounts: Record<string, number> = { ...suitCardCounts };
+      
+      newSuits.forEach((s, index) => {
+        newCounts[s] = cardsPerSuit + (index < remainder ? 1 : 0);
+      });
+      
+      onChange(newSuits, newCounts);
     }
   };
 
-  const getCardsPerSuit = () => {
-    if (selectedSuits.length === 0) return 0;
-    return Math.floor(totalCards / selectedSuits.length);
+  const handleCardCountChange = (suit: string, value: number) => {
+    const newCounts = { ...suitCardCounts, [suit]: Math.max(0, value) };
+    onChange(selectedSuits, newCounts);
   };
+
+  const allocatedTotal = Object.values(suitCardCounts).reduce((sum, count) => sum + count, 0);
+  const isValid = allocatedTotal === totalCards;
 
   const getSuitIcon = (suit: string) => {
     const icons: Record<string, string> = {
@@ -69,9 +103,17 @@ export function SuitsRow({ selectedSuits, totalCards, onChange }: SuitsRowProps)
                 <label className="text-sm font-medium cursor-pointer">{suit}</label>
               </div>
               {isSelected && (
-                <Badge variant="secondary" className="w-full justify-center">
-                  ~{getCardsPerSuit()} cards
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={suitCardCounts[suit] || 0}
+                    onChange={(e) => handleCardCountChange(suit, parseInt(e.target.value) || 0)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-9"
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">cards</span>
+                </div>
               )}
             </div>
           );
@@ -82,9 +124,19 @@ export function SuitsRow({ selectedSuits, totalCards, onChange }: SuitsRowProps)
         <span className="text-sm text-muted-foreground">
           {selectedSuits.length} of {SUIT_OPTIONS.length} selected
         </span>
-        {selectedSuits.length > 0 && (
-          <span className="text-sm font-medium">~{getCardsPerSuit()} cards per suit</span>
-        )}
+        <div className="flex items-center gap-2">
+          {isValid ? (
+            <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+              <Check className="h-4 w-4" />
+              Total: {allocatedTotal}/{totalCards} cards
+            </span>
+          ) : (
+            <span className="text-sm font-medium text-destructive flex items-center gap-1">
+              <AlertCircle className="h-4 w-4" />
+              Total: {allocatedTotal}/{totalCards} ({allocatedTotal - totalCards > 0 ? '+' : ''}{allocatedTotal - totalCards})
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
