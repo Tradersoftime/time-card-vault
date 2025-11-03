@@ -2,49 +2,101 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Download } from 'lucide-react';
-import { TemplateForm } from '@/components/CardBuilder/TemplateForm';
-import { QuickFillButtons } from '@/components/CardBuilder/QuickFillButtons';
-import { UnifiedSpreadsheetTable } from '@/components/CardBuilder/UnifiedSpreadsheetTable';
-import { generateCards, exportToCSV, RANK_OPTIONS, RankDistribution } from '@/components/CardBuilder/utils';
+import { Download, Plus, Database } from 'lucide-react';
+import { PrintBatchSelector } from '@/components/PrintBatchSelector';
+import { RarityRow } from '@/components/CardBuilder/RarityRow';
+import { TraderNameRow } from '@/components/CardBuilder/TraderNameRow';
+import { EraRow } from '@/components/CardBuilder/EraRow';
+import { SuitsRow } from '@/components/CardBuilder/SuitsRow';
+import { TLVRow } from '@/components/CardBuilder/TLVRow';
+import { generateCardsFromRows, exportToCSV, RARITY_OPTIONS, RowBasedCardConfig } from '@/components/CardBuilder/utils';
+import { supabase } from '@/lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
 const AdminCardBuilder = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   
-  // Template state
-  const [baseName, setBaseName] = useState('');
-  const [imageCode, setImageCode] = useState('');
-  const [namePattern, setNamePattern] = useState('{rank} {baseName} of {suit}');
-  const [descriptionPattern, setDescriptionPattern] = useState('A {era} era {rank} featuring {baseName}');
-  const [defaultStatus, setDefaultStatus] = useState('active');
+  // Batch state
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   
-  // Distribution state
+  // Row-based configuration state
   const [totalCards, setTotalCards] = useState(100);
-  const [distributions, setDistributions] = useState<RankDistribution[]>(
-    RANK_OPTIONS.map(rank => ({
-      rank,
-      quantity: 0,
-      suits: [],
-      eras: [],
-      rarities: [],
-      traderLeverage: 10,
-      multiplier: 1,
-      traderValue: 'Standard',
-    }))
+  const [imageCode, setImageCode] = useState('');
+  const [status, setStatus] = useState('active');
+  
+  // Rarity percentages (must total 100%)
+  const [rarityPercentages, setRarityPercentages] = useState<Record<string, number>>(
+    RARITY_OPTIONS.reduce((acc, rarity) => ({ ...acc, [rarity]: 20 }), {})
   );
   
+  // Trader names
+  const [traderNames, setTraderNames] = useState<string[]>(['']);
   
-  const handleExport = () => {
-    // Validation
-    if (!baseName.trim()) {
+  // Eras and Suits
+  const [selectedEras, setSelectedEras] = useState<string[]>(['Ancient', 'Modern', 'Future']);
+  const [selectedSuits, setSelectedSuits] = useState<string[]>(['Spades', 'Hearts', 'Diamonds', 'Clubs']);
+  
+  // TLV multiplier
+  const [tlvMultiplier, setTlvMultiplier] = useState(10);
+  
+  const validateConfig = (): boolean => {
+    if (!selectedBatchId) {
       toast({
-        title: 'Missing Character Name',
-        description: 'Please enter a character name',
+        title: 'No Batch Selected',
+        description: 'Please select or create a print batch',
         variant: 'destructive',
       });
-      return;
+      return false;
+    }
+    
+    if (totalCards <= 0) {
+      toast({
+        title: 'Invalid Card Count',
+        description: 'Total cards must be greater than 0',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    const totalPercentage = Object.values(rarityPercentages).reduce((sum, val) => sum + val, 0);
+    if (Math.abs(totalPercentage - 100) > 0.01) {
+      toast({
+        title: 'Invalid Rarity Distribution',
+        description: `Rarity percentages must total 100% (currently ${totalPercentage.toFixed(2)}%)`,
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    const validTraderNames = traderNames.filter(n => n.trim());
+    if (validTraderNames.length === 0) {
+      toast({
+        title: 'No Trader Names',
+        description: 'Please add at least one trader name',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    if (selectedEras.length === 0) {
+      toast({
+        title: 'No Eras Selected',
+        description: 'Please select at least one era',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    if (selectedSuits.length === 0) {
+      toast({
+        title: 'No Suits Selected',
+        description: 'Please select at least one suit',
+        variant: 'destructive',
+      });
+      return false;
     }
     
     if (!imageCode.trim()) {
@@ -53,40 +105,81 @@ const AdminCardBuilder = () => {
         description: 'Please enter an image code',
         variant: 'destructive',
       });
-      return;
+      return false;
     }
     
-    const allocatedTotal = distributions.reduce((sum, d) => sum + d.quantity, 0);
-    if (allocatedTotal !== totalCards) {
+    return true;
+  };
+  
+  const handleGenerateAndAddToBatch = async () => {
+    if (!validateConfig()) return;
+    
+    setIsGenerating(true);
+    
+    try {
+      const config: RowBasedCardConfig = {
+        totalCards,
+        rarityPercentages,
+        traderNames: traderNames.filter(n => n.trim()),
+        eras: selectedEras,
+        suits: selectedSuits,
+        tlvMultiplier,
+        imageCode,
+        batchId: selectedBatchId,
+        status,
+      };
+      
+      const cards = generateCardsFromRows(config);
+      
+      // Insert cards into database with batch_id
+      const cardsToInsert = cards.map(card => ({
+        ...card,
+        print_batch_id: selectedBatchId,
+      }));
+      
+      const { data, error } = await supabase
+        .from('cards')
+        .insert(cardsToInsert)
+        .select();
+      
+      if (error) throw error;
+      
       toast({
-        title: 'Invalid Distribution',
-        description: `Allocated ${allocatedTotal} cards but target is ${totalCards}`,
+        title: 'Cards Generated Successfully',
+        description: `Added ${cards.length} cards to the batch`,
+      });
+      
+      // Optionally navigate to AdminCards
+      // navigate('/admin/cards');
+    } catch (error: any) {
+      console.error('Error generating cards:', error);
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'Failed to add cards to batch',
         variant: 'destructive',
       });
-      return;
+    } finally {
+      setIsGenerating(false);
     }
+  };
+  
+  const handleExportToCSV = () => {
+    if (!validateConfig()) return;
     
-    if (allocatedTotal === 0) {
-      toast({
-        title: 'No Cards to Generate',
-        description: 'Please allocate quantities to ranks',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // Generate cards
-    const cards = generateCards({
-      baseName,
-      namePattern,
+    const config: RowBasedCardConfig = {
+      totalCards,
+      rarityPercentages,
+      traderNames: traderNames.filter(n => n.trim()),
+      eras: selectedEras,
+      suits: selectedSuits,
+      tlvMultiplier,
       imageCode,
-      descriptionPattern,
-      defaultStatus,
-      rankDistributions: distributions.filter(d => d.quantity > 0),
-    });
+      batchId: selectedBatchId,
+      status,
+    };
     
-    // Export to CSV
-    const filename = `${baseName.toLowerCase().replace(/\s+/g, '_')}_cards_${totalCards}_${new Date().toISOString().split('T')[0]}.csv`;
+    const cards = generateCardsFromRows(config);
+    const filename = `cards_${totalCards}_${new Date().toISOString().split('T')[0]}.csv`;
     exportToCSV(cards, filename);
     
     toast({
@@ -95,88 +188,139 @@ const AdminCardBuilder = () => {
     });
   };
   
-  const allocatedTotal = distributions.reduce((sum, d) => sum + d.quantity, 0);
-  const isValid = allocatedTotal === totalCards;
-  
   return (
     <div className="min-h-screen hero-gradient">
-      <div className="container mx-auto py-8 px-4">
+      <div className="container mx-auto py-8 px-4 max-w-7xl">
         {/* Header */}
         <div className="glass-panel p-6 rounded-2xl mb-6">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent mb-2">
             🎨 Card Builder
           </h1>
           <p className="text-muted-foreground">
-            Generate multiple card variations from a single template
+            Build cards row by row and add them to a batch
           </p>
         </div>
         
-        {/* Main Content */}
-        <div className="glass-panel p-6 rounded-2xl">
-          <Tabs defaultValue="distribution" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="distribution">Custom Distribution</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="distribution" className="space-y-6">
-              {/* Template Form */}
-              <TemplateForm
-                baseName={baseName}
-                onBaseNameChange={setBaseName}
-                imageCode={imageCode}
-                onImageCodeChange={setImageCode}
-                namePattern={namePattern}
-                onNamePatternChange={setNamePattern}
-                descriptionPattern={descriptionPattern}
-                onDescriptionPatternChange={setDescriptionPattern}
-                defaultStatus={defaultStatus}
-                onDefaultStatusChange={setDefaultStatus}
+        {/* Batch Selection */}
+        <div className="glass-panel p-6 rounded-2xl mb-6">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 min-w-[300px]">
+              <Database className="h-5 w-5 text-primary" />
+              <Label className="whitespace-nowrap">Print Batch:</Label>
+              <PrintBatchSelector
+                value={selectedBatchId}
+                onChange={setSelectedBatchId}
+                showAllOption={false}
+                showUnassignedOption={false}
+                className="flex-1"
               />
-              
-              {/* Total Cards & Quick Fill */}
-              <div className="p-4 bg-muted/30 rounded-lg border border-border/50">
-                <div className="flex items-center gap-4 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="totalCards" className="whitespace-nowrap">
-                      Total Cards to Generate:
-                    </Label>
-                    <Input
-                      id="totalCards"
-                      type="number"
-                      min="1"
-                      value={totalCards}
-                      onChange={(e) => setTotalCards(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-24"
-                    />
-                  </div>
-                  
-                  <QuickFillButtons
-                    totalCards={totalCards}
-                    onDistribute={setDistributions}
-                  />
-                </div>
+            </div>
+            <Button
+              onClick={() => navigate('/admin/batches')}
+              variant="outline"
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Manage Batches
+            </Button>
+          </div>
+        </div>
+        
+        {/* Configuration Section */}
+        <div className="space-y-6">
+          {/* Total Cards & Basic Info */}
+          <div className="glass-panel p-6 rounded-2xl">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="totalCards">Total Cards</Label>
+                <Input
+                  id="totalCards"
+                  type="number"
+                  min="1"
+                  value={totalCards}
+                  onChange={(e) => setTotalCards(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="h-10"
+                />
               </div>
-              
-              {/* Unified Spreadsheet Table */}
-              <UnifiedSpreadsheetTable
-                distributions={distributions}
-                totalCards={totalCards}
-                onChange={setDistributions}
-              />
-              
-              {/* Export Button */}
-              <div className="flex justify-end gap-3">
-                <Button
-                  onClick={handleExport}
-                  disabled={!isValid || allocatedTotal === 0}
-                  className="bg-gradient-to-r from-primary to-primary-glow"
+              <div className="space-y-2">
+                <Label htmlFor="imageCode">Image Code</Label>
+                <Input
+                  id="imageCode"
+                  value={imageCode}
+                  onChange={(e) => setImageCode(e.target.value)}
+                  placeholder="e.g., ANUBIS-001"
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Card Status</Label>
+                <select
+                  id="status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export to CSV
-                </Button>
+                  <option value="active">Active</option>
+                  <option value="unprinted">Unprinted</option>
+                  <option value="printed">Printed</option>
+                </select>
               </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
+          
+          {/* Rarity Row */}
+          <RarityRow
+            totalCards={totalCards}
+            rarityPercentages={rarityPercentages}
+            onChange={setRarityPercentages}
+          />
+          
+          {/* Trader Names Row */}
+          <TraderNameRow
+            traderNames={traderNames}
+            totalCards={totalCards}
+            onChange={setTraderNames}
+          />
+          
+          {/* Era Row */}
+          <EraRow
+            selectedEras={selectedEras}
+            totalCards={totalCards}
+            onChange={setSelectedEras}
+          />
+          
+          {/* Suits Row */}
+          <SuitsRow
+            selectedSuits={selectedSuits}
+            totalCards={totalCards}
+            onChange={setSelectedSuits}
+          />
+          
+          {/* TLV Row */}
+          <TLVRow
+            multiplier={tlvMultiplier}
+            rarityPercentages={rarityPercentages}
+            totalCards={totalCards}
+            onChange={setTlvMultiplier}
+          />
+          
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3">
+            <Button
+              onClick={handleExportToCSV}
+              variant="outline"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export to CSV
+            </Button>
+            <Button
+              onClick={handleGenerateAndAddToBatch}
+              disabled={isGenerating || !selectedBatchId}
+              className="bg-gradient-to-r from-primary to-primary-glow"
+            >
+              {isGenerating ? 'Generating...' : 'Generate & Add to Batch'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

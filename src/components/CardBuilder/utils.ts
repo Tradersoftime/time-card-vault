@@ -192,3 +192,97 @@ export const SUIT_OPTIONS = SUITS;
 export const ERA_OPTIONS = ERAS;
 export const RARITY_OPTIONS = RARITIES;
 export const STATUS_OPTIONS = ['active', 'unprinted', 'printed', 'retired'];
+
+// Row-based card builder interfaces
+export interface RowBasedCardConfig {
+  totalCards: number;
+  rarityPercentages: Record<string, number>;
+  traderNames: string[];
+  eras: string[];
+  suits: string[];
+  tlvMultiplier: number;
+  imageCode: string;
+  batchId: string | null;
+  status: string;
+}
+
+// Generate cards from row-based configuration
+export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard[] {
+  const cards: GeneratedCard[] = [];
+  
+  // Validate configuration
+  const validTraderNames = config.traderNames.filter(n => n.trim());
+  if (validTraderNames.length === 0 || config.eras.length === 0 || config.suits.length === 0) {
+    return cards;
+  }
+  
+  // Calculate cards per rarity
+  const rarityCards: Record<string, number> = {};
+  let totalAllocated = 0;
+  
+  RARITY_OPTIONS.forEach((rarity, index) => {
+    const percentage = config.rarityPercentages[rarity] || 0;
+    let cardCount = Math.round((config.totalCards * percentage) / 100);
+    
+    // Handle rounding on last rarity
+    if (index === RARITY_OPTIONS.length - 1) {
+      cardCount = config.totalCards - totalAllocated;
+    }
+    
+    rarityCards[rarity] = Math.max(0, cardCount);
+    totalAllocated += cardCount;
+  });
+  
+  // Distribute evenly across ranks
+  const rankQuantities = calculateEvenSplitQuantities(config.totalCards, RANK_OPTIONS.length);
+  
+  // Generate cards for each rarity
+  RARITY_OPTIONS.forEach((rarity) => {
+    const numCards = rarityCards[rarity];
+    if (numCards === 0) return;
+    
+    const tlvRange = TRADER_LEVERAGE_RANGES[rarity];
+    const tlvValues = generateEvenDistribution(tlvRange.min, tlvRange.max, numCards);
+    
+    // Distribute across trader names, eras, suits, and ranks
+    for (let i = 0; i < numCards; i++) {
+      const traderName = validTraderNames[i % validTraderNames.length];
+      const era = config.eras[i % config.eras.length];
+      const suit = config.suits[i % config.suits.length];
+      const rank = RANK_OPTIONS[i % RANK_OPTIONS.length];
+      const tlv = tlvValues[i];
+      const timeValue = tlv * config.tlvMultiplier;
+      
+      cards.push({
+        name: `${rank} ${traderName} of ${suit}`,
+        suit,
+        rank,
+        era,
+        rarity,
+        time_value: timeValue,
+        trader_value: 'Standard',
+        image_code: config.imageCode,
+        description: `A ${era} era ${rank} featuring ${traderName}`,
+        status: config.status,
+      });
+    }
+  });
+  
+  return cards;
+}
+
+// Generate evenly distributed values within a range
+function generateEvenDistribution(min: number, max: number, count: number): number[] {
+  if (count === 0) return [];
+  if (count === 1) return [min];
+  
+  const values: number[] = [];
+  const range = max - min;
+  const step = range / (count - 1);
+  
+  for (let i = 0; i < count; i++) {
+    values.push(Math.round(min + (step * i)));
+  }
+  
+  return values;
+}
