@@ -28,9 +28,13 @@ const AdminCardBuilder = () => {
   const [status, setStatus] = useState('active');
   
   // Rarity percentages (must total 100%)
-  const [rarityPercentages, setRarityPercentages] = useState<Record<string, number>>(
-    RARITY_OPTIONS.reduce((acc, rarity) => ({ ...acc, [rarity]: 20 }), {})
-  );
+  const [rarityPercentages, setRarityPercentages] = useState<Record<string, number>>({
+    'Degen': 44,
+    'Day Trader': 24,
+    'Investor': 17,
+    'Market Maker': 11,
+    'Whale': 4,
+  });
   
   // Trader names
   const [traderNames, setTraderNames] = useState<string[]>(['']);
