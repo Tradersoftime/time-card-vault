@@ -215,7 +215,8 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
   
   // Validate configuration
   const validTraderNames = config.traderNames.filter(n => n.trim());
-  if (validTraderNames.length === 0 || config.eras.length === 0 || config.suits.length === 0) {
+  // Allow empty trader names - only validate eras and suits
+  if (config.eras.length === 0 || config.suits.length === 0) {
     return cards;
   }
   
@@ -251,7 +252,9 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
     
     // Distribute across trader names, eras, suits, and ranks
     for (let i = 0; i < numCards; i++) {
-      const traderName = getRepeatingValue(validTraderNames, cardIndex);
+      const traderName = validTraderNames.length > 0 
+        ? getRepeatingValue(validTraderNames, cardIndex)
+        : '';
       const era = getRepeatingValue(config.eras, cardIndex);
       const suit = getRepeatingValue(config.suits, cardIndex);
       const rank = getRepeatingValue(RANK_OPTIONS, cardIndex);
