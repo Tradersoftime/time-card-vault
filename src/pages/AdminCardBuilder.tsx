@@ -213,7 +213,7 @@ const AdminCardBuilder = () => {
       suitCardCounts: normalizedSuitCardCounts,
       tlvRanges: fixedTlvRanges,
       tlvMultiplier,
-      imageCode: imageCode.trim() || 'DEFAULT',
+      imageCode: imageCode.trim(),
       batchId: selectedBatchId,
       status,
     };

@@ -239,21 +239,6 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
   // Distribute evenly across ranks
   const rankQuantities = calculateEvenSplitQuantities(config.totalCards, RANK_OPTIONS.length);
   
-  // Build distribution arrays respecting manual counts
-  const eraDistribution: string[] = [];
-  Object.entries(config.eraCardCounts).forEach(([era, count]) => {
-    for (let i = 0; i < count; i++) {
-      eraDistribution.push(era);
-    }
-  });
-  
-  const suitDistribution: string[] = [];
-  Object.entries(config.suitCardCounts).forEach(([suit, count]) => {
-    for (let i = 0; i < count; i++) {
-      suitDistribution.push(suit);
-    }
-  });
-  
   let cardIndex = 0;
   
   // Generate cards for each rarity
@@ -266,23 +251,27 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
     
     // Distribute across trader names, eras, suits, and ranks
     for (let i = 0; i < numCards; i++) {
-      const traderName = validTraderNames[cardIndex % validTraderNames.length];
-      const era = eraDistribution[cardIndex % eraDistribution.length];
-      const suit = suitDistribution[cardIndex % suitDistribution.length];
-      const rank = RANK_OPTIONS[cardIndex % RANK_OPTIONS.length];
+      const traderName = getRepeatingValue(validTraderNames, cardIndex);
+      const era = getRepeatingValue(config.eras, cardIndex);
+      const suit = getRepeatingValue(config.suits, cardIndex);
+      const rank = getRepeatingValue(RANK_OPTIONS, cardIndex);
       const tlv = tlvValues[i];
       const timeValue = tlv * config.tlvMultiplier;
       
+      // Check if we should generate auto fields
+      const hasTraderName = config.traderNames.length > 0 && config.traderNames[0].trim() !== '';
+      const hasImageCode = config.imageCode && config.imageCode !== 'DEFAULT';
+      
       cards.push({
-        name: `${rank} ${traderName} of ${suit}`,
+        name: hasTraderName ? `${rank} ${traderName} of ${suit}` : '',
         suit,
         rank,
         era,
         rarity,
         time_value: timeValue,
-        trader_value: 'Standard',
-        image_code: config.imageCode,
-        description: `A ${era} era ${rank} featuring ${traderName}`,
+        trader_value: String(tlv),
+        image_code: hasImageCode ? config.imageCode : '',
+        description: hasTraderName ? `A ${era} era ${rank} featuring ${traderName}` : '',
         status: config.status,
       });
       
@@ -291,6 +280,11 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
   });
   
   return cards;
+}
+
+// Helper for repeating cycles
+function getRepeatingValue<T>(items: T[], index: number): T {
+  return items[index % items.length];
 }
 
 // Generate evenly distributed values within a range
