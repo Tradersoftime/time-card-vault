@@ -262,7 +262,7 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
       const timeValue = tlv * config.tlvMultiplier;
       
       // Check if we should generate auto fields
-      const hasTraderName = config.traderNames.length > 0 && config.traderNames[0].trim() !== '';
+      const hasTraderName = traderName.trim() !== '';
       const hasImageCode = config.imageCode && config.imageCode !== 'DEFAULT';
       
       cards.push({

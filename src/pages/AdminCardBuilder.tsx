@@ -111,7 +111,7 @@ const AdminCardBuilder = () => {
     
     const validTraderNames = traderNames.filter(n => n.trim());
     if (validTraderNames.length === 0) {
-      warnings.push('No trader names specified (will use default "Trader")');
+      warnings.push('No trader names specified (name and description will be blank)');
     }
     
     if (selectedEras.length === 0) {
@@ -160,11 +160,9 @@ const AdminCardBuilder = () => {
         )
       : rarityPercentages;
     
-    // Use valid trader names or default
+    // Use valid trader names
     const validTraderNames = traderNames.filter(n => n.trim());
-    const finalTraderNames = validTraderNames.length > 0 
-      ? validTraderNames 
-      : ['Trader'];
+    const finalTraderNames = validTraderNames;
     
     // Use selected eras or all eras
     const finalEras = selectedEras.length > 0 
