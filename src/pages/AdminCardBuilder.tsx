@@ -11,7 +11,7 @@ import { EraRow } from '@/components/CardBuilder/EraRow';
 import { SuitsRow } from '@/components/CardBuilder/SuitsRow';
 import { TLVRow } from '@/components/CardBuilder/TLVRow';
 import { generateCardsFromRows, exportToCSV, RARITY_OPTIONS, TRADER_LEVERAGE_RANGES, RowBasedCardConfig } from '@/components/CardBuilder/utils';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
 const AdminCardBuilder = () => {
