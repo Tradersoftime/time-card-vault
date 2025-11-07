@@ -16,6 +16,9 @@ import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SortableTableHeader } from "@/components/ui/sortable-table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CardActivityTimeline } from "@/components/CardActivityTimeline";
+import { Eye } from "lucide-react";
 
 interface PendingRedemption {
   redemption_id: string;
@@ -45,6 +48,8 @@ export default function AdminRedemptions() {
   const [sortBy, setSortBy] = useState<keyof PendingRedemption>("submitted_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [filterBy, setFilterBy] = useState<string>("all");
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyCardId, setHistoryCardId] = useState<string | null>(null);
 
   useEffect(() => {
     loadPendingRedemptions();
@@ -472,6 +477,21 @@ export default function AdminRedemptions() {
                         <Calendar className="h-3 w-3 flex-shrink-0" />
                         <span>{new Date(redemption.submitted_at).toLocaleDateString()}</span>
                       </div>
+                      
+                      {/* View History Button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full mt-2 h-7 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHistoryCardId(redemption.card_id);
+                          setShowHistoryModal(true);
+                        }}
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        View History
+                      </Button>
                     </div>
                   </div>
                     );
@@ -486,6 +506,18 @@ export default function AdminRedemptions() {
           )}
         </CardContent>
       </Card>
+
+      {/* Card History Modal */}
+      <Dialog open={showHistoryModal} onOpenChange={setShowHistoryModal}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Card Ownership History</DialogTitle>
+          </DialogHeader>
+          {historyCardId && (
+            <CardActivityTimeline cardId={historyCardId} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -37,6 +37,10 @@ interface CardData {
   qr_dark?: string | null;
   qr_light?: string | null;
   claim_token?: string | null; // Added for secure token-based claiming
+  owner_user_id?: string | null;
+  owner_email?: string | null;
+  is_in_pending_redemption?: boolean;
+  is_credited?: boolean;
 }
 
 interface AdminTradingCardProps {
@@ -48,6 +52,7 @@ interface AdminTradingCardProps {
   onViewImage?: (imageUrl: string, cardName: string) => void;
   onDelete?: (cardId: string) => void;
   onCopyToken?: (token: string) => void; // For copying claim tokens
+  onViewHistory?: (cardId: string) => void; // For viewing ownership history
   baseWidth?: number;
   className?: string;
 }
@@ -61,6 +66,7 @@ export function AdminTradingCard({
   onViewImage,
   onDelete,
   onCopyToken,
+  onViewHistory,
   baseWidth = 200,
   className
 }: AdminTradingCardProps) {
@@ -163,7 +169,7 @@ export function AdminTradingCard({
       </div>
 
       {/* Status and Active Indicators */}
-      <div className="absolute top-2 right-2 z-20 flex flex-col gap-1">
+      <div className="absolute top-2 right-2 z-20 flex flex-col gap-1 items-end">
         {!card.is_active && (
           <Badge variant="outline" className="text-xs bg-destructive/20 text-destructive border-destructive/30">
             <AlertTriangle className="h-3 w-3 mr-1" />
@@ -178,6 +184,36 @@ export function AdminTradingCard({
         {hasCustomQR && (
           <Badge variant="outline" className="text-xs bg-primary-glow/20 text-primary-glow border-primary-glow/30">
             Custom QR
+          </Badge>
+        )}
+        
+        {/* Owner Status Badges */}
+        {!card.owner_email && (
+          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
+            🌍 In the Wild
+          </Badge>
+        )}
+        {card.owner_email && !card.is_in_pending_redemption && (
+          <Badge 
+            variant="outline" 
+            className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30 cursor-pointer hover:bg-blue-500/30"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewHistory?.(card.id);
+            }}
+            title="Click to view history"
+          >
+            👤 {card.owner_email}
+          </Badge>
+        )}
+        {card.is_credited && (
+          <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+            ✓ TIME Credited
+          </Badge>
+        )}
+        {card.is_in_pending_redemption && (
+          <Badge variant="outline" className="text-xs bg-orange-500/20 text-orange-400 border-orange-500/30">
+            ⏳ Pending Redemption
           </Badge>
         )}
       </div>

@@ -510,7 +510,12 @@ export default function Admin() {
               <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
               <div className="text-muted-foreground">Loading scan activity...</div>
             </div>
-        ) : (
+          ) : filteredScans.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-muted-foreground text-lg mb-2">No scan events recorded yet</div>
+              <div className="text-sm text-muted-foreground">Scan events will appear here once users start scanning cards</div>
+            </div>
+          ) : (
           <ScrollArea className="h-[500px] w-full">
             <div className="overflow-x-auto min-w-full">
               <table className="w-full text-sm min-w-[600px]">

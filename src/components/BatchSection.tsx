@@ -32,6 +32,10 @@ interface CardData {
   claim_token?: string | null;
   print_batch_id?: string | null;
   claimed_by?: string | null;
+  owner_user_id?: string | null;
+  owner_email?: string | null;
+  is_in_pending_redemption?: boolean;
+  is_credited?: boolean;
 }
 
 interface BatchSectionProps {
@@ -51,6 +55,7 @@ interface BatchSectionProps {
   onViewImage: (imageUrl: string, cardName: string) => void;
   onDeleteCard: (cardId: string) => void;
   onCopyToken: (token: string) => void;
+  onViewHistory: (cardId: string) => void;
   isUnassigned?: boolean;
 }
 
@@ -71,6 +76,7 @@ export function BatchSection({
   onViewImage,
   onDeleteCard,
   onCopyToken,
+  onViewHistory,
   isUnassigned = false,
 }: BatchSectionProps) {
   const [sectionSearch, setSectionSearch] = useState('');
@@ -245,6 +251,7 @@ export function BatchSection({
                 onViewImage={onViewImage}
                 onDelete={onDeleteCard}
                 onCopyToken={onCopyToken}
+                onViewHistory={onViewHistory}
               />
             ))}
           </div>

@@ -17,6 +17,7 @@ import { BulkActionsBar } from '@/components/BulkActionsBar';
 import { BatchSection } from '@/components/BatchSection';
 import { BatchCreateForm } from '@/components/BatchCreateForm';
 import { PrintBatch } from '@/types/printBatch';
+import { CardActivityTimeline } from '@/components/CardActivityTimeline';
 
 interface CardData {
   id: string;
@@ -39,6 +40,10 @@ interface CardData {
   qr_light?: string | null;
   claim_token?: string | null;
   print_batch_id?: string | null;
+  owner_user_id?: string | null;
+  owner_email?: string | null;
+  is_in_pending_redemption?: boolean;
+  is_credited?: boolean;
 }
 
 const AdminCards = () => {
@@ -75,6 +80,8 @@ const AdminCards = () => {
   const [modalImageName, setModalImageName] = useState('');
   const [csvImportBatchId, setCsvImportBatchId] = useState<string | null>(null);
   const [showCsvImportDialog, setShowCsvImportDialog] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyCardId, setHistoryCardId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -120,12 +127,13 @@ const AdminCards = () => {
 
       if (batchesError) throw batchesError;
       
-      // Load cards
+      // Load cards with owner information using admin_list_cards RPC
       const { data: cardsData, error: cardsError } = await supabase
-        .from('cards')
-        .select('*, qr_dark, qr_light, image_code, claim_token')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+        .rpc('admin_list_cards', {
+          p_limit: 1000,
+          p_offset: 0,
+          p_include_deleted: false
+        });
 
       if (cardsError) throw cardsError;
 
@@ -533,6 +541,10 @@ const AdminCards = () => {
                 navigator.clipboard.writeText(token);
                 toast({ title: "Copied", description: "Claim token copied to clipboard" });
               }}
+              onViewHistory={(cardId) => {
+                setHistoryCardId(cardId);
+                setShowHistoryModal(true);
+              }}
             />
           ))}
 
@@ -553,6 +565,10 @@ const AdminCards = () => {
               onCopyToken={(token) => {
                 navigator.clipboard.writeText(token);
                 toast({ title: "Copied", description: "Claim token copied to clipboard" });
+              }}
+              onViewHistory={(cardId) => {
+                setHistoryCardId(cardId);
+                setShowHistoryModal(true);
               }}
               isUnassigned
             />
@@ -644,6 +660,18 @@ const AdminCards = () => {
                 className="max-w-full max-h-[70vh] object-contain rounded-lg"
               />
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Card History Modal */}
+        <Dialog open={showHistoryModal} onOpenChange={setShowHistoryModal}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Card Ownership History</DialogTitle>
+            </DialogHeader>
+            {historyCardId && (
+              <CardActivityTimeline cardId={historyCardId} />
+            )}
           </DialogContent>
         </Dialog>
 
