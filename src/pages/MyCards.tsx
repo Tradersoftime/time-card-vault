@@ -10,11 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
-import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw, Star, Trash2 } from "lucide-react";
+import { Clock, TrendingUp, Target, Trophy, Search, SortAsc, SortDesc, AlertCircle, CheckCircle, RotateCcw, Star, Send } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EnhancedTradingCard } from "@/components/EnhancedTradingCard";
 import { ImageModal } from "@/components/ImageModal";
-import { DeleteConfirmationDialog } from "@/components/DeleteConfirmationDialog";
+import { ReleaseConfirmationDialog } from "@/components/ReleaseConfirmationDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const DECK_SUITS = ["Clubs", "Diamonds", "Hearts", "Spades"];
@@ -147,17 +147,17 @@ export default function MyCards() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   
-  // Delete confirmation dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteDialogData, setDeleteDialogData] = useState<{
-    type: 'single' | 'bulk';
-    cardId?: string;
-    cardName?: string;
-    status?: string;
+  // Release confirmation dialog state
+  const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
+  const [releaseDialogData, setReleaseDialogData] = useState<{
+    cardId: string;
+    cardName: string;
+    status: string;
     imageUrl?: string;
-    cardCount?: number;
+    isPending: boolean;
+    isCredited: boolean;
   } | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isReleasing, setIsReleasing] = useState(false);
 
   // Search and sort
   const [searchTerm, setSearchTerm] = useState("");
@@ -301,6 +301,14 @@ export default function MyCards() {
         const { data: refreshData, error: refreshError } = await supabase.rpc('user_card_collection');
         if (refreshError) throw refreshError;
         setRows(refreshData || []);
+      } else if (data.error === 'card_already_credited') {
+        // Enhanced error message for already-credited cards
+        const wasYou = data.is_you ? 'You' : data.credited_by;
+        const timeAgo = data.credited_at ? new Date(data.credited_at).toLocaleDateString() : 'previously';
+        toast.error(
+          `This card was already credited to ${wasYou} on ${timeAgo}. Cards can only be submitted for TIME once.`,
+          { duration: 8000 }
+        );
       } else {
         toast.error(`Failed to submit card: ${data.error}`);
       }
@@ -413,87 +421,41 @@ export default function MyCards() {
     }
   };
 
-  const handleDeleteCard = async (cardId: string, cardName: string, status: string, imageUrl?: string) => {
-    const statusMessages = {
-      ready: "This will remove the card from your collection.",
-      pending: "This will cancel the submission and remove the card from your collection.",
-      rejected: "This will permanently remove the rejected card from your collection.",
-      credited: "This will remove the credited card from your collection."
-    };
+  const handleReleaseCard = async (cardId: string, cardName: string, status: string, imageUrl?: string) => {
+    const isPending = status === 'pending';
+    const isCredited = status === 'credited';
 
-    setDeleteDialogData({
-      type: 'single',
+    setReleaseDialogData({
       cardId,
       cardName,
       status,
-      imageUrl
+      imageUrl,
+      isPending,
+      isCredited
     });
-    setDeleteDialogOpen(true);
+    setReleaseDialogOpen(true);
   };
 
-  const handleDeleteSelected = async () => {
-    if (selectedCards.length === 0) {
-      toast.error("Please select at least one card to delete");
-      return;
-    }
-
-    setDeleteDialogData({
-      type: 'bulk',
-      cardCount: selectedCards.length
-    });
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteDialogData) return;
+  const confirmRelease = async () => {
+    if (!releaseDialogData) return;
     
-    setIsDeleting(true);
+    setIsReleasing(true);
 
     try {
-      if (deleteDialogData.type === 'single' && deleteDialogData.cardId) {
-        // Single card deletion
-        const { data, error } = await supabase.rpc('delete_user_card', {
-          p_card_id: deleteDialogData.cardId
-        });
-        
-        if (error) throw error;
-        
-        if (data.ok) {
-          toast.success("Card deleted successfully");
-        } else {
-          toast.error(`Failed to delete card: ${data.error}`);
-        }
-      } else if (deleteDialogData.type === 'bulk') {
-        // Bulk deletion
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const cardId of selectedCards) {
-          try {
-            const { data, error } = await supabase.rpc('delete_user_card', {
-              p_card_id: cardId
-            });
-            
-            if (error) throw error;
-            
-            if (data.ok) {
-              successCount++;
-            } else {
-              failCount++;
-            }
-          } catch (err) {
-            failCount++;
-          }
-        }
-
-        if (successCount > 0) {
-          toast.success(`${successCount} card${successCount === 1 ? '' : 's'} deleted successfully`);
-        }
-        if (failCount > 0) {
-          toast.error(`${failCount} card${failCount === 1 ? '' : 's'} failed to delete`);
-        }
-
-        setSelectedCards([]);
+      const { data, error } = await supabase.rpc('release_card_to_wild', {
+        p_card_id: releaseDialogData.cardId
+      });
+      
+      if (error) throw error;
+      
+      if (data.ok) {
+        toast.success(data.message || "Card released! It can now be scanned by anyone.");
+      } else if (data.error === 'pending_redemption') {
+        toast.error(data.message || "Cannot release card with pending redemption");
+      } else if (data.error === 'not_owned') {
+        toast.error("You don't own this card");
+      } else {
+        toast.error(`Failed to release: ${data.error}`);
       }
 
       // Reload data to update UI
@@ -502,10 +464,12 @@ export default function MyCards() {
       setRows(refreshData || []);
       
     } catch (err: any) {
-      console.error('Error deleting:', err);
-      toast.error(`Failed to delete: ${err.message}`);
+      console.error('Error releasing card:', err);
+      toast.error(`Failed to release card: ${err.message}`);
     } finally {
-      setIsDeleting(false);
+      setIsReleasing(false);
+      setReleaseDialogOpen(false);
+      setReleaseDialogData(null);
     }
   };
 
@@ -845,19 +809,10 @@ export default function MyCards() {
                           size="sm"
                           onClick={handleSubmitSelected}
                           disabled={submitting}
-                          className="w-full sm:w-auto"
+                          className="w-full sm:w-auto bg-gradient-to-r from-primary to-primary-glow"
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
                           Submit Selected ({selectedCards.length})
-                        </Button>
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={handleDeleteSelected}
-                          className="w-full sm:w-auto"
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete Selected
                         </Button>
                       </div>
                     )}
@@ -926,15 +881,15 @@ export default function MyCards() {
                       <div className="absolute bottom-2 right-2 z-10 flex gap-1">
                         <Button 
                           size="sm" 
-                          variant="destructive"
+                          variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'ready', row.image_url || '');
+                            handleReleaseCard(row.card_id || '', row.name || 'Unknown Card', 'ready', row.image_url || '');
                           }}
                           className="text-xs px-2 py-1 h-auto"
-                          title="Delete card"
+                          title="Release to wild"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Send className="h-3 w-3" />
                         </Button>
                         <Button 
                           size="sm" 
@@ -998,15 +953,16 @@ export default function MyCards() {
                       <div className="absolute bottom-2 right-2 z-10">
                         <Button 
                           size="sm" 
-                          variant="destructive"
+                          variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'pending', row.image_url || '');
+                            handleReleaseCard(row.card_id || '', row.name || 'Unknown Card', 'pending', row.image_url || '');
                           }}
                           className="text-xs px-2 py-1 h-auto"
-                          title="Cancel and delete"
+                          title="Release to wild (not allowed while pending)"
+                          disabled
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Send className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
@@ -1092,15 +1048,15 @@ export default function MyCards() {
                         </Button>
                         <Button 
                           size="sm" 
-                          variant="destructive"
+                          variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'rejected', row.image_url || '');
+                            handleReleaseCard(row.card_id || '', row.name || 'Unknown Card', 'rejected', row.image_url || '');
                           }}
                           className="text-xs px-1 py-1 h-auto"
-                          title="Delete card"
+                          title="Release to wild"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Send className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
@@ -1157,15 +1113,15 @@ export default function MyCards() {
                       <div className="absolute bottom-2 right-2 z-10">
                         <Button 
                           size="sm" 
-                          variant="destructive"
+                          variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteCard(row.card_id || '', row.name || 'Unknown Card', 'credited', row.image_url || '');
+                            handleReleaseCard(row.card_id || '', row.name || 'Unknown Card', 'credited', row.image_url || '');
                           }}
                           className="text-xs px-2 py-1 h-auto"
-                          title="Delete card"
+                          title="Release to wild"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Send className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
@@ -1199,37 +1155,16 @@ export default function MyCards() {
           />
         )}
 
-        {/* Delete Confirmation Dialog */}
-        <DeleteConfirmationDialog
-          open={deleteDialogOpen}
-          onOpenChange={setDeleteDialogOpen}
-          onConfirm={confirmDelete}
-          title={
-            deleteDialogData?.type === 'single'
-              ? `Delete "${deleteDialogData.cardName}"`
-              : `Delete ${deleteDialogData?.cardCount} Selected Cards`
-          }
-          description={
-            deleteDialogData?.type === 'single'
-              ? (() => {
-                  const statusMessages = {
-                    ready: "This will remove the card from your collection.",
-                    pending: "This will cancel the submission and remove the card from your collection.",
-                    rejected: "This will permanently remove the rejected card from your collection.",
-                    credited: "This will remove the credited card from your collection."
-                  };
-                  return statusMessages[deleteDialogData.status as keyof typeof statusMessages] || statusMessages.ready;
-                })()
-              : "This will remove the selected cards from your collection and cannot be undone."
-          }
-          confirmText={
-            deleteDialogData?.type === 'single'
-              ? deleteDialogData.cardName || 'DELETE'
-              : 'DELETE ALL'
-          }
-          isLoading={isDeleting}
-          imageUrl={deleteDialogData?.imageUrl}
-          cardCount={deleteDialogData?.cardCount}
+        {/* Release Confirmation Dialog */}
+        <ReleaseConfirmationDialog
+          open={releaseDialogOpen}
+          onOpenChange={setReleaseDialogOpen}
+          onConfirm={confirmRelease}
+          cardName={releaseDialogData?.cardName || ''}
+          imageUrl={releaseDialogData?.imageUrl}
+          isPending={releaseDialogData?.isPending || false}
+          isCredited={releaseDialogData?.isCredited || false}
+          isLoading={isReleasing}
         />
       </div>
     </div>

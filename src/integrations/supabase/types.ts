@@ -50,6 +50,44 @@ export type Database = {
         }
         Relationships: []
       }
+      card_ownership_history: {
+        Row: {
+          action: string
+          card_id: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          previous_owner_id: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          card_id: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          previous_owner_id?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          card_id?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          previous_owner_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_ownership_history_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       card_redemptions: {
         Row: {
           admin_notes: string | null
@@ -400,6 +438,22 @@ export type Database = {
         Returns: Json
       }
       admin_bulk_soft_delete: { Args: { p_card_ids: string[] }; Returns: Json }
+      admin_card_activity_log: {
+        Args: { p_card_id?: string; p_limit?: number; p_user_id?: string }
+        Returns: {
+          action: string
+          card_code: string
+          card_id: string
+          card_name: string
+          created_at: string
+          id: string
+          metadata: Json
+          previous_owner_email: string
+          previous_owner_id: string
+          user_email: string
+          user_id: string
+        }[]
+      }
       admin_delete_pending_redemptions: {
         Args: { p_redemption_ids: string[] }
         Returns: Json
@@ -415,60 +469,38 @@ export type Database = {
           user_id: string
         }[]
       }
-      admin_list_cards:
-        | {
-            Args: { p_limit?: number; p_offset?: number; p_search?: string }
-            Returns: {
-              code: string
-              created_at: string
-              era: string
-              id: string
-              image_url: string
-              is_active: boolean
-              is_credited: boolean
-              is_in_pending_redemption: boolean
-              name: string
-              owner_email: string
-              owner_user_id: string
-              rank: string
-              rarity: string
-              redirect: string
-              status: string
-              suit: string
-              time_value: number
-              trader_value: string
-            }[]
-          }
-        | {
-            Args: {
-              p_include_deleted?: boolean
-              p_limit?: number
-              p_offset?: number
-              p_search?: string
-            }
-            Returns: {
-              code: string
-              created_at: string
-              deleted_at: string
-              deleted_by: string
-              era: string
-              id: string
-              image_url: string
-              is_active: boolean
-              is_credited: boolean
-              is_in_pending_redemption: boolean
-              name: string
-              owner_email: string
-              owner_user_id: string
-              rank: string
-              rarity: string
-              redirect: string
-              status: string
-              suit: string
-              time_value: number
-              trader_value: string
-            }[]
-          }
+      admin_list_cards: {
+        Args: {
+          p_include_deleted?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+        }
+        Returns: {
+          code: string
+          created_at: string
+          deleted_at: string
+          deleted_by: string
+          era: string
+          has_multiple_submitters: boolean
+          id: string
+          image_url: string
+          is_active: boolean
+          is_credited: boolean
+          is_in_pending_redemption: boolean
+          name: string
+          owner_email: string
+          owner_user_id: string
+          rank: string
+          rarity: string
+          redirect: string
+          status: string
+          suit: string
+          time_value: number
+          total_redemption_attempts: number
+          trader_value: string
+        }[]
+      }
       admin_list_users: {
         Args: {
           p_limit?: number
@@ -594,7 +626,6 @@ export type Database = {
       }
       claim_card_by_token: { Args: { p_token: string }; Returns: Json }
       cleanup_old_deleted_cards: { Args: never; Returns: Json }
-      delete_user_card: { Args: { p_card_id: string }; Returns: Json }
       generate_card_code: {
         Args: { p_batch_id?: string; p_rank: string; p_suit: string }
         Returns: string
@@ -615,6 +646,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      release_card_to_wild: { Args: { p_card_id: string }; Returns: Json }
       resolve_image_code: { Args: { p_code: string }; Returns: string }
       resubmit_rejected_card: {
         Args: { p_redemption_id: string }
