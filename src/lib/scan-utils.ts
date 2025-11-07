@@ -29,13 +29,24 @@ export type ClaimResult = {
 
 // Audio feedback
 let audioCtxRef: AudioContext | null = null;
+let isBeeping = false;
+let currentOscillator: OscillatorNode | null = null;
 
 export function beep(freq = 880, ms = 120) {
   try {
+    // If already beeping, skip this request to prevent overlap
+    if (isBeeping) return;
+    
+    isBeeping = true;
+    
     if (!audioCtxRef) audioCtxRef = new (window.AudioContext || (window as any).webkitAudioContext)();
     const ctx = audioCtxRef!;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
+    
+    // Store current oscillator reference
+    currentOscillator = o;
+    
     o.connect(g); g.connect(ctx.destination);
     o.frequency.value = freq;
     g.gain.value = 0.0001;
@@ -44,7 +55,18 @@ export function beep(freq = 880, ms = 120) {
     g.gain.exponentialRampToValueAtTime(0.2, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + ms / 1000);
     o.stop(t + ms / 1000);
-  } catch { /* ignore */ }
+    
+    // Reset flag after beep completes (add small buffer)
+    setTimeout(() => {
+      isBeeping = false;
+      currentOscillator = null;
+    }, ms + 50);
+    
+  } catch {
+    // Always reset flag on error
+    isBeeping = false;
+    currentOscillator = null;
+  }
 }
 
 export function haptic(pattern: number | number[]) {
