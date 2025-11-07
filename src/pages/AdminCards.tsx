@@ -127,33 +127,45 @@ const AdminCards = () => {
 
       if (batchesError) throw batchesError;
       
-      // Load cards with owner information
-      const { data: cardsData, error: cardsError } = await supabase
-        .from('cards')
-        .select(`
-          *,
-          user_cards!cards_id_fkey (
-            user_id,
-            profiles!user_cards_user_id_fkey (
-              email
-            )
-          ),
-          card_redemptions!card_redemptions_card_id_fkey (
-            status
-          )
-        `)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+      // Load cards using admin RPC (bypasses RLS)
+      const { data: cardsData, error: cardsError } = await supabase.rpc('admin_list_cards', {
+        p_search: null,
+        p_limit: 1000,
+        p_offset: 0,
+        p_include_deleted: false
+      });
 
       if (cardsError) throw cardsError;
 
-      // Transform the data to match CardData interface with owner info
-      const transformedCards = cardsData?.map(card => ({
-        ...card,
-        owner_user_id: card.user_cards?.[0]?.user_id || null,
-        owner_email: card.user_cards?.[0]?.profiles?.email || null,
-        is_in_pending_redemption: card.card_redemptions?.some((r: any) => r.status === 'pending') || false,
-        is_credited: card.card_redemptions?.some((r: any) => r.status === 'credited') || false
+      // Transform RPC response to match CardData interface
+      const transformedCards = cardsData?.map((card: any) => ({
+        id: card.id,
+        code: card.code,
+        name: card.name,
+        suit: card.suit,
+        rank: card.rank,
+        era: card.era,
+        rarity: card.rarity,
+        trader_value: card.trader_value,
+        time_value: card.time_value,
+        image_url: card.image_url,
+        current_target: card.redirect || '',
+        is_active: card.is_active,
+        status: card.status,
+        created_at: card.created_at,
+        owner_user_id: card.owner_user_id,
+        owner_email: card.owner_email,
+        is_in_pending_redemption: card.is_in_pending_redemption || false,
+        is_credited: card.is_credited || false,
+        // Optional fields not provided by RPC
+        image_code: null,
+        description: null,
+        qr_dark: null,
+        qr_light: null,
+        claim_token: null,
+        print_batch_id: card.print_batch_id || null,
+        deleted_at: card.deleted_at || null,
+        deleted_by: card.deleted_by || null
       })) || [];
 
       setBatches(batchesData || []);
@@ -163,11 +175,11 @@ const AdminCards = () => {
       if (batchesData && batchesData.length > 0 && expandedBatches.size === 0) {
         setExpandedBatches(new Set([batchesData[0].id]));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading data:', error);
       toast({
         title: "Error",
-        description: "Failed to load data",
+        description: `Failed to load data${error?.message ? ': ' + error.message : ''}`,
         variant: "destructive",
       });
     } finally {
