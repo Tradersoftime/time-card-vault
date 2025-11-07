@@ -878,19 +878,7 @@ export default function MyCards() {
                           onClick={() => !selectionMode ? handleCardClick(row) : undefined}
                         />
                       </div>
-                      <div className="absolute bottom-2 right-2 z-10 flex gap-1">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleReleaseCard(row.card_id || '', row.name || 'Unknown Card', 'ready', row.image_url || '');
-                          }}
-                          className="text-xs px-2 py-1 h-auto"
-                          title="Release to wild"
-                        >
-                          <Send className="h-3 w-3" />
-                        </Button>
+                      <div className="absolute bottom-2 right-2 z-10">
                         <Button 
                           size="sm" 
                           onClick={(e) => {
@@ -950,21 +938,6 @@ export default function MyCards() {
                         showFullDetails={true}
                         onClick={() => handleCardClick(row)}
                       />
-                      <div className="absolute bottom-2 right-2 z-10">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleReleaseCard(row.card_id || '', row.name || 'Unknown Card', 'pending', row.image_url || '');
-                          }}
-                          className="text-xs px-2 py-1 h-auto"
-                          title="Release to wild (not allowed while pending)"
-                          disabled
-                        >
-                          <Send className="h-3 w-3" />
-                        </Button>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -1046,18 +1019,6 @@ export default function MyCards() {
                         >
                           Accept
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleReleaseCard(row.card_id || '', row.name || 'Unknown Card', 'rejected', row.image_url || '');
-                          }}
-                          className="text-xs px-1 py-1 h-auto"
-                          title="Release to wild"
-                        >
-                          <Send className="h-3 w-3" />
-                        </Button>
                       </div>
                     </div>
                   ))}
@@ -1109,19 +1070,20 @@ export default function MyCards() {
                         ✓ {formatNum(row.credited_amount || row.time_value || 0)} TIME
                       </div>
                       
-                      {/* Delete Button */}
+                      {/* Trade Button */}
                       <div className="absolute bottom-2 right-2 z-10">
                         <Button 
                           size="sm" 
-                          variant="outline"
+                          variant="default"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleReleaseCard(row.card_id || '', row.name || 'Unknown Card', 'credited', row.image_url || '');
                           }}
-                          className="text-xs px-2 py-1 h-auto"
-                          title="Release to wild"
+                          className="text-xs px-2 py-1 h-auto flex items-center gap-1"
+                          title="Trade card with another user"
                         >
                           <Send className="h-3 w-3" />
+                          Trade
                         </Button>
                       </div>
                     </div>
