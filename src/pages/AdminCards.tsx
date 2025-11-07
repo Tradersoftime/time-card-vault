@@ -127,18 +127,37 @@ const AdminCards = () => {
 
       if (batchesError) throw batchesError;
       
-      // Load cards with owner information using admin_list_cards RPC
+      // Load cards with owner information
       const { data: cardsData, error: cardsError } = await supabase
-        .rpc('admin_list_cards', {
-          p_limit: 1000,
-          p_offset: 0,
-          p_include_deleted: false
-        });
+        .from('cards')
+        .select(`
+          *,
+          user_cards!cards_id_fkey (
+            user_id,
+            profiles!user_cards_user_id_fkey (
+              email
+            )
+          ),
+          card_redemptions!card_redemptions_card_id_fkey (
+            status
+          )
+        `)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
 
       if (cardsError) throw cardsError;
 
+      // Transform the data to match CardData interface with owner info
+      const transformedCards = cardsData?.map(card => ({
+        ...card,
+        owner_user_id: card.user_cards?.[0]?.user_id || null,
+        owner_email: card.user_cards?.[0]?.profiles?.email || null,
+        is_in_pending_redemption: card.card_redemptions?.some((r: any) => r.status === 'pending') || false,
+        is_credited: card.card_redemptions?.some((r: any) => r.status === 'credited') || false
+      })) || [];
+
       setBatches(batchesData || []);
-      setCards(cardsData || []);
+      setCards(transformedCards);
 
       // Auto-expand most recent batch on first load
       if (batchesData && batchesData.length > 0 && expandedBatches.size === 0) {
