@@ -477,6 +477,7 @@ export type Database = {
           p_search?: string
         }
         Returns: {
+          batch_sort_order: number
           code: string
           created_at: string
           deleted_at: string
@@ -491,6 +492,7 @@ export type Database = {
           name: string
           owner_email: string
           owner_user_id: string
+          print_batch_id: string
           rank: string
           rarity: string
           redirect: string

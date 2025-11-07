@@ -117,6 +117,25 @@ const AdminCards = () => {
     try {
       setLoading(true);
       
+      // Check admin access first
+      const { data: adminCheck, error: adminError } = await supabase
+        .from('admins')
+        .select('user_id')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      if (adminError) throw adminError;
+      
+      if (!adminCheck) {
+        toast({
+          title: "Access Denied",
+          description: "Admin access required",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
       // Load batches
       const { data: batchesData, error: batchesError } = await supabase
         .from('print_batches')
@@ -129,13 +148,15 @@ const AdminCards = () => {
       
       // Load cards using admin RPC (bypasses RLS)
       const { data: cardsData, error: cardsError } = await supabase.rpc('admin_list_cards', {
-        p_search: null,
+        p_search: '',
         p_limit: 1000,
         p_offset: 0,
         p_include_deleted: false
       });
 
       if (cardsError) throw cardsError;
+      
+      console.log('RPC returned', cardsData?.length, 'cards');
 
       // Transform RPC response to match CardData interface
       const transformedCards = cardsData?.map((card: any) => ({
@@ -164,6 +185,7 @@ const AdminCards = () => {
         qr_light: null,
         claim_token: null,
         print_batch_id: card.print_batch_id || null,
+        batch_sort_order: card.batch_sort_order || null,
         deleted_at: card.deleted_at || null,
         deleted_by: card.deleted_by || null
       })) || [];
@@ -177,9 +199,14 @@ const AdminCards = () => {
       }
     } catch (error: any) {
       console.error('Error loading data:', error);
+      const errorMsg = error?.message || '';
+      const errorDetails = error?.details || '';
+      const errorCode = error?.code || '';
+      const errorHint = error?.hint || '';
+      
       toast({
         title: "Error",
-        description: `Failed to load data${error?.message ? ': ' + error.message : ''}`,
+        description: `Failed to load data${errorMsg ? ': ' + errorMsg : ''}${errorDetails ? ' - ' + errorDetails : ''}${errorCode ? ' ['+errorCode+']' : ''}${errorHint ? ' ('+errorHint+')' : ''}`,
         variant: "destructive",
       });
     } finally {
