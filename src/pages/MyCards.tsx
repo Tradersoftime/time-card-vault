@@ -268,7 +268,7 @@ export default function MyCards() {
   // Categorize cards by redemption status
   const readyCards = useMemo(() => 
     filteredAndSortedRows.filter(r => 
-      (!r.redemption_status || r.redemption_status === 'available') && r.time_value && r.time_value > 0
+      r.redemption_status === 'available' && r.time_value && r.time_value > 0
     ), [filteredAndSortedRows]
   );
   
@@ -283,7 +283,9 @@ export default function MyCards() {
   );
   
   const creditedCards = useMemo(() => 
-    filteredAndSortedRows.filter(r => r.redemption_status === 'credited'), 
+    filteredAndSortedRows.filter(r => 
+      r.redemption_status === 'credited' || r.redemption_status === 'not_eligible'
+    ), 
     [filteredAndSortedRows]
   );
 
