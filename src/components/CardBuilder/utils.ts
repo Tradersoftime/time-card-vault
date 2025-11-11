@@ -34,7 +34,11 @@ export interface GeneratedCard {
   image_code: string;
   description: string;
   status: string;
+  qr_dark?: string;
+  qr_light?: string;
 }
+
+import { getQRColorsForEra } from '@/lib/qr-colors';
 
 const SUITS = ['Spades', 'Hearts', 'Diamonds', 'Clubs'];
 const ERAS = ['Prehistoric', 'Ancient', 'Medieval', 'Modern', 'Future'];
@@ -110,6 +114,7 @@ export function generateCards(template: CardTemplate): GeneratedCard[] {
       };
       
       const timeValue = distribution.traderLeverage * distribution.multiplier;
+      const qrColors = getQRColorsForEra(era);
       
       cards.push({
         name: interpolate(template.namePattern, values),
@@ -122,6 +127,8 @@ export function generateCards(template: CardTemplate): GeneratedCard[] {
         image_code: template.imageCode,
         description: interpolate(template.descriptionPattern, values),
         status: template.defaultStatus,
+        qr_dark: qrColors.qr_dark,
+        qr_light: qrColors.qr_light,
       });
       
       cardCount++;
@@ -264,6 +271,7 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
       // Check if we should generate auto fields
       const hasTraderName = traderName.trim() !== '';
       const hasImageCode = config.imageCode && config.imageCode !== 'DEFAULT';
+      const qrColors = getQRColorsForEra(era);
       
       cards.push({
         name: hasTraderName ? `${rank} ${traderName} of ${suit}` : '',
@@ -276,6 +284,8 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
         image_code: hasImageCode ? config.imageCode : '',
         description: hasTraderName ? `A ${era} era ${rank} featuring ${traderName}` : '',
         status: config.status,
+        qr_dark: qrColors.qr_dark,
+        qr_light: qrColors.qr_light,
       });
       
       cardIndex++;

@@ -10,6 +10,7 @@ import { ChevronRight, Copy, Download, Edit, Eye, Image as ImageIcon, Palette, R
 import { useNavigate } from "react-router-dom";
 import { ImageLibraryView } from '@/components/ImageLibraryView';
 import { AdminDataExport } from '@/components/AdminDataExport';
+import { getQRColorsForEra } from '@/lib/qr-colors';
 
 /* ---------------- Types ---------------- */
 
@@ -783,6 +784,13 @@ export default function AdminQR() {
         } else {
           errors.push(`Line ${line}: invalid qr_light color "${color}" (must be #RGB or #RRGGBB)`);
         }
+      }
+
+      // Apply default QR colors based on era if not explicitly provided
+      if (era && (!qrDarkColor || !qrLightColor)) {
+        const defaultColors = getQRColorsForEra(era);
+        if (!qrDarkColor) qrDarkColor = defaultColors.qr_dark;
+        if (!qrLightColor) qrLightColor = defaultColors.qr_light;
       }
 
       const row: CardUpsert = {

@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ImageUpload } from '@/components/ImageUpload';
 import { QRCodePreview } from '@/components/QRCodePreview';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { getQRColorsForEra } from '@/lib/qr-colors';
 
 interface CardData {
   id: string;
@@ -83,6 +84,18 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
       });
     }
   }, [card]);
+
+  // Auto-update QR colors when era changes
+  useEffect(() => {
+    if (formData.era) {
+      const colors = getQRColorsForEra(formData.era);
+      setFormData(prev => ({
+        ...prev,
+        qr_dark: colors.qr_dark,
+        qr_light: colors.qr_light
+      }));
+    }
+  }, [formData.era]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

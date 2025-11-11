@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ImageUpload } from '@/components/ImageUpload';
 import { QRCodePreview } from '@/components/QRCodePreview';
 import { Loader2, Plus } from 'lucide-react';
+import { getQRColorsForEra } from '@/lib/qr-colors';
 
 interface CardCreateModalProps {
   isOpen: boolean;
@@ -129,6 +130,18 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
       qr_light: qrLight
     }));
   };
+
+  // Auto-update QR colors when era changes
+  useEffect(() => {
+    if (formData.era) {
+      const colors = getQRColorsForEra(formData.era);
+      setFormData(prev => ({
+        ...prev,
+        qr_dark: colors.qr_dark,
+        qr_light: colors.qr_light
+      }));
+    }
+  }, [formData.era]);
 
   const handleOpen = () => {
     if (isOpen && !formData.code) {

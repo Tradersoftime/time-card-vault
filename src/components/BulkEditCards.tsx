@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Save, X, ArrowLeft, Palette } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { QRCodePreview } from '@/components/QRCodePreview';
+import { getQRColorsForEra } from '@/lib/qr-colors';
 
 interface CardData {
   id: string;
@@ -179,12 +180,26 @@ export const BulkEditCards = ({ cards, onSave, onCancel }: BulkEditCardsProps) =
 
                 <div className="space-y-2">
                   <Label htmlFor={`era-${card.id}`}>Era</Label>
-                  <Input
-                    id={`era-${card.id}`}
+                  <Select 
                     value={getCardValue(card, 'era') as string}
-                    onChange={(e) => updateCard(card.id, 'era', e.target.value)}
-                    className="bg-background/50 border-primary/20"
-                  />
+                    onValueChange={(value) => {
+                      const colors = getQRColorsForEra(value);
+                      updateCard(card.id, 'era', value);
+                      updateCard(card.id, 'qr_dark', colors.qr_dark);
+                      updateCard(card.id, 'qr_light', colors.qr_light);
+                    }}
+                  >
+                    <SelectTrigger className="bg-background/50 border-primary/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Prehistoric">🦕 Prehistoric</SelectItem>
+                      <SelectItem value="Ancient">🏛️ Ancient</SelectItem>
+                      <SelectItem value="Medieval">⚔️ Medieval</SelectItem>
+                      <SelectItem value="Modern">🏢 Modern</SelectItem>
+                      <SelectItem value="Future">🚀 Future</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
