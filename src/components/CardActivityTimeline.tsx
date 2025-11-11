@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Clock, User, Send, CheckCircle, XCircle, ArrowRight } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 
 interface ActivityLog {
   id: string;
@@ -163,8 +163,13 @@ export function CardActivityTimeline({ cardId }: CardActivityTimelineProps) {
                         by {activity.user_email}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground whitespace-nowrap">
-                      {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                        {format(new Date(activity.created_at), "MMM dd, yyyy")}
+                      </div>
+                      <div className="text-xs text-muted-foreground/70 whitespace-nowrap">
+                        {format(new Date(activity.created_at), "h:mm a")}
+                      </div>
                     </div>
                   </div>
 
