@@ -478,13 +478,16 @@ export type Database = {
         }
         Returns: {
           batch_sort_order: number
+          claim_token: string
           code: string
           created_at: string
           deleted_at: string
           deleted_by: string
+          description: string
           era: string
           has_multiple_submitters: boolean
           id: string
+          image_code: string
           image_url: string
           is_active: boolean
           is_credited: boolean
@@ -493,6 +496,8 @@ export type Database = {
           owner_email: string
           owner_user_id: string
           print_batch_id: string
+          qr_dark: string
+          qr_light: string
           rank: string
           rarity: string
           redirect: string

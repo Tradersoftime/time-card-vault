@@ -178,12 +178,12 @@ const AdminCards = () => {
         owner_email: card.owner_email,
         is_in_pending_redemption: card.is_in_pending_redemption || false,
         is_credited: card.is_credited || false,
-        // Optional fields not provided by RPC
-        image_code: null,
-        description: null,
-        qr_dark: null,
-        qr_light: null,
-        claim_token: null,
+        // Fields now provided by RPC
+        image_code: card.image_code || null,
+        description: card.description || null,
+        qr_dark: card.qr_dark || null,
+        qr_light: card.qr_light || null,
+        claim_token: card.claim_token || null,
         print_batch_id: card.print_batch_id || null,
         batch_sort_order: card.batch_sort_order || null,
         deleted_at: card.deleted_at || null,
