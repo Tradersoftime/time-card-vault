@@ -146,11 +146,11 @@ export function AdminTradingCard({
   return (
     <div 
       className={cn(
-        'card-premium rounded-xl p-3 relative overflow-hidden interactive group cursor-pointer',
+        'card-premium rounded-xl p-3 relative overflow-visible interactive group cursor-pointer',
         isSelected && 'ring-2 ring-primary glow-primary',
         className
       )}
-      style={cardStyle}
+      style={{ width: `${width}px`, minHeight: `${height}px` }}
     >
       {/* Selection Checkbox */}
       <div className="absolute top-2 left-2 z-20">
@@ -186,36 +186,6 @@ export function AdminTradingCard({
             Custom QR
           </Badge>
         )}
-        
-        {/* Owner Status Badges */}
-        {!card.owner_email && (
-          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
-            🌍 In the Wild
-          </Badge>
-        )}
-        {card.owner_email && !card.is_in_pending_redemption && (
-          <Badge 
-            variant="outline" 
-            className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30 cursor-pointer hover:bg-blue-500/30"
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewHistory?.(card.id);
-            }}
-            title="Click to view history"
-          >
-            👤 {card.owner_email}
-          </Badge>
-        )}
-        {card.is_credited && (
-          <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-            ✓ TIME Credited
-          </Badge>
-        )}
-        {card.is_in_pending_redemption && (
-          <Badge variant="outline" className="text-xs bg-orange-500/20 text-orange-400 border-orange-500/30">
-            ⏳ Pending Redemption
-          </Badge>
-        )}
       </div>
 
       {/* Card ID Badge */}
@@ -226,7 +196,7 @@ export function AdminTradingCard({
       </div>
 
       {/* Main Content */}
-      <div className="h-full flex flex-col pt-6 pb-8" onClick={() => onEdit(card)}>
+      <div className="flex flex-col pt-6" onClick={() => onEdit(card)}>
         {/* Image Area */}
         <div className="flex-1 bg-gradient-to-br from-muted/50 to-muted rounded-lg mb-3 flex items-center justify-center overflow-hidden">
           {card.image_url ? (
@@ -305,6 +275,66 @@ export function AdminTradingCard({
             <p className="text-xs text-muted-foreground line-clamp-2">
               {card.description}
             </p>
+          )}
+        </div>
+
+        {/* Owner Info Section */}
+        <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+          {/* Owner Status */}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground font-medium">Status:</span>
+            {!card.owner_email ? (
+              <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/30">
+                🌍 In the Wild
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                👤 Owned
+              </Badge>
+            )}
+          </div>
+
+          {/* Owner Email (if claimed) */}
+          {card.owner_email && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-medium">Owner:</span>
+              <span className="text-foreground font-mono text-[10px] truncate max-w-[140px]" title={card.owner_email}>
+                {card.owner_email}
+              </span>
+            </div>
+          )}
+
+          {/* Redemption Status */}
+          {card.is_in_pending_redemption && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-medium">Redemption:</span>
+              <Badge variant="outline" className="bg-orange-500/20 text-orange-400 border-orange-500/30">
+                ⏳ Pending
+              </Badge>
+            </div>
+          )}
+          {card.is_credited && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-medium">TIME:</span>
+              <Badge variant="outline" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                ✓ Credited
+              </Badge>
+            </div>
+          )}
+
+          {/* View History Button - Prominent */}
+          {onViewHistory && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-7 text-xs bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewHistory(card.id);
+              }}
+            >
+              View History
+            </Button>
           )}
         </div>
       </div>
