@@ -419,6 +419,10 @@ export type Database = {
         Args: { p_redemption_id: string }
         Returns: Json
       }
+      admin_assign_card: {
+        Args: { p_card_id: string; p_user_email: string }
+        Returns: Json
+      }
       admin_block_user_by_email: {
         Args: { p_email: string; p_reason?: string }
         Returns: Json
@@ -564,6 +568,10 @@ export type Database = {
           user_email: string
           user_id: string
         }[]
+      }
+      admin_release_card: {
+        Args: { p_card_id: string; p_reason?: string }
+        Returns: Json
       }
       admin_restore_cards: { Args: { p_card_ids: string[] }; Returns: Json }
       admin_scan_events: {

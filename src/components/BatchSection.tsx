@@ -56,6 +56,8 @@ interface BatchSectionProps {
   onDeleteCard: (cardId: string) => void;
   onCopyToken: (token: string) => void;
   onViewHistory: (cardId: string) => void;
+  onAssignCard?: (cardId: string) => void;
+  onReleaseCard?: (cardId: string) => void;
   isUnassigned?: boolean;
 }
 
@@ -77,6 +79,8 @@ export function BatchSection({
   onDeleteCard,
   onCopyToken,
   onViewHistory,
+  onAssignCard,
+  onReleaseCard,
   isUnassigned = false,
 }: BatchSectionProps) {
   const [sectionSearch, setSectionSearch] = useState('');
@@ -252,6 +256,8 @@ export function BatchSection({
                 onDelete={onDeleteCard}
                 onCopyToken={onCopyToken}
                 onViewHistory={onViewHistory}
+                onAssignCard={onAssignCard}
+                onReleaseCard={onReleaseCard}
               />
             ))}
           </div>

@@ -82,6 +82,22 @@ const AdminCards = () => {
   const [showCsvImportDialog, setShowCsvImportDialog] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyCardId, setHistoryCardId] = useState<string | null>(null);
+  
+  // Assign card modal state
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [assignCardId, setAssignCardId] = useState<string | null>(null);
+  const [assignEmail, setAssignEmail] = useState('');
+  const [assignLoading, setAssignLoading] = useState(false);
+  
+  // Release card modal state
+  const [showReleaseDialog, setShowReleaseDialog] = useState(false);
+  const [releaseCardData, setReleaseCardData] = useState<{
+    cardId: string;
+    cardName: string;
+    ownerEmail: string;
+  } | null>(null);
+  const [releaseReason, setReleaseReason] = useState('');
+  const [releaseLoading, setReleaseLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -348,6 +364,121 @@ const AdminCards = () => {
     handleModalClose();
   };
 
+  const handleAssignCard = (cardId: string) => {
+    setAssignCardId(cardId);
+    setAssignEmail('');
+    setShowAssignDialog(true);
+  };
+
+  const confirmAssign = async () => {
+    if (!assignCardId || !assignEmail.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAssignLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('admin_assign_card', {
+        p_card_id: assignCardId,
+        p_user_email: assignEmail.trim()
+      });
+
+      if (error) throw error;
+
+      if (data.ok) {
+        toast({
+          title: "Success",
+          description: data.already_owned 
+            ? "User already owns this card"
+            : `Card assigned to ${assignEmail}`,
+        });
+        setShowAssignDialog(false);
+        loadData();
+      } else {
+        const errorMsg = data.error === 'user_not_found' 
+          ? "User not found with that email"
+          : data.error === 'user_blocked'
+          ? "Cannot assign to blocked user"
+          : "Failed to assign card";
+        toast({
+          title: "Error",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error assigning card:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to assign card",
+        variant: "destructive",
+      });
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleReleaseCard = (cardId: string) => {
+    const card = cards.find(c => c.id === cardId);
+    if (!card || !card.owner_email) return;
+
+    setReleaseCardData({
+      cardId,
+      cardName: card.name,
+      ownerEmail: card.owner_email
+    });
+    setReleaseReason('');
+    setShowReleaseDialog(true);
+  };
+
+  const confirmRelease = async () => {
+    if (!releaseCardData) return;
+
+    setReleaseLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('admin_release_card', {
+        p_card_id: releaseCardData.cardId,
+        p_reason: releaseReason.trim() || 'Admin released card'
+      });
+
+      if (error) throw error;
+
+      if (data.ok) {
+        const warningMsg = data.had_pending_redemption 
+          ? " (Warning: Card had pending redemption)"
+          : "";
+        toast({
+          title: "Success",
+          description: `Card released from ${releaseCardData.ownerEmail}${warningMsg}`,
+        });
+        setShowReleaseDialog(false);
+        loadData();
+      } else {
+        const errorMsg = data.error === 'not_owned'
+          ? "Card is not currently owned"
+          : "Failed to release card";
+        toast({
+          title: "Error",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error releasing card:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to release card",
+        variant: "destructive",
+      });
+    } finally {
+      setReleaseLoading(false);
+    }
+  };
+
   const handleDeleteCard = async (cardId: string) => {
     try {
       const { data, error } = await supabase.rpc('admin_soft_delete_card', {
@@ -603,6 +734,8 @@ const AdminCards = () => {
                 setHistoryCardId(cardId);
                 setShowHistoryModal(true);
               }}
+              onAssignCard={handleAssignCard}
+              onReleaseCard={handleReleaseCard}
             />
           ))}
 
@@ -628,6 +761,8 @@ const AdminCards = () => {
                 setHistoryCardId(cardId);
                 setShowHistoryModal(true);
               }}
+              onAssignCard={handleAssignCard}
+              onReleaseCard={handleReleaseCard}
               isUnassigned
             />
           )}
@@ -730,6 +865,92 @@ const AdminCards = () => {
             {historyCardId && (
               <CardActivityTimeline cardId={historyCardId} />
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign Card Dialog */}
+        <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Card to User</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">User Email:</label>
+                <Input
+                  type="email"
+                  placeholder="user@example.com"
+                  value={assignEmail}
+                  onChange={(e) => setAssignEmail(e.target.value)}
+                  disabled={assignLoading}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowAssignDialog(false)}
+                  disabled={assignLoading}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={confirmAssign}
+                  disabled={assignLoading || !assignEmail.trim()}
+                >
+                  {assignLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Assign Card
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Release Card Dialog */}
+        <Dialog open={showReleaseDialog} onOpenChange={setShowReleaseDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Release Card to Wild</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {releaseCardData && (
+                <>
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3">
+                    <p className="text-sm">
+                      <strong>Card:</strong> {releaseCardData.cardName}
+                    </p>
+                    <p className="text-sm">
+                      <strong>Current Owner:</strong> {releaseCardData.ownerEmail}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Reason (optional):</label>
+                    <Input
+                      placeholder="e.g., Admin correction, duplicate claim..."
+                      value={releaseReason}
+                      onChange={(e) => setReleaseReason(e.target.value)}
+                      disabled={releaseLoading}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowReleaseDialog(false)}
+                  disabled={releaseLoading}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={confirmRelease}
+                  disabled={releaseLoading}
+                  variant="destructive"
+                >
+                  {releaseLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Release Card
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 

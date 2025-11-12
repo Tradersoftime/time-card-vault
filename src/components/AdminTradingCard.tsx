@@ -14,7 +14,7 @@ import {
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { Edit, QrCode, Eye, Download, AlertTriangle, Trash2, Copy } from 'lucide-react';
+import { Edit, QrCode, Eye, Download, AlertTriangle, Trash2, Copy, UserPlus, Globe } from 'lucide-react';
 import { useImageDimensions, calculateCardDimensions } from '@/hooks/useImageDimensions';
 
 interface CardData {
@@ -53,6 +53,8 @@ interface AdminTradingCardProps {
   onDelete?: (cardId: string) => void;
   onCopyToken?: (token: string) => void; // For copying claim tokens
   onViewHistory?: (cardId: string) => void; // For viewing ownership history
+  onAssignCard?: (cardId: string) => void; // For assigning cards to users
+  onReleaseCard?: (cardId: string) => void; // For releasing cards to wild
   baseWidth?: number;
   className?: string;
 }
@@ -67,6 +69,8 @@ export function AdminTradingCard({
   onDelete,
   onCopyToken,
   onViewHistory,
+  onAssignCard,
+  onReleaseCard,
   baseWidth = 200,
   className
 }: AdminTradingCardProps) {
@@ -341,6 +345,37 @@ export function AdminTradingCard({
 
       {/* Quick Action Buttons */}
       <div className="absolute top-14 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Admin Transfer Actions */}
+        {onAssignCard && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 w-6 p-0 bg-background/80 backdrop-blur-sm text-blue-500 border-blue-500/30 hover:bg-blue-500/20"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAssignCard(card.id);
+            }}
+            title="Assign to user"
+          >
+            <UserPlus className="h-3 w-3" />
+          </Button>
+        )}
+        
+        {onReleaseCard && card.owner_email && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 w-6 p-0 bg-background/80 backdrop-blur-sm text-amber-500 border-amber-500/30 hover:bg-amber-500/20"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReleaseCard(card.id);
+            }}
+            title="Release to wild"
+          >
+            <Globe className="h-3 w-3" />
+          </Button>
+        )}
+
         {onDelete && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
