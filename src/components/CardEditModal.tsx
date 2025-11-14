@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,7 @@ interface CardEditModalProps {
 export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const originalBatchIdRef = useRef<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     suit: '',
@@ -68,6 +69,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
 
   useEffect(() => {
     if (card) {
+      originalBatchIdRef.current = card.print_batch_id || null;
       setFormData({
         name: card.name,
         suit: card.suit,
@@ -117,26 +119,34 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
     
     setLoading(true);
     try {
+      // Build update payload
+      const updatePayload: any = {
+        name: formData.name,
+        suit: formData.suit,
+        rank: formData.rank,
+        era: formData.era,
+        rarity: formData.rarity || null,
+        time_value: formData.time_value,
+        trader_value: formData.trader_value || null,
+        image_url: formData.image_url || null,
+        image_code: formData.image_code || null,
+        description: formData.description || null,
+        status: formData.status,
+        is_active: formData.is_active,
+        current_target: formData.current_target || null,
+        qr_dark: formData.qr_dark || null,
+        qr_light: formData.qr_light || null,
+      };
+
+      // Only update print_batch_id if it changed
+      if (formData.print_batch_id !== originalBatchIdRef.current) {
+        updatePayload.print_batch_id = formData.print_batch_id || null;
+        console.log('Batch changed:', { original: originalBatchIdRef.current, new: formData.print_batch_id });
+      }
+
       const { error } = await supabase
         .from('cards')
-        .update({
-          name: formData.name,
-          suit: formData.suit,
-          rank: formData.rank,
-          era: formData.era,
-          rarity: formData.rarity || null,
-          time_value: formData.time_value,
-          trader_value: formData.trader_value || null,
-          image_url: formData.image_url || null,
-          image_code: formData.image_code || null,
-          description: formData.description || null,
-          status: formData.status,
-          is_active: formData.is_active,
-          current_target: formData.current_target || null,
-          qr_dark: formData.qr_dark || null,
-          qr_light: formData.qr_light || null,
-          print_batch_id: formData.print_batch_id || null
-        })
+        .update(updatePayload)
         .eq('id', card.id);
 
       if (error) throw error;
