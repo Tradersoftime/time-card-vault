@@ -47,6 +47,7 @@ interface CardEditModalProps {
 export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [batchTouched, setBatchTouched] = useState(false);
   const originalBatchIdRef = useRef<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -70,6 +71,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
   useEffect(() => {
     if (card) {
       originalBatchIdRef.current = card.print_batch_id || null;
+      setBatchTouched(false);
+      console.log('CardEditModal init:', { cardId: card.id, originalBatchId: card.print_batch_id });
       setFormData({
         name: card.name,
         suit: card.suit,
@@ -138,10 +141,10 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
         qr_light: formData.qr_light || null,
       };
 
-      // Only update print_batch_id if it changed
-      if (formData.print_batch_id !== originalBatchIdRef.current) {
+      // Only update print_batch_id if user touched it and it changed
+      if (batchTouched && formData.print_batch_id !== originalBatchIdRef.current) {
         updatePayload.print_batch_id = formData.print_batch_id || null;
-        console.log('Batch changed:', { original: originalBatchIdRef.current, new: formData.print_batch_id });
+        console.log('Batch changed (user action):', { original: originalBatchIdRef.current, new: formData.print_batch_id });
       }
 
       const { error } = await supabase
@@ -409,9 +412,13 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                 <Label htmlFor="print_batch">Print Batch</Label>
                 <PrintBatchSelector
                   value={formData.print_batch_id}
-                  onChange={(batchId) => setFormData(prev => ({ ...prev, print_batch_id: batchId }))}
+                  onChange={(batchId) => {
+                    setBatchTouched(true);
+                    setFormData(prev => ({ ...prev, print_batch_id: batchId }));
+                  }}
                   showAllOption={false}
                   showUnassignedOption={true}
+                  autoSelectFallback={false}
                 />
                 <p className="text-xs text-muted-foreground">
                   Change batch assignment or leave unassigned

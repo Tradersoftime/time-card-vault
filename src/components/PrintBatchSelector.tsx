@@ -9,6 +9,7 @@ interface PrintBatchSelectorProps {
   showAllOption?: boolean;
   showUnassignedOption?: boolean;
   className?: string;
+  autoSelectFallback?: boolean;
 }
 
 export function PrintBatchSelector({
@@ -17,6 +18,7 @@ export function PrintBatchSelector({
   showAllOption = true,
   showUnassignedOption = true,
   className,
+  autoSelectFallback = true,
 }: PrintBatchSelectorProps) {
   const [batches, setBatches] = useState<PrintBatch[]>([]);
 
@@ -36,9 +38,13 @@ export function PrintBatchSelector({
     }
   };
 
+  const selectedValue = autoSelectFallback
+    ? value || (showUnassignedOption ? "unassigned" : showAllOption ? "all" : undefined)
+    : (value ?? undefined);
+
   return (
     <Select 
-      value={value || (showUnassignedOption ? "unassigned" : showAllOption ? "all" : undefined)} 
+      value={selectedValue} 
       onValueChange={(val) => onChange(val === "all" || val === "unassigned" ? null : val)}
     >
       <SelectTrigger className={className}>
