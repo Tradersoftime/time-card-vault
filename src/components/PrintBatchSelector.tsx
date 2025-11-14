@@ -37,7 +37,10 @@ export function PrintBatchSelector({
   };
 
   return (
-    <Select value={value || "all"} onValueChange={(val) => onChange(val === "all" || val === "unassigned" ? null : val)}>
+    <Select 
+      value={value || (showUnassignedOption ? "unassigned" : showAllOption ? "all" : undefined)} 
+      onValueChange={(val) => onChange(val === "all" || val === "unassigned" ? null : val)}
+    >
       <SelectTrigger className={className}>
         <SelectValue placeholder="Select batch..." />
       </SelectTrigger>
