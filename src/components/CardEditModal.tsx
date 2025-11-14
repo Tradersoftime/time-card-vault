@@ -435,6 +435,9 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                   qrDark={formData.qr_dark}
                   qrLight={formData.qr_light}
                   onColorChange={handleColorChange}
+                  cardName={formData.name}
+                  suit={formData.suit}
+                  rank={formData.rank}
                   showColorControls={true}
                   size={200}
                 />

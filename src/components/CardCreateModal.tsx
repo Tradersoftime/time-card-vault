@@ -368,6 +368,9 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
                   qrDark={formData.qr_dark}
                   qrLight={formData.qr_light}
                   onColorChange={handleColorChange}
+                  cardName={formData.name}
+                  suit={formData.suit}
+                  rank={formData.rank}
                   showColorControls={true}
                   size={200}
                 />

@@ -14,6 +14,9 @@ interface QRCodePreviewProps {
   showColorControls?: boolean;
   size?: number;
   className?: string;
+  cardName?: string;
+  suit?: string;
+  rank?: string;
 }
 
 export const QRCodePreview = ({
@@ -23,7 +26,10 @@ export const QRCodePreview = ({
   onColorChange,
   showColorControls = false,
   size = 200,
-  className = ''
+  className = '',
+  cardName,
+  suit,
+  rank
 }: QRCodePreviewProps) => {
   const { toast } = useToast();
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -100,6 +106,15 @@ export const QRCodePreview = ({
     }
   };
 
+  // Sanitize filename - remove special characters and limit length
+  const sanitizeFilename = (name: string): string => {
+    return name
+      .replace(/[^a-zA-Z0-9-_]/g, '-') // Replace special chars with hyphen
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
+      .substring(0, 50); // Limit length
+  };
+
   // Download QR code
   const downloadQR = async (format: 'png' | 'svg' = 'png', downloadSize = 512) => {
     if (!code) return;
@@ -136,9 +151,19 @@ export const QRCodePreview = ({
         });
       }
 
+      // Build filename with trader name
+      let filename = 'qr';
+      if (cardName) {
+        filename += `-${sanitizeFilename(cardName)}`;
+      }
+      if (suit && rank) {
+        filename += `-${suit}-${rank}`;
+      }
+      filename += `-${code}-${downloadSize}px.${format}`;
+
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `qr-${code}-${downloadSize}px.${format}`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
