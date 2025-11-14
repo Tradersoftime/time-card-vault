@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ImageUpload } from '@/components/ImageUpload';
 import { QRCodePreview } from '@/components/QRCodePreview';
+import { PrintBatchSelector } from '@/components/PrintBatchSelector';
 import { Loader2, Plus } from 'lucide-react';
 import { getQRColorsForEra } from '@/lib/qr-colors';
 
@@ -36,7 +37,8 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
     is_active: false,
     current_target: '',
     qr_dark: '#000000',
-    qr_light: '#FFFFFF'
+    qr_light: '#FFFFFF',
+    print_batch_id: null as string | null
   });
 
   const generateCardCode = () => {
@@ -61,7 +63,8 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
       is_active: false,
       current_target: '',
       qr_dark: '#000000',
-      qr_light: '#FFFFFF'
+      qr_light: '#FFFFFF',
+      print_batch_id: null
     });
   };
 
@@ -96,7 +99,8 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
           is_active: formData.is_active,
           current_target: formData.current_target || null,
           qr_dark: formData.qr_dark || null,
-          qr_light: formData.qr_light || null
+          qr_light: formData.qr_light || null,
+          print_batch_id: formData.print_batch_id
         })
         .select()
         .single();
@@ -347,6 +351,19 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
                   rows={3}
                   placeholder="Describe this card..."
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="print_batch">Print Batch (Optional)</Label>
+                <PrintBatchSelector
+                  value={formData.print_batch_id}
+                  onChange={(batchId) => setFormData(prev => ({ ...prev, print_batch_id: batchId }))}
+                  showAllOption={false}
+                  showUnassignedOption={true}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave unassigned to add to the unassigned category
+                </p>
               </div>
             </div>
 

@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ImageUpload } from '@/components/ImageUpload';
 import { QRCodePreview } from '@/components/QRCodePreview';
+import { PrintBatchSelector } from '@/components/PrintBatchSelector';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { getQRColorsForEra } from '@/lib/qr-colors';
 
@@ -32,7 +33,8 @@ interface CardData {
   current_target?: string | null;
   qr_dark?: string | null;
   qr_light?: string | null;
-  claim_token?: string | null; // Added for secure token-based claiming
+  claim_token?: string | null;
+  print_batch_id?: string | null;
 }
 
 interface CardEditModalProps {
@@ -60,7 +62,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
     is_active: true,
     current_target: '',
     qr_dark: '#000000',
-    qr_light: '#FFFFFF'
+    qr_light: '#FFFFFF',
+    print_batch_id: null as string | null
   });
 
   useEffect(() => {
@@ -80,7 +83,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
         is_active: card.is_active,
         current_target: card.current_target || '',
         qr_dark: card.qr_dark || '#000000',
-        qr_light: card.qr_light || '#FFFFFF'
+        qr_light: card.qr_light || '#FFFFFF',
+        print_batch_id: card.print_batch_id || null
       });
     }
   }, [card]);
@@ -120,7 +124,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
           is_active: formData.is_active,
           current_target: formData.current_target || null,
           qr_dark: formData.qr_dark || null,
-          qr_light: formData.qr_light || null
+          qr_light: formData.qr_light || null,
+          print_batch_id: formData.print_batch_id
         })
         .eq('id', card.id);
 
@@ -362,6 +367,19 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   rows={3}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="print_batch">Print Batch</Label>
+                <PrintBatchSelector
+                  value={formData.print_batch_id}
+                  onChange={(batchId) => setFormData(prev => ({ ...prev, print_batch_id: batchId }))}
+                  showAllOption={false}
+                  showUnassignedOption={true}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Change batch assignment or leave unassigned
+                </p>
               </div>
             </div>
 
