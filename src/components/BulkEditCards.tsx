@@ -328,6 +328,9 @@ export const BulkEditCards = ({ cards, onSave, onCancel }: BulkEditCardsProps) =
                   qrDark={(getCardValue(card, 'qr_dark') as string) || '#000000'}
                   qrLight={(getCardValue(card, 'qr_light') as string) || '#FFFFFF'}
                   size={150}
+                  cardName={getCardValue(card, 'name') as string}
+                  suit={getCardValue(card, 'suit') as string}
+                  rank={getCardValue(card, 'rank') as string}
                   className="max-w-48"
                 />
               </div>

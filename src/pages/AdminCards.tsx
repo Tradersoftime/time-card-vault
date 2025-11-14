@@ -804,6 +804,9 @@ const AdminCards = () => {
                   qrDark={selectedCard.qr_dark}
                   qrLight={selectedCard.qr_light}
                   showColorControls={false}
+                  cardName={selectedCard.name}
+                  suit={selectedCard.suit}
+                  rank={selectedCard.rank}
                   size={250}
                 />
                 <div className="text-sm text-muted-foreground text-center space-y-1">
