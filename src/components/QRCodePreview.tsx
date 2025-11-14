@@ -272,6 +272,7 @@ export const QRCodePreview = ({
       {qrDataUrl && (
         <div className="flex flex-wrap gap-2 justify-center">
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => downloadQR('png', 256)}
@@ -281,6 +282,7 @@ export const QRCodePreview = ({
             256px PNG
           </Button>
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => downloadQR('png', 512)}
@@ -290,6 +292,7 @@ export const QRCodePreview = ({
             512px PNG
           </Button>
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => downloadQR('png', 1024)}
@@ -299,6 +302,7 @@ export const QRCodePreview = ({
             1024px PNG
           </Button>
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => downloadQR('png', 2048)}
@@ -308,6 +312,7 @@ export const QRCodePreview = ({
             2048px PNG
           </Button>
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => downloadQR('png', 4096)}
@@ -317,6 +322,7 @@ export const QRCodePreview = ({
             4096px PNG
           </Button>
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => downloadQR('svg')}
@@ -337,6 +343,7 @@ export const QRCodePreview = ({
               QR Colors
             </Label>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={resetColors}
