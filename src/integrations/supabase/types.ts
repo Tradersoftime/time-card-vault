@@ -427,6 +427,10 @@ export type Database = {
         Args: { p_email: string; p_reason?: string }
         Returns: Json
       }
+      admin_bulk_assign_batch: {
+        Args: { p_batch_id: string; p_card_ids: string[] }
+        Returns: Json
+      }
       admin_bulk_decision_cards: {
         Args: {
           p_action: string

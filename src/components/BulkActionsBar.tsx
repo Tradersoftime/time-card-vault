@@ -14,7 +14,17 @@ import {
   AlertDialogTitle, 
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
-import { Trash2, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog';
+import { PrintBatchSelector } from '@/components/PrintBatchSelector';
+import { Trash2, CheckSquare, Square, Loader2, Package } from 'lucide-react';
 
 interface BulkActionsBarProps {
   selectedCount: number;
@@ -32,6 +42,8 @@ export function BulkActionsBar({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [operation, setOperation] = useState<string>('');
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
   const handleBulkSetActive = async (isActive: boolean) => {
     setLoading(true);
@@ -92,6 +104,44 @@ export function BulkActionsBar({
       toast({
         title: "Error",
         description: error.message || "Failed to delete cards",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setOperation('');
+    }
+  };
+
+  const handleBulkAssignBatch = async () => {
+    if (!selectedBatchId && selectedBatchId !== null) return;
+    
+    setLoading(true);
+    setOperation('assigning');
+    
+    try {
+      const { data, error } = await supabase.rpc('admin_bulk_assign_batch', {
+        p_card_ids: selectedCardIds,
+        p_batch_id: selectedBatchId
+      });
+
+      if (error) throw error;
+
+      console.log('Bulk assign batch response:', data);
+      const count = data?.updated_count || 0;
+      toast({
+        title: "Success",
+        description: `${count} card${count !== 1 ? 's' : ''} assigned to ${selectedBatchId ? 'batch' : 'unassigned'} successfully`,
+      });
+      
+      setShowBatchDialog(false);
+      setSelectedBatchId(null);
+      onClearSelection();
+      onRefresh();
+    } catch (error: any) {
+      console.error('Error assigning cards:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to assign cards to batch",
         variant: "destructive",
       });
     } finally {
@@ -184,6 +234,51 @@ export function BulkActionsBar({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            <Dialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                >
+                  <Package className="h-4 w-4 mr-1" />
+                  Assign to Batch
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Assign to Print Batch</DialogTitle>
+                  <DialogDescription>
+                    Select a batch to assign {selectedCount} card{selectedCount !== 1 ? 's' : ''} to
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <PrintBatchSelector
+                    value={selectedBatchId}
+                    onChange={setSelectedBatchId}
+                    showAllOption={false}
+                    showUnassignedOption={true}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowBatchDialog(false)}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleBulkAssignBatch} 
+                    disabled={loading}
+                  >
+                    {loading && operation === 'assigning' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Assign Cards
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
