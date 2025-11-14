@@ -105,6 +105,16 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
     e.preventDefault();
     if (!card) return;
     
+    // Validate print_batch_id format if provided
+    if (formData.print_batch_id && !formData.print_batch_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      toast({
+        title: "Validation Error",
+        description: "Invalid print batch ID format",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
     try {
       const { error } = await supabase
@@ -125,7 +135,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
           current_target: formData.current_target || null,
           qr_dark: formData.qr_dark || null,
           qr_light: formData.qr_light || null,
-          print_batch_id: formData.print_batch_id
+          print_batch_id: formData.print_batch_id || null
         })
         .eq('id', card.id);
 
@@ -138,11 +148,27 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
       
       onSave();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving card:', error);
+      
+      // Log detailed error information for debugging
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        formData: {
+          ...formData,
+          // Mask sensitive data in logs
+          claim_token: '[REDACTED]'
+        }
+      });
+      
+      // Show more specific error message
+      const errorMessage = error?.message || 'Failed to save card';
       toast({
-        title: "Error",
-        description: "Failed to save card",
+        title: "Error Saving Card",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
