@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Upload } from 'lucide-react';
+import { ChevronDown, Upload, GripVertical } from 'lucide-react';
 import { PrintBatch } from '@/types/printBatch';
 import { BatchHeader } from './BatchHeader';
 import { AdminTradingCard } from './AdminTradingCard';
@@ -9,6 +9,11 @@ import { Input } from './ui/input';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BatchFilters, BatchFiltersState } from './BatchFilters';
+import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface CardData {
   id: string;
@@ -31,6 +36,7 @@ interface CardData {
   qr_light?: string | null;
   claim_token?: string | null;
   print_batch_id?: string | null;
+  batch_sort_order?: number | null;
   claimed_by?: string | null;
   owner_user_id?: string | null;
   owner_email?: string | null;
@@ -61,6 +67,76 @@ interface BatchSectionProps {
   isUnassigned?: boolean;
 }
 
+// Wrapper component for sortable cards
+function SortableCard({ 
+  card, 
+  isSelected, 
+  onSelect, 
+  onEdit, 
+  onViewQR, 
+  onViewImage, 
+  onDelete, 
+  onCopyToken, 
+  onViewHistory, 
+  onAssignCard, 
+  onReleaseCard, 
+  baseWidth, 
+  isDragEnabled 
+}: {
+  card: CardData;
+  isSelected: boolean;
+  onSelect: (cardId: string) => void;
+  onEdit: (card: CardData) => void;
+  onViewQR: (card: CardData) => void;
+  onViewImage: (imageUrl: string, cardName: string) => void;
+  onDelete: (cardId: string) => void;
+  onCopyToken: (token: string) => void;
+  onViewHistory: (cardId: string) => void;
+  onAssignCard?: (cardId: string) => void;
+  onReleaseCard?: (cardId: string) => void;
+  baseWidth: number;
+  isDragEnabled: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+    id: card.id,
+    disabled: !isDragEnabled
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative">
+      {isDragEnabled && (
+        <div 
+          {...attributes} 
+          {...listeners}
+          className="absolute -left-6 top-1/2 -translate-y-1/2 z-10 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <GripVertical className="w-5 h-5 text-muted-foreground" />
+        </div>
+      )}
+      <AdminTradingCard
+        card={card}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onEdit={onEdit}
+        onViewQR={onViewQR}
+        onViewImage={onViewImage}
+        onDelete={onDelete}
+        onCopyToken={onCopyToken}
+        onViewHistory={onViewHistory}
+        onAssignCard={onAssignCard}
+        onReleaseCard={onReleaseCard}
+        baseWidth={baseWidth}
+      />
+    </div>
+  );
+}
+
 export function BatchSection({
   batch,
   cards,
@@ -83,7 +159,23 @@ export function BatchSection({
   onReleaseCard,
   isUnassigned = false,
 }: BatchSectionProps) {
+  const { toast } = useToast();
   const [sectionSearch, setSectionSearch] = useState('');
+  const [reorderMode, setReorderMode] = useState(false);
+  const [reordering, setReordering] = useState(false);
+  const [localCards, setLocalCards] = useState(cards);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  useEffect(() => {
+    setLocalCards(cards);
+  }, [cards]);
   
   // Get storage key for this batch
   const storageKey = `batch-filters-${batch?.id || 'unassigned'}`;
@@ -135,7 +227,7 @@ export function BatchSection({
 
   // Apply all filters
   const filteredCards = useMemo(() => {
-    return cards.filter(card => {
+    return localCards.filter(card => {
       // Text search
       const matchesSearch = 
         card.name.toLowerCase().includes(sectionSearch.toLowerCase()) ||
@@ -182,7 +274,66 @@ export function BatchSection({
 
       return true;
     });
-  }, [cards, sectionSearch, filters]);
+  }, [localCards, sectionSearch, filters]);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id || !batch?.id) {
+      return;
+    }
+
+    const oldIndex = localCards.findIndex(c => c.id === active.id);
+    const newIndex = localCards.findIndex(c => c.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Reorder locally
+    const reordered = [...localCards];
+    const [movedCard] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, movedCard);
+
+    // Assign new batch_sort_order values (10, 20, 30...)
+    const updates = reordered.map((card, index) => ({
+      id: card.id,
+      batch_sort_order: (index + 1) * 10
+    }));
+
+    // Optimistically update UI
+    setLocalCards(reordered.map((card, index) => ({
+      ...card,
+      batch_sort_order: (index + 1) * 10
+    })));
+
+    // Persist to database
+    setReordering(true);
+    try {
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('cards')
+          .update({ batch_sort_order: update.batch_sort_order })
+          .eq('id', update.id);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Success",
+        description: "Card order updated",
+      });
+    } catch (error: any) {
+      console.error('Error reordering cards:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update card order",
+        variant: "destructive",
+      });
+      // Revert on error
+      setLocalCards(cards);
+    } finally {
+      setReordering(false);
+    }
+  };
 
   const cardWidth = cardSize === 'sm' ? 160 : cardSize === 'md' ? 200 : 250;
 
@@ -220,6 +371,16 @@ export function BatchSection({
                 className="pl-10"
               />
             </div>
+            {batch?.id && (
+              <Button
+                variant={reorderMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setReorderMode(!reorderMode)}
+                disabled={reordering}
+              >
+                {reordering ? "Reordering..." : reorderMode ? "Done Reordering" : "Reorder"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={onImportCSV}>
               <Upload className="h-4 w-4 mr-2" />
               Import CSV to {isUnassigned ? 'Unassigned' : 'This Batch'}
@@ -234,36 +395,7 @@ export function BatchSection({
           )}
 
           {/* Cards Grid */}
-          <div
-            className={cn(
-              "grid gap-4 justify-items-center",
-              filteredCards.length === 0 && "hidden"
-            )}
-            style={{
-              gridTemplateColumns: `repeat(auto-fill, minmax(${cardWidth}px, 1fr))`,
-            }}
-          >
-            {filteredCards.map((card) => (
-              <AdminTradingCard
-                key={card.id}
-                card={card}
-                baseWidth={cardWidth}
-                isSelected={selectedCards.has(card.id)}
-                onSelect={onSelectCard}
-                onEdit={onEditCard}
-                onViewQR={onViewQR}
-                onViewImage={onViewImage}
-                onDelete={onDeleteCard}
-                onCopyToken={onCopyToken}
-                onViewHistory={onViewHistory}
-                onAssignCard={onAssignCard}
-                onReleaseCard={onReleaseCard}
-              />
-            ))}
-          </div>
-
-          {/* Empty State */}
-          {filteredCards.length === 0 && (
+          {filteredCards.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-muted-foreground mb-4">
                 {sectionSearch 
@@ -278,6 +410,44 @@ export function BatchSection({
                 </Button>
               )}
             </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={filteredCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                <div
+                  className={cn(
+                    "grid gap-4 justify-items-center",
+                    reorderMode && "grid-cols-1"
+                  )}
+                  style={reorderMode ? {} : {
+                    gridTemplateColumns: `repeat(auto-fill, minmax(${cardWidth}px, 1fr))`,
+                  }}
+                >
+                  {filteredCards.map((card) => (
+                    <div key={card.id} className="group relative pl-6 w-full">
+                      <SortableCard
+                        card={card}
+                        isSelected={selectedCards.has(card.id)}
+                        onSelect={onSelectCard}
+                        onEdit={onEditCard}
+                        onViewQR={onViewQR}
+                        onViewImage={onViewImage}
+                        onDelete={onDeleteCard}
+                        onCopyToken={onCopyToken}
+                        onViewHistory={onViewHistory}
+                        onAssignCard={onAssignCard}
+                        onReleaseCard={onReleaseCard}
+                        baseWidth={cardWidth}
+                        isDragEnabled={reorderMode && !!batch?.id}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </CollapsibleContent>

@@ -40,6 +40,7 @@ interface CardData {
   qr_light?: string | null;
   claim_token?: string | null;
   print_batch_id?: string | null;
+  batch_sort_order?: number | null;
   owner_user_id?: string | null;
   owner_email?: string | null;
   is_in_pending_redemption?: boolean;
@@ -285,6 +286,10 @@ const AdminCards = () => {
           break;
         case 'status':
           comparison = a.status.localeCompare(b.status);
+          break;
+        case 'manual_batch_order':
+          // Sort by batch_sort_order within each batch (handled per-batch below)
+          comparison = (a.batch_sort_order || 999999) - (b.batch_sort_order || 999999);
           break;
         case 'created_at':
         default:

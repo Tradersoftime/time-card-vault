@@ -21,10 +21,20 @@ export function PrintBatchSelector({
   autoSelectFallback = true,
 }: PrintBatchSelectorProps) {
   const [batches, setBatches] = useState<PrintBatch[]>([]);
+  const [inactiveBatch, setInactiveBatch] = useState<PrintBatch | null>(null);
 
   useEffect(() => {
     loadBatches();
   }, []);
+
+  useEffect(() => {
+    // If value is a UUID and not in the active batches, load it separately
+    if (value && value !== 'all' && value !== 'unassigned' && !batches.find(b => b.id === value)) {
+      loadInactiveBatch(value);
+    } else {
+      setInactiveBatch(null);
+    }
+  }, [value, batches]);
 
   const loadBatches = async () => {
     const { data, error } = await supabase
@@ -35,6 +45,18 @@ export function PrintBatchSelector({
 
     if (!error && data) {
       setBatches(data);
+    }
+  };
+
+  const loadInactiveBatch = async (batchId: string) => {
+    const { data, error } = await supabase
+      .from("print_batches")
+      .select("*")
+      .eq("id", batchId)
+      .single();
+
+    if (!error && data) {
+      setInactiveBatch(data);
     }
   };
 
@@ -56,6 +78,11 @@ export function PrintBatchSelector({
         )}
         {showUnassignedOption && (
           <SelectItem value="unassigned">Unassigned Cards</SelectItem>
+        )}
+        {inactiveBatch && (
+          <SelectItem value={inactiveBatch.id}>
+            {inactiveBatch.name} (inactive)
+          </SelectItem>
         )}
         {batches.map((batch) => (
           <SelectItem key={batch.id} value={batch.id}>

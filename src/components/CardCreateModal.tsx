@@ -82,6 +82,20 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
     
     setLoading(true);
     try {
+      // If assigning to a batch, get the max batch_sort_order
+      let batchSortOrder: number | null = null;
+      if (formData.print_batch_id) {
+        const { data: maxData } = await supabase
+          .from('cards')
+          .select('batch_sort_order')
+          .eq('print_batch_id', formData.print_batch_id)
+          .order('batch_sort_order', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .single();
+        
+        batchSortOrder = (maxData?.batch_sort_order || 0) + 10;
+      }
+
       const { data, error } = await supabase
         .from('cards')
         .insert({
@@ -100,7 +114,8 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
           current_target: formData.current_target || null,
           qr_dark: formData.qr_dark || null,
           qr_light: formData.qr_light || null,
-          print_batch_id: formData.print_batch_id
+          print_batch_id: formData.print_batch_id,
+          batch_sort_order: batchSortOrder
         })
         .select()
         .single();

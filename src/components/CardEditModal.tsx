@@ -141,10 +141,36 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
         qr_light: formData.qr_light || null,
       };
 
-      // Only update print_batch_id if user touched it and it changed
+      // ALWAYS include print_batch_id to preserve the batch
       if (batchTouched && formData.print_batch_id !== originalBatchIdRef.current) {
+        // User changed the batch - update it and assign new batch_sort_order
         updatePayload.print_batch_id = formData.print_batch_id || null;
-        console.log('Batch changed (user action):', { original: originalBatchIdRef.current, new: formData.print_batch_id });
+        
+        // If moving to a batch, get the max batch_sort_order and assign next position
+        if (formData.print_batch_id) {
+          const { data: maxData } = await supabase
+            .from('cards')
+            .select('batch_sort_order')
+            .eq('print_batch_id', formData.print_batch_id)
+            .order('batch_sort_order', { ascending: false, nullsFirst: false })
+            .limit(1)
+            .single();
+          
+          updatePayload.batch_sort_order = (maxData?.batch_sort_order || 0) + 10;
+        } else {
+          // Moving to unassigned - clear batch_sort_order
+          updatePayload.batch_sort_order = null;
+        }
+        
+        console.log('Batch changed (user action):', { 
+          original: originalBatchIdRef.current, 
+          new: formData.print_batch_id,
+          newSortOrder: updatePayload.batch_sort_order
+        });
+      } else {
+        // User did NOT touch the batch - explicitly preserve the original value
+        updatePayload.print_batch_id = originalBatchIdRef.current;
+        console.log('Batch preserved:', { batch: originalBatchIdRef.current });
       }
 
       const { error } = await supabase
