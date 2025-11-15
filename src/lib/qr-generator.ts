@@ -52,6 +52,68 @@ export function pickTextOn(bgHex: string): string {
   return luminance > 0.6 ? '#000000' : '#FFFFFF';
 }
 
+// Generate QR code as SVG string
+export async function toSVG(
+  data: string, 
+  label?: string, 
+  colors?: QrColors
+): Promise<string> {
+  const qrColors = colors || { dark: "#000000", light: "#FFFFFF" };
+  
+  // Generate base QR code as SVG string
+  const svgString = await QRCode.toString(data, {
+    type: 'svg',
+    errorCorrectionLevel: 'H',
+    margin: 4,
+    width: 512,
+    color: {
+      dark: normalizeHex(qrColors.dark),
+      light: normalizeHex(qrColors.light)
+    }
+  });
+
+  if (!label) return svgString;
+
+  // Add label to SVG
+  const parser = new DOMParser();
+  const svgDoc = parser.parseFromString(svgString, 'image/svg+xml');
+  const svgEl = svgDoc.querySelector('svg');
+  
+  if (!svgEl) return svgString;
+  
+  const width = parseInt(svgEl.getAttribute('width') || '512');
+  const height = parseInt(svgEl.getAttribute('height') || '512');
+  const pad = 16;
+  const fontPx = 32;
+  const newHeight = height + pad + fontPx + pad;
+  
+  // Update SVG height
+  svgEl.setAttribute('height', newHeight.toString());
+  svgEl.setAttribute('viewBox', `0 0 ${width} ${newHeight}`);
+  
+  // Add background rectangle for label area
+  const bgRect = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bgRect.setAttribute('x', '0');
+  bgRect.setAttribute('y', height.toString());
+  bgRect.setAttribute('width', width.toString());
+  bgRect.setAttribute('height', (pad + fontPx + pad).toString());
+  bgRect.setAttribute('fill', normalizeHex(qrColors.light));
+  svgEl.appendChild(bgRect);
+  
+  // Add text label
+  const textEl = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'text');
+  textEl.setAttribute('x', (width / 2).toString());
+  textEl.setAttribute('y', (newHeight - pad).toString());
+  textEl.setAttribute('text-anchor', 'middle');
+  textEl.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif');
+  textEl.setAttribute('font-size', fontPx.toString());
+  textEl.setAttribute('fill', pickTextOn(qrColors.light));
+  textEl.textContent = label;
+  svgEl.appendChild(textEl);
+  
+  return new XMLSerializer().serializeToString(svgDoc);
+}
+
 // Generate QR code as PNG data URL
 export async function toPNG(
   data: string, 

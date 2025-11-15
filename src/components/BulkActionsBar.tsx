@@ -26,7 +26,7 @@ import {
 import { PrintBatchSelector } from '@/components/PrintBatchSelector';
 import { Trash2, CheckSquare, Square, Loader2, Package, Download } from 'lucide-react';
 import JSZip from 'jszip';
-import { toPNG } from '@/lib/qr-generator';
+import { toSVG } from '@/lib/qr-generator';
 import { getQRColorsForEra } from '@/lib/qr-colors';
 
 interface BulkActionsBarProps {
@@ -181,12 +181,11 @@ export function BulkActionsBar({
           ? { dark: card.qr_dark, light: card.qr_light }
           : getQRColorsForEra(card.era || '');
         
-        const pngDataUrl = await toPNG(url, card.name || card.code, colors);
-        const base64 = pngDataUrl.split(',')[1];
+        const svgString = await toSVG(url, card.name || card.code, colors);
         
         // Sanitize filename
         const safeName = (card.name || card.code).replace(/[^a-z0-9]/gi, '_');
-        folder.file(`${safeName}_${card.code}.png`, base64, { base64: true });
+        folder.file(`${safeName}_${card.code}.svg`, svgString);
       }
       
       // Generate and download ZIP
@@ -202,7 +201,7 @@ export function BulkActionsBar({
       
       toast({
         title: "Success",
-        description: `Downloaded ${cards.length} QR code${cards.length !== 1 ? 's' : ''} as ZIP`,
+        description: `Downloaded ${cards.length} QR code${cards.length !== 1 ? 's' : ''} as SVG in ZIP`,
       });
       
       onClearSelection();
