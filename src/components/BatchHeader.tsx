@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 interface BatchHeaderProps {
   batch?: PrintBatch;
   cardCount: number;
+  batchStats?: { avgTimeValue: number; rarityBreakdown: Record<string, number> };
   isExpanded: boolean;
   onEdit?: (batch: PrintBatch) => void;
   onArchive?: (batch: PrintBatch) => void;
@@ -16,6 +17,7 @@ interface BatchHeaderProps {
 export function BatchHeader({
   batch,
   cardCount,
+  batchStats,
   isExpanded,
   onEdit,
   onArchive,
@@ -69,6 +71,24 @@ export function BatchHeader({
           <span className="text-sm font-medium text-muted-foreground">
             {cardCount} {cardCount === 1 ? 'card' : 'cards'}
           </span>
+          {batchStats && (
+            <>
+              <span className="text-muted-foreground">•</span>
+              <span className="text-sm text-muted-foreground">
+                Avg: {batchStats.avgTimeValue.toFixed(1)} TIME
+              </span>
+              <span className="text-muted-foreground">•</span>
+              <div className="flex gap-1 text-xs">
+                {Object.entries(batchStats.rarityBreakdown)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([rarity, count]) => (
+                    <span key={rarity} className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      {rarity}: {count}
+                    </span>
+                  ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
