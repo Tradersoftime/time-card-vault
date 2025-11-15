@@ -185,7 +185,10 @@ export function BulkActionsBar({
         
         // Sanitize filename
         const safeName = (card.name || card.code).replace(/[^a-z0-9]/gi, '_');
-        folder.file(`${safeName}_${card.code}.svg`, svgString);
+        
+        // Wrap SVG in Blob with proper MIME type for correct encoding
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        folder.file(`${safeName}_${card.code}.svg`, blob);
       }
       
       // Generate and download ZIP
