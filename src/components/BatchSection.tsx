@@ -47,6 +47,7 @@ interface CardData {
 interface BatchSectionProps {
   batch?: PrintBatch;
   cards: CardData[];
+  batchStats?: { avgTimeValue: number; rarityBreakdown: Record<string, number> };
   isExpanded: boolean;
   onToggle: () => void;
   onEdit?: (batch: PrintBatch) => void;
@@ -140,6 +141,7 @@ function SortableCard({
 export function BatchSection({
   batch,
   cards,
+  batchStats,
   isExpanded,
   onToggle,
   onEdit,
@@ -343,6 +345,7 @@ export function BatchSection({
         <BatchHeader
           batch={batch}
           cardCount={cards.length}
+          batchStats={batchStats}
           isExpanded={isExpanded}
           onEdit={onEdit}
           onArchive={onArchive}

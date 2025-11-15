@@ -232,7 +232,7 @@ const AdminCards = () => {
   };
 
   // Filter and sort cards, then group by batch
-  const cardsByBatch = useMemo(() => {
+  const { cardsByBatch, batchStats } = useMemo(() => {
     // Filter cards by global search
     let filteredCards = cards;
     if (globalSearch.trim()) {
@@ -302,15 +302,39 @@ const AdminCards = () => {
 
     // Group sorted/filtered cards by batch
     const grouped = new Map<string, CardData[]>();
+    const stats = new Map<string, { avgTimeValue: number; rarityBreakdown: Record<string, number> }>();
     
     batches.forEach(batch => {
-      grouped.set(batch.id, sortedCards.filter(c => c.print_batch_id === batch.id));
+      const batchCards = sortedCards.filter(c => c.print_batch_id === batch.id);
+      grouped.set(batch.id, batchCards);
+      
+      // Calculate stats for this batch
+      if (batchCards.length > 0) {
+        const avgTimeValue = batchCards.reduce((sum, c) => sum + c.time_value, 0) / batchCards.length;
+        const rarityBreakdown: Record<string, number> = {};
+        batchCards.forEach(c => {
+          const rarity = c.rarity || 'Unknown';
+          rarityBreakdown[rarity] = (rarityBreakdown[rarity] || 0) + 1;
+        });
+        stats.set(batch.id, { avgTimeValue, rarityBreakdown });
+      }
     });
     
     // Unassigned cards
-    grouped.set('unassigned', sortedCards.filter(c => !c.print_batch_id));
+    const unassignedCards = sortedCards.filter(c => !c.print_batch_id);
+    grouped.set('unassigned', unassignedCards);
     
-    return grouped;
+    if (unassignedCards.length > 0) {
+      const avgTimeValue = unassignedCards.reduce((sum, c) => sum + c.time_value, 0) / unassignedCards.length;
+      const rarityBreakdown: Record<string, number> = {};
+      unassignedCards.forEach(c => {
+        const rarity = c.rarity || 'Unknown';
+        rarityBreakdown[rarity] = (rarityBreakdown[rarity] || 0) + 1;
+      });
+      stats.set('unassigned', { avgTimeValue, rarityBreakdown });
+    }
+    
+    return { cardsByBatch: grouped, batchStats: stats };
   }, [cards, batches, globalSearch, sortBy, sortDirection]);
 
   // Count total filtered cards
@@ -718,6 +742,7 @@ const AdminCards = () => {
               key={batch.id}
               batch={batch}
               cards={cardsByBatch.get(batch.id) || []}
+              batchStats={batchStats.get(batch.id)}
               isExpanded={expandedBatches.has(batch.id)}
               onToggle={() => toggleBatch(batch.id)}
               onEdit={handleEditBatch}
@@ -748,6 +773,7 @@ const AdminCards = () => {
           {(cardsByBatch.get('unassigned')?.length || 0) > 0 && (
             <BatchSection
               cards={cardsByBatch.get('unassigned') || []}
+              batchStats={batchStats.get('unassigned')}
               isExpanded={expandedBatches.has('unassigned')}
               onToggle={() => toggleBatch('unassigned')}
               onImportCSV={() => handleImportCSV(null)}
