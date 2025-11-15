@@ -161,7 +161,7 @@ export function BulkActionsBar({
       // Fetch full card data for selected IDs
       const { data: cards, error } = await supabase
         .from('cards')
-        .select('id, code, name, era, qr_dark, qr_light')
+        .select('id, code, claim_token, name, era, qr_dark, qr_light')
         .in('id', selectedCardIds);
       
       if (error) throw error;
@@ -174,14 +174,21 @@ export function BulkActionsBar({
       const folder = zip.folder('qr-codes')!;
       
       for (const card of cards) {
-        const url = `${window.location.origin}/claim/${encodeURIComponent(card.code)}`;
+        // Use claim_token if available, otherwise fall back to code
+        const tokenOrCode = card.claim_token || card.code;
+        
+        // Build claim URL using same logic as QRCodePreview
+        const baseUrl = import.meta.env.PUBLIC_CLAIM_BASE_URL || 'https://tot.cards/claim?token=';
+        const shortUrl = import.meta.env.PUBLIC_SHORT_CLAIM_BASE_URL;
+        const url = shortUrl ? `${shortUrl}${tokenOrCode}` : `${baseUrl}${tokenOrCode}`;
         
         // Use card-specific colors or era-based colors
         const colors = card.qr_dark && card.qr_light 
           ? { dark: card.qr_dark, light: card.qr_light }
           : getQRColorsForEra(card.era || '');
         
-        const svgString = await toSVG(url, card.name || card.code, colors);
+        // Generate SVG without label to match single card export
+        const svgString = await toSVG(url, undefined, colors);
         
         // Sanitize filename
         const safeName = (card.name || card.code).replace(/[^a-z0-9]/gi, '_');
