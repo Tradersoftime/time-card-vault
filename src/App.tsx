@@ -25,6 +25,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ScanPro from "./pages/ScanPro";
 import NotFound from "./pages/NotFound";
 import AdminCardBuilder from "./pages/AdminCardBuilder";
+import AdminBatchStats from "./pages/AdminBatchStats";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +55,7 @@ const App = () => (
                 <Route path="/admin/qr" element={<AdminQR />} />
                 <Route path="/admin/cards" element={<AdminCards />} />
                 <Route path="/admin/card-builder" element={<AdminCardBuilder />} />
+                <Route path="/admin/batch-stats" element={<AdminBatchStats />} />
                 <Route path="/admin/redemptions" element={<AdminRedemptions />} />
                 <Route path="/receipt/:id" element={<Receipt />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
