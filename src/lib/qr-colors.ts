@@ -1,13 +1,13 @@
-export const ERA_QR_COLORS: Record<string, { qr_dark: string; qr_light: string }> = {
-  'Ancient': { qr_dark: '#b76201', qr_light: '#000000' },
-  'Prehistoric': { qr_dark: '#7d3421', qr_light: '#000000' },
-  'Medieval': { qr_dark: '#f00c00', qr_light: '#000000' },
-  'Modern': { qr_dark: '#787773', qr_light: '#000000' },
-  'Future': { qr_dark: '#0b8c8e', qr_light: '#000000' },
+export const ERA_QR_COLORS: Record<string, { dark: string; light: string }> = {
+  'Ancient': { dark: '#b76201', light: '#000000' },
+  'Prehistoric': { dark: '#7d3421', light: '#000000' },
+  'Medieval': { dark: '#f00c00', light: '#000000' },
+  'Modern': { dark: '#787773', light: '#000000' },
+  'Future': { dark: '#0b8c8e', light: '#000000' },
 };
 
-export const DEFAULT_QR_COLORS = { qr_dark: '#000000', qr_light: '#FFFFFF' };
+export const DEFAULT_QR_COLORS = { dark: '#000000', light: '#FFFFFF' };
 
-export function getQRColorsForEra(era: string): { qr_dark: string; qr_light: string } {
+export function getQRColorsForEra(era: string): { dark: string; light: string } {
   return ERA_QR_COLORS[era] || DEFAULT_QR_COLORS;
 }

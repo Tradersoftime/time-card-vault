@@ -24,7 +24,10 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { PrintBatchSelector } from '@/components/PrintBatchSelector';
-import { Trash2, CheckSquare, Square, Loader2, Package } from 'lucide-react';
+import { Trash2, CheckSquare, Square, Loader2, Package, Download } from 'lucide-react';
+import JSZip from 'jszip';
+import { toPNG } from '@/lib/qr-generator';
+import { getQRColorsForEra } from '@/lib/qr-colors';
 
 interface BulkActionsBarProps {
   selectedCount: number;
@@ -150,6 +153,72 @@ export function BulkActionsBar({
     }
   };
 
+  const handleBulkDownloadQRs = async () => {
+    setLoading(true);
+    setOperation('downloading_qrs');
+    
+    try {
+      // Fetch full card data for selected IDs
+      const { data: cards, error } = await supabase
+        .from('cards')
+        .select('id, code, name, era, qr_dark, qr_light')
+        .in('id', selectedCardIds);
+      
+      if (error) throw error;
+      if (!cards || cards.length === 0) {
+        throw new Error('No cards found');
+      }
+      
+      // Generate QR codes for each card
+      const zip = new JSZip();
+      const folder = zip.folder('qr-codes')!;
+      
+      for (const card of cards) {
+        const url = `${window.location.origin}/claim/${encodeURIComponent(card.code)}`;
+        
+        // Use card-specific colors or era-based colors
+        const colors = card.qr_dark && card.qr_light 
+          ? { dark: card.qr_dark, light: card.qr_light }
+          : getQRColorsForEra(card.era || '');
+        
+        const pngDataUrl = await toPNG(url, card.name || card.code, colors);
+        const base64 = pngDataUrl.split(',')[1];
+        
+        // Sanitize filename
+        const safeName = (card.name || card.code).replace(/[^a-z0-9]/gi, '_');
+        folder.file(`${safeName}_${card.code}.png`, base64, { base64: true });
+      }
+      
+      // Generate and download ZIP
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `qr-codes-${cards.length}-cards-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: `Downloaded ${cards.length} QR code${cards.length !== 1 ? 's' : ''} as ZIP`,
+      });
+      
+      onClearSelection();
+    } catch (error: any) {
+      console.error('Error downloading QR codes:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to download QR codes",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setOperation('');
+    }
+  };
+
   return (
     <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
       <div className="glass-panel p-4 rounded-2xl border shadow-lg">
@@ -234,6 +303,25 @@ export function BulkActionsBar({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            <Button 
+              onClick={handleBulkDownloadQRs} 
+              disabled={loading || selectedCount === 0}
+              variant="outline"
+              size="sm"
+            >
+              {loading && operation === 'downloading_qrs' ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download QR Codes
+                </>
+              )}
+            </Button>
 
             <Dialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
               <DialogTrigger asChild>

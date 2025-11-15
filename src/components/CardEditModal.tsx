@@ -100,8 +100,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
       const colors = getQRColorsForEra(formData.era);
       setFormData(prev => ({
         ...prev,
-        qr_dark: colors.qr_dark,
-        qr_light: colors.qr_light
+        qr_dark: colors.dark,
+        qr_light: colors.light
       }));
     }
   }, [formData.era]);

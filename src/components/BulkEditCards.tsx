@@ -185,8 +185,8 @@ export const BulkEditCards = ({ cards, onSave, onCancel }: BulkEditCardsProps) =
                     onValueChange={(value) => {
                       const colors = getQRColorsForEra(value);
                       updateCard(card.id, 'era', value);
-                      updateCard(card.id, 'qr_dark', colors.qr_dark);
-                      updateCard(card.id, 'qr_light', colors.qr_light);
+                      updateCard(card.id, 'qr_dark', colors.dark);
+                      updateCard(card.id, 'qr_light', colors.light);
                     }}
                   >
                     <SelectTrigger className="bg-background/50 border-primary/20">
