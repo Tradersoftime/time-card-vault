@@ -127,8 +127,8 @@ export function generateCards(template: CardTemplate): GeneratedCard[] {
         image_code: template.imageCode,
         description: interpolate(template.descriptionPattern, values),
         status: template.defaultStatus,
-        qr_dark: qrColors.qr_dark,
-        qr_light: qrColors.qr_light,
+        qr_dark: qrColors.dark,
+        qr_light: qrColors.light,
       });
       
       cardCount++;
@@ -284,8 +284,8 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
         image_code: hasImageCode ? config.imageCode : '',
         description: hasTraderName ? `A ${era} era ${rank} featuring ${traderName}` : '',
         status: config.status,
-        qr_dark: qrColors.qr_dark,
-        qr_light: qrColors.qr_light,
+        qr_dark: qrColors.dark,
+        qr_light: qrColors.light,
       });
       
       cardIndex++;
