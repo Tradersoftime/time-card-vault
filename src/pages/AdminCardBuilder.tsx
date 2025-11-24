@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,15 @@ import { generateCardsFromRows, exportToCSV, RARITY_OPTIONS, TRADER_LEVERAGE_RAN
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
+// Default rarity distribution as percentages
+const DEFAULT_RARITY_PERCENTAGES: Record<string, number> = {
+  'Degen': 44,
+  'Day Trader': 24,
+  'Investor': 17,
+  'Market Maker': 11,
+  'Whale': 4,
+};
+
 const AdminCardBuilder = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -28,14 +37,14 @@ const AdminCardBuilder = () => {
   const [imageCode, setImageCode] = useState('');
   const [status, setStatus] = useState('active');
   
-  // Rarity distributions (quantity-based with percentage calculation)
-  const [rarityDistributions, setRarityDistributions] = useState<RarityDistribution[]>([
-    { rarity: 'Degen', quantity: 44, traderLeverageRange: TRADER_LEVERAGE_RANGES['Degen'] },
-    { rarity: 'Day Trader', quantity: 24, traderLeverageRange: TRADER_LEVERAGE_RANGES['Day Trader'] },
-    { rarity: 'Investor', quantity: 17, traderLeverageRange: TRADER_LEVERAGE_RANGES['Investor'] },
-    { rarity: 'Market Maker', quantity: 11, traderLeverageRange: TRADER_LEVERAGE_RANGES['Market Maker'] },
-    { rarity: 'Whale', quantity: 4, traderLeverageRange: TRADER_LEVERAGE_RANGES['Whale'] },
-  ]);
+  // Rarity distributions (initialized using percentages)
+  const [rarityDistributions, setRarityDistributions] = useState<RarityDistribution[]>(
+    RARITY_OPTIONS.map(rarity => ({
+      rarity,
+      quantity: (DEFAULT_RARITY_PERCENTAGES[rarity] / 100) * 100, // Initial totalCards = 100
+      traderLeverageRange: TRADER_LEVERAGE_RANGES[rarity],
+    }))
+  );
   
   // Trader names
   const [traderNames, setTraderNames] = useState<string[]>(['']);
@@ -66,6 +75,21 @@ const AdminCardBuilder = () => {
       ])
     )
   );
+  
+  // Auto-scale rarity quantities when totalCards changes
+  useEffect(() => {
+    const currentTotal = rarityDistributions.reduce((sum, d) => sum + d.quantity, 0);
+    
+    if (currentTotal > 0 && currentTotal !== totalCards) {
+      const scaleFactor = totalCards / currentTotal;
+      setRarityDistributions(prev => 
+        prev.map(d => ({
+          ...d,
+          quantity: d.quantity * scaleFactor
+        }))
+      );
+    }
+  }, [totalCards]);
   
   // Minimal validation for CSV export
   const validateForCSV = (): boolean => {
