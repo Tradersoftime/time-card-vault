@@ -16,11 +16,26 @@ export function RarityDistributionSection({
 }: RarityDistributionSectionProps) {
   const allocatedTotal = rarityDistributions.reduce((sum, d) => sum + d.quantity, 0);
   const isValid = allocatedTotal === totalCards;
-  const validationColor = isValid ? 'text-green-600' : 'text-destructive';
+  
+  // Calculate total percentage for validation
+  const totalPercentage = rarityDistributions.reduce((sum, d) => {
+    const percentage = totalCards > 0 ? (d.quantity / totalCards) * 100 : 0;
+    return sum + percentage;
+  }, 0);
+  const percentageValid = Math.abs(totalPercentage - 100) < 0.5;
+  
+  const validationColor = isValid ? 'text-success' : (Math.abs(allocatedTotal - totalCards) <= 2 ? 'text-warning' : 'text-destructive');
   
   const updateDistribution = (index: number, quantity: number) => {
     const newDistributions = [...rarityDistributions];
     newDistributions[index].quantity = Math.max(0, quantity);
+    onChange(newDistributions);
+  };
+  
+  const updateDistributionByPercentage = (index: number, percentage: number) => {
+    const newDistributions = [...rarityDistributions];
+    const newQuantity = Math.round((percentage / 100) * totalCards);
+    newDistributions[index].quantity = Math.max(0, newQuantity);
     onChange(newDistributions);
   };
   
@@ -50,8 +65,13 @@ export function RarityDistributionSection({
           >
             Even Split Rarities
           </Button>
-          <div className={`text-sm font-medium ${validationColor}`}>
-            Allocated: {allocatedTotal}/{totalCards} {isValid ? '✓' : '⚠️'}
+          <div className="flex items-center gap-3">
+            <div className={`text-sm font-medium ${validationColor}`}>
+              Cards: {allocatedTotal}/{totalCards} {isValid ? '✓' : '⚠️'}
+            </div>
+            <div className={`text-sm font-medium ${percentageValid ? 'text-success' : 'text-muted-foreground'}`}>
+              Total: {totalPercentage.toFixed(1)}%
+            </div>
           </div>
         </div>
       </div>
@@ -82,7 +102,17 @@ export function RarityDistributionSection({
                       className="w-24 h-9"
                     />
                   </td>
-                  <td className="p-2 text-muted-foreground font-medium">{percentage}%</td>
+                  <td className="p-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={percentage}
+                      onChange={(e) => updateDistributionByPercentage(index, parseFloat(e.target.value) || 0)}
+                      className="w-20 h-9"
+                    />
+                  </td>
                   <td className="p-2">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Info className="h-4 w-4" />
