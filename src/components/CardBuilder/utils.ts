@@ -250,6 +250,30 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
   // Calculate unassigned cards
   const unassignedCards = Math.max(0, config.totalCards - totalAbilityCards);
   
+  // Build randomized ability pool
+  const abilityPool: (TraderAbility | null)[] = [];
+  
+  config.traderAbilities.forEach(ability => {
+    const cardCount = ability.usePercentage
+      ? Math.round((ability.percentage / 100) * config.totalCards)
+      : ability.quantity;
+    
+    for (let i = 0; i < cardCount; i++) {
+      abilityPool.push(ability);
+    }
+  });
+  
+  // Fill remaining with null (unassigned)
+  while (abilityPool.length < config.totalCards) {
+    abilityPool.push(null);
+  }
+  
+  // Shuffle using Fisher-Yates algorithm
+  for (let i = abilityPool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [abilityPool[i], abilityPool[j]] = [abilityPool[j], abilityPool[i]];
+  }
+  
   // Calculate cards per rarity
   const rarityCards: Record<string, number> = {};
   let totalAllocated = 0;
@@ -280,29 +304,10 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
     const tlvRange = config.tlvRanges[rarity] || TRADER_LEVERAGE_RANGES[rarity];
     const tlvValues = generateEvenDistribution(tlvRange.min, tlvRange.max, numCards);
     
-    // Track ability assignment
-    let abilityIndex = 0;
-    let cardsRemainingForCurrentAbility = abilityAllocations.length > 0 
-      ? abilityAllocations[0].cardCount 
-      : 0;
-    
-    // Distribute across trader abilities, eras, suits, and ranks
+    // Distribute across eras, suits, and ranks
     for (let i = 0; i < numCards; i++) {
-      // Determine which ability this card belongs to
-      let currentAbility: TraderAbility | null = null;
-      
-      if (abilityAllocations.length > 0 && cardIndex < totalAbilityCards) {
-        // Move to next ability if current is exhausted
-        while (cardsRemainingForCurrentAbility === 0 && abilityIndex < abilityAllocations.length - 1) {
-          abilityIndex++;
-          cardsRemainingForCurrentAbility = abilityAllocations[abilityIndex].cardCount;
-        }
-        
-        if (cardsRemainingForCurrentAbility > 0) {
-          currentAbility = abilityAllocations[abilityIndex].ability;
-          cardsRemainingForCurrentAbility--;
-        }
-      }
+      // Get ability from pre-shuffled pool
+      const currentAbility = abilityPool[cardIndex] || null;
       
       const era = getRepeatingValue(config.eras, cardIndex);
       const suit = getRepeatingValue(config.suits, cardIndex);
@@ -313,10 +318,8 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
       const hasImageCode = config.imageCode && config.imageCode !== 'DEFAULT';
       const qrColors = getQRColorsForEra(era);
       
-      // Use ability name and description if assigned
-      const cardName = currentAbility 
-        ? `${rank} ${currentAbility.name} of ${suit}` 
-        : '';
+      // Keep name blank, use ability description if assigned
+      const cardName = '';
       const cardDescription = currentAbility 
         ? currentAbility.description 
         : '';
