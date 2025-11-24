@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -75,6 +75,36 @@ const AdminCardBuilder = () => {
       ])
     )
   );
+  
+  // Track previous totalCards to maintain percentage distribution
+  const prevTotalCardsRef = useRef(totalCards);
+  
+  // Recalculate quantities based on percentages when totalCards changes
+  useEffect(() => {
+    const prevTotal = prevTotalCardsRef.current;
+    
+    // Only update if totalCards actually changed and prev total is valid
+    if (prevTotal !== totalCards && prevTotal > 0) {
+      // Calculate percentages based on OLD totalCards
+      const percentages = rarityDistributions.map(d => ({
+        rarity: d.rarity,
+        percentage: (d.quantity / prevTotal) * 100,
+        traderLeverageRange: d.traderLeverageRange,
+      }));
+      
+      // Apply percentages to NEW totalCards
+      const newDistributions = percentages.map(p => ({
+        rarity: p.rarity,
+        quantity: (p.percentage / 100) * totalCards,
+        traderLeverageRange: p.traderLeverageRange,
+      }));
+      
+      setRarityDistributions(newDistributions);
+    }
+    
+    // Update ref for next time
+    prevTotalCardsRef.current = totalCards;
+  }, [totalCards, rarityDistributions]);
    
   // Minimal validation for CSV export
   const validateForCSV = (): boolean => {
