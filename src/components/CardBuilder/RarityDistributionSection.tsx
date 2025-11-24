@@ -28,14 +28,14 @@ export function RarityDistributionSection({
   
   const updateDistribution = (index: number, quantity: number) => {
     const newDistributions = [...rarityDistributions];
-    newDistributions[index].quantity = Math.max(0, quantity);
+    newDistributions[index].quantity = quantity;
     onChange(newDistributions);
   };
   
   const updateDistributionByPercentage = (index: number, percentage: number) => {
     const newDistributions = [...rarityDistributions];
-    const newQuantity = Math.round((percentage / 100) * totalCards);
-    newDistributions[index].quantity = Math.max(0, newQuantity);
+    const newQuantity = (percentage / 100) * totalCards;
+    newDistributions[index].quantity = newQuantity;
     onChange(newDistributions);
   };
   
