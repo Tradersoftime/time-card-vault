@@ -7,11 +7,11 @@ import { Download, Plus, Database } from 'lucide-react';
 import { PrintBatchSelector } from '@/components/PrintBatchSelector';
 import { RarityDistributionSection } from '@/components/CardBuilder/RarityDistributionSection';
 import type { RarityDistribution } from '@/components/CardBuilder/utils';
-import { TraderNameRow } from '@/components/CardBuilder/TraderNameRow';
+import { TraderAbilitiesRow } from '@/components/CardBuilder/TraderAbilitiesRow';
 import { EraRow } from '@/components/CardBuilder/EraRow';
 import { SuitsRow } from '@/components/CardBuilder/SuitsRow';
 import { TLVRow } from '@/components/CardBuilder/TLVRow';
-import { generateCardsFromRows, exportToCSV, RARITY_OPTIONS, TRADER_LEVERAGE_RANGES, RowBasedCardConfig } from '@/components/CardBuilder/utils';
+import { generateCardsFromRows, exportToCSV, RARITY_OPTIONS, TRADER_LEVERAGE_RANGES, RowBasedCardConfig, TraderAbility } from '@/components/CardBuilder/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
@@ -46,8 +46,17 @@ const AdminCardBuilder = () => {
     }))
   );
   
-  // Trader names
-  const [traderNames, setTraderNames] = useState<string[]>(['']);
+  // Trader abilities
+  const [traderAbilities, setTraderAbilities] = useState<TraderAbility[]>([
+    {
+      id: 'default-ability',
+      name: '',
+      description: '',
+      usePercentage: true,
+      percentage: 0,
+      quantity: 0,
+    },
+  ]);
   
   // Eras and Suits
   const [selectedEras, setSelectedEras] = useState<string[]>(['Ancient', 'Modern', 'Future']);
@@ -149,9 +158,17 @@ const AdminCardBuilder = () => {
       warnings.push(`Rarity quantities total ${allocatedTotal} (will be proportionally adjusted to ${totalCards})`);
     }
     
-    const validTraderNames = traderNames.filter(n => n.trim());
-    if (validTraderNames.length === 0) {
-      warnings.push('No trader names specified (name and description will be blank)');
+    const totalAbilityCards = traderAbilities.reduce((sum, ability) => {
+      const cards = ability.usePercentage
+        ? Math.round((ability.percentage / 100) * totalCards)
+        : ability.quantity;
+      return sum + cards;
+    }, 0);
+    
+    if (totalAbilityCards === 0) {
+      warnings.push('No trader abilities specified (name and description will be blank)');
+    } else if (totalAbilityCards < totalCards) {
+      warnings.push(`${totalCards - totalAbilityCards} cards without abilities (will have blank name/description)`);
     }
     
     if (selectedEras.length === 0) {
@@ -198,9 +215,8 @@ const AdminCardBuilder = () => {
       ])
     );
     
-    // Use valid trader names
-    const validTraderNames = traderNames.filter(n => n.trim());
-    const finalTraderNames = validTraderNames;
+    // Use trader abilities
+    const finalTraderAbilities = traderAbilities;
     
     // Use selected eras or all eras
     const finalEras = selectedEras.length > 0 
@@ -246,7 +262,7 @@ const AdminCardBuilder = () => {
     return {
       totalCards,
       rarityPercentages: rarityPercentages,
-      traderNames: finalTraderNames,
+      traderAbilities: finalTraderAbilities,
       eras: finalEras,
       suits: finalSuits,
       eraCardCounts: normalizedEraCardCounts,
@@ -411,11 +427,11 @@ const AdminCardBuilder = () => {
             onChange={setRarityDistributions}
           />
           
-          {/* Trader Names Row */}
-          <TraderNameRow
-            traderNames={traderNames}
+          {/* Trader Abilities Row */}
+          <TraderAbilitiesRow
+            traderAbilities={traderAbilities}
             totalCards={totalCards}
-            onChange={setTraderNames}
+            onChange={setTraderAbilities}
           />
           
           {/* Era Row */}

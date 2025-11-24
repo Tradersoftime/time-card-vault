@@ -23,6 +23,15 @@ export interface CardTemplate {
   rankDistributions: RankDistribution[];
 }
 
+export interface TraderAbility {
+  id: string;
+  name: string;
+  description: string;
+  usePercentage: boolean;
+  percentage: number;
+  quantity: number;
+}
+
 export interface GeneratedCard {
   name: string;
   suit: string;
@@ -204,7 +213,7 @@ export const STATUS_OPTIONS = ['active', 'unprinted', 'printed', 'retired'];
 export interface RowBasedCardConfig {
   totalCards: number;
   rarityPercentages: Record<string, number>;
-  traderNames: string[];
+  traderAbilities: TraderAbility[];
   eras: string[];
   suits: string[];
   eraCardCounts: Record<string, number>;
@@ -221,11 +230,25 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
   const cards: GeneratedCard[] = [];
   
   // Validate configuration
-  const validTraderNames = config.traderNames.filter(n => n.trim());
-  // Allow empty trader names - only validate eras and suits
   if (config.eras.length === 0 || config.suits.length === 0) {
     return cards;
   }
+  
+  // Calculate ability allocations
+  const abilityAllocations: { ability: TraderAbility; cardCount: number }[] = [];
+  let totalAbilityCards = 0;
+  
+  config.traderAbilities.forEach((ability, index) => {
+    const cardCount = ability.usePercentage
+      ? Math.round((ability.percentage / 100) * config.totalCards)
+      : ability.quantity;
+    
+    abilityAllocations.push({ ability, cardCount });
+    totalAbilityCards += cardCount;
+  });
+  
+  // Calculate unassigned cards
+  const unassignedCards = Math.max(0, config.totalCards - totalAbilityCards);
   
   // Calculate cards per rarity
   const rarityCards: Record<string, number> = {};
@@ -257,24 +280,49 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
     const tlvRange = config.tlvRanges[rarity] || TRADER_LEVERAGE_RANGES[rarity];
     const tlvValues = generateEvenDistribution(tlvRange.min, tlvRange.max, numCards);
     
-    // Distribute across trader names, eras, suits, and ranks
+    // Track ability assignment
+    let abilityIndex = 0;
+    let cardsRemainingForCurrentAbility = abilityAllocations.length > 0 
+      ? abilityAllocations[0].cardCount 
+      : 0;
+    
+    // Distribute across trader abilities, eras, suits, and ranks
     for (let i = 0; i < numCards; i++) {
-      const traderName = validTraderNames.length > 0 
-        ? getRepeatingValue(validTraderNames, cardIndex)
-        : '';
+      // Determine which ability this card belongs to
+      let currentAbility: TraderAbility | null = null;
+      
+      if (abilityAllocations.length > 0 && cardIndex < totalAbilityCards) {
+        // Move to next ability if current is exhausted
+        while (cardsRemainingForCurrentAbility === 0 && abilityIndex < abilityAllocations.length - 1) {
+          abilityIndex++;
+          cardsRemainingForCurrentAbility = abilityAllocations[abilityIndex].cardCount;
+        }
+        
+        if (cardsRemainingForCurrentAbility > 0) {
+          currentAbility = abilityAllocations[abilityIndex].ability;
+          cardsRemainingForCurrentAbility--;
+        }
+      }
+      
       const era = getRepeatingValue(config.eras, cardIndex);
       const suit = getRepeatingValue(config.suits, cardIndex);
       const rank = getRepeatingValue(RANK_OPTIONS, cardIndex);
       const tlv = tlvValues[i];
       const timeValue = tlv * config.tlvMultiplier;
       
-      // Check if we should generate auto fields
-      const hasTraderName = traderName.trim() !== '';
       const hasImageCode = config.imageCode && config.imageCode !== 'DEFAULT';
       const qrColors = getQRColorsForEra(era);
       
+      // Use ability name and description if assigned
+      const cardName = currentAbility 
+        ? `${rank} ${currentAbility.name} of ${suit}` 
+        : '';
+      const cardDescription = currentAbility 
+        ? currentAbility.description 
+        : '';
+      
       cards.push({
-        name: hasTraderName ? `${rank} ${traderName} of ${suit}` : '',
+        name: cardName,
         suit,
         rank,
         era,
@@ -282,7 +330,7 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
         time_value: timeValue,
         trader_value: String(tlv),
         image_code: hasImageCode ? config.imageCode : '',
-        description: hasTraderName ? `A ${era} era ${rank} featuring ${traderName}` : '',
+        description: cardDescription,
         status: config.status,
         qr_dark: qrColors.dark,
         qr_light: qrColors.light,
