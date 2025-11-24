@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -75,22 +75,7 @@ const AdminCardBuilder = () => {
       ])
     )
   );
-  
-  // Auto-scale rarity quantities when totalCards changes
-  useEffect(() => {
-    const currentTotal = rarityDistributions.reduce((sum, d) => sum + d.quantity, 0);
-    
-    if (currentTotal > 0 && currentTotal !== totalCards) {
-      const scaleFactor = totalCards / currentTotal;
-      setRarityDistributions(prev => 
-        prev.map(d => ({
-          ...d,
-          quantity: d.quantity * scaleFactor
-        }))
-      );
-    }
-  }, [totalCards]);
-  
+   
   // Minimal validation for CSV export
   const validateForCSV = (): boolean => {
     if (totalCards <= 0) {
