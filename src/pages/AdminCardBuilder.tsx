@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Download, Plus, Database } from 'lucide-react';
 import { PrintBatchSelector } from '@/components/PrintBatchSelector';
-import { RarityRow } from '@/components/CardBuilder/RarityRow';
+import { RarityDistributionSection } from '@/components/CardBuilder/RarityDistributionSection';
+import type { RarityDistribution } from '@/components/CardBuilder/utils';
 import { TraderNameRow } from '@/components/CardBuilder/TraderNameRow';
 import { EraRow } from '@/components/CardBuilder/EraRow';
 import { SuitsRow } from '@/components/CardBuilder/SuitsRow';
@@ -27,14 +28,14 @@ const AdminCardBuilder = () => {
   const [imageCode, setImageCode] = useState('');
   const [status, setStatus] = useState('active');
   
-  // Rarity percentages (must total 100%)
-  const [rarityPercentages, setRarityPercentages] = useState<Record<string, number>>({
-    'Degen': 44,
-    'Day Trader': 24,
-    'Investor': 17,
-    'Market Maker': 11,
-    'Whale': 4,
-  });
+  // Rarity distributions (quantity-based with percentage calculation)
+  const [rarityDistributions, setRarityDistributions] = useState<RarityDistribution[]>([
+    { rarity: 'Degen', quantity: 44, traderLeverageRange: TRADER_LEVERAGE_RANGES['Degen'] },
+    { rarity: 'Day Trader', quantity: 24, traderLeverageRange: TRADER_LEVERAGE_RANGES['Day Trader'] },
+    { rarity: 'Investor', quantity: 17, traderLeverageRange: TRADER_LEVERAGE_RANGES['Investor'] },
+    { rarity: 'Market Maker', quantity: 11, traderLeverageRange: TRADER_LEVERAGE_RANGES['Market Maker'] },
+    { rarity: 'Whale', quantity: 4, traderLeverageRange: TRADER_LEVERAGE_RANGES['Whale'] },
+  ]);
   
   // Trader names
   const [traderNames, setTraderNames] = useState<string[]>(['']);
@@ -104,9 +105,9 @@ const AdminCardBuilder = () => {
     }
     
     // Soft validations (warnings only)
-    const totalPercentage = Object.values(rarityPercentages).reduce((sum, val) => sum + val, 0);
-    if (Math.abs(totalPercentage - 100) > 0.01) {
-      warnings.push(`Rarity percentages total ${totalPercentage.toFixed(1)}% (will be normalized to 100%)`);
+    const allocatedTotal = rarityDistributions.reduce((sum, d) => sum + d.quantity, 0);
+    if (allocatedTotal !== totalCards) {
+      warnings.push(`Rarity quantities total ${allocatedTotal} (will be proportionally adjusted to ${totalCards})`);
     }
     
     const validTraderNames = traderNames.filter(n => n.trim());
@@ -149,16 +150,14 @@ const AdminCardBuilder = () => {
 
   // Helper to build config with smart defaults
   const buildConfigWithDefaults = (): RowBasedCardConfig => {
-    // Normalize rarity percentages if needed
-    const totalPercentage = Object.values(rarityPercentages).reduce((sum, val) => sum + val, 0);
-    const normalizedRarities = totalPercentage > 0 && totalPercentage !== 100
-      ? Object.fromEntries(
-          Object.entries(rarityPercentages).map(([rarity, pct]) => [
-            rarity,
-            (pct / totalPercentage) * 100
-          ])
-        )
-      : rarityPercentages;
+    // Convert quantity-based distributions to percentage-based config
+    const allocatedTotal = rarityDistributions.reduce((sum, d) => sum + d.quantity, 0);
+    const rarityPercentages = Object.fromEntries(
+      rarityDistributions.map(d => [
+        d.rarity,
+        allocatedTotal > 0 ? (d.quantity / allocatedTotal) * 100 : 0
+      ])
+    );
     
     // Use valid trader names
     const validTraderNames = traderNames.filter(n => n.trim());
@@ -207,7 +206,7 @@ const AdminCardBuilder = () => {
     
     return {
       totalCards,
-      rarityPercentages: normalizedRarities,
+      rarityPercentages: rarityPercentages,
       traderNames: finalTraderNames,
       eras: finalEras,
       suits: finalSuits,
@@ -366,11 +365,11 @@ const AdminCardBuilder = () => {
             </div>
           </div>
           
-          {/* Rarity Row */}
-          <RarityRow
+          {/* Rarity Distribution */}
+          <RarityDistributionSection
+            rarityDistributions={rarityDistributions}
             totalCards={totalCards}
-            rarityPercentages={rarityPercentages}
-            onChange={setRarityPercentages}
+            onChange={setRarityDistributions}
           />
           
           {/* Trader Names Row */}
@@ -405,7 +404,12 @@ const AdminCardBuilder = () => {
           {/* TLV Row */}
           <TLVRow
             multiplier={tlvMultiplier}
-            rarityPercentages={rarityPercentages}
+            rarityPercentages={Object.fromEntries(
+              rarityDistributions.map(d => [
+                d.rarity,
+                totalCards > 0 ? (d.quantity / totalCards) * 100 : 0
+              ])
+            )}
             totalCards={totalCards}
             tlvRanges={tlvRanges}
             onChange={(newMultiplier, newRanges) => {
