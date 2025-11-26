@@ -159,6 +159,7 @@ export type Database = {
           is_claimed: boolean
           name: string
           print_batch_id: string | null
+          print_run: string | null
           qr_dark: string | null
           qr_light: string | null
           rank: string
@@ -187,6 +188,7 @@ export type Database = {
           is_claimed?: boolean
           name: string
           print_batch_id?: string | null
+          print_run?: string | null
           qr_dark?: string | null
           qr_light?: string | null
           rank: string
@@ -215,6 +217,7 @@ export type Database = {
           is_claimed?: boolean
           name?: string
           print_batch_id?: string | null
+          print_run?: string | null
           qr_dark?: string | null
           qr_light?: string | null
           rank?: string

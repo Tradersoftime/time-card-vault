@@ -35,6 +35,7 @@ interface CardData {
   qr_light?: string | null;
   claim_token?: string | null;
   print_batch_id?: string | null;
+  print_run?: string | null;
 }
 
 interface CardEditModalProps {
@@ -65,7 +66,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
     current_target: '',
     qr_dark: '#000000',
     qr_light: '#FFFFFF',
-    print_batch_id: null as string | null
+    print_batch_id: null as string | null,
+    print_run: ''
   });
 
   useEffect(() => {
@@ -89,7 +91,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
         current_target: card.current_target || '',
         qr_dark: card.qr_dark || '#000000',
         qr_light: card.qr_light || '#FFFFFF',
-        print_batch_id: card.print_batch_id || null
+        print_batch_id: card.print_batch_id || null,
+        print_run: card.print_run || ''
       });
     }
   }, [card]);
@@ -139,6 +142,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
         current_target: formData.current_target || null,
         qr_dark: formData.qr_dark || null,
         qr_light: formData.qr_light || null,
+        print_run: formData.print_run || null,
       };
 
       // ALWAYS include print_batch_id to preserve the batch
@@ -435,6 +439,19 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="print_run">Print Run Code</Label>
+                <Input
+                  id="print_run"
+                  value={formData.print_run}
+                  onChange={(e) => setFormData(prev => ({ ...prev, print_run: e.target.value }))}
+                  placeholder="e.g., PR001, 2024-Q1"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used for QR filename: {formData.name || 'card'}_{formData.print_run || 'code'}.svg
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="print_batch">Print Batch</Label>
                 <PrintBatchSelector
                   value={formData.print_batch_id}
@@ -525,6 +542,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                   cardName={formData.name}
                   suit={formData.suit}
                   rank={formData.rank}
+                  printRun={formData.print_run}
                   showColorControls={true}
                   size={200}
                 />

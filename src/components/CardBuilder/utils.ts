@@ -45,6 +45,7 @@ export interface GeneratedCard {
   status: string;
   qr_dark?: string;
   qr_light?: string;
+  print_run?: string;
 }
 
 import { getQRColorsForEra } from '@/lib/qr-colors';
@@ -223,6 +224,7 @@ export interface RowBasedCardConfig {
   imageCode: string;
   batchId: string | null;
   status: string;
+  printRun?: string;
 }
 
 // Generate cards from row-based configuration
@@ -337,6 +339,7 @@ export function generateCardsFromRows(config: RowBasedCardConfig): GeneratedCard
         status: config.status,
         qr_dark: qrColors.dark,
         qr_light: qrColors.light,
+        print_run: config.printRun || '',
       });
       
       cardIndex++;

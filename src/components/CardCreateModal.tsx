@@ -38,7 +38,8 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
     current_target: '',
     qr_dark: '#000000',
     qr_light: '#FFFFFF',
-    print_batch_id: null as string | null
+    print_batch_id: null as string | null,
+    print_run: ''
   });
 
   const generateCardCode = () => {
@@ -64,7 +65,8 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
       current_target: '',
       qr_dark: '#000000',
       qr_light: '#FFFFFF',
-      print_batch_id: null
+      print_batch_id: null,
+      print_run: ''
     });
   };
 
@@ -115,7 +117,8 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
           qr_dark: formData.qr_dark || null,
           qr_light: formData.qr_light || null,
           print_batch_id: formData.print_batch_id,
-          batch_sort_order: batchSortOrder
+          batch_sort_order: batchSortOrder,
+          print_run: formData.print_run || null
         })
         .select()
         .single();
@@ -323,15 +326,28 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="trader_value">Trader Value</Label>
-                  <Input
-                    id="trader_value"
-                    value={formData.trader_value}
-                    onChange={(e) => setFormData(prev => ({ ...prev, trader_value: e.target.value }))}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="trader_value">Trader Value</Label>
+                <Input
+                  id="trader_value"
+                  value={formData.trader_value}
+                  onChange={(e) => setFormData(prev => ({ ...prev, trader_value: e.target.value }))}
+                />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="print_run">Print Run Code</Label>
+              <Input
+                id="print_run"
+                value={formData.print_run}
+                onChange={(e) => setFormData(prev => ({ ...prev, print_run: e.target.value }))}
+                placeholder="e.g., PR001, 2024-Q1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used for QR filename: {formData.name || 'card'}_{formData.print_run || 'code'}.svg
+              </p>
+            </div>
 
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
@@ -403,6 +419,7 @@ export function CardCreateModal({ isOpen, onClose, onSave }: CardCreateModalProp
                   cardName={formData.name}
                   suit={formData.suit}
                   rank={formData.rank}
+                  printRun={formData.print_run}
                   showColorControls={true}
                   size={200}
                 />

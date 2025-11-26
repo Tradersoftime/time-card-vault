@@ -17,6 +17,7 @@ interface QRCodePreviewProps {
   cardName?: string;
   suit?: string;
   rank?: string;
+  printRun?: string;
 }
 
 export const QRCodePreview = ({
@@ -29,7 +30,8 @@ export const QRCodePreview = ({
   className = '',
   cardName,
   suit,
-  rank
+  rank,
+  printRun
 }: QRCodePreviewProps) => {
   const { toast } = useToast();
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -151,15 +153,12 @@ export const QRCodePreview = ({
         });
       }
 
-      // Build filename with trader name
-      let filename = 'qr';
-      if (cardName) {
-        filename += `-${sanitizeFilename(cardName)}`;
+      // Build predictable filename: {name}_{print_run}.{format}
+      let filename = sanitizeFilename(cardName || 'card');
+      if (printRun) {
+        filename += `_${sanitizeFilename(printRun)}`;
       }
-      if (suit && rank) {
-        filename += `-${suit}-${rank}`;
-      }
-      filename += `-${code}-${downloadSize}px.${format}`;
+      filename += `.${format}`;
 
       const a = document.createElement('a');
       a.href = dataUrl;
