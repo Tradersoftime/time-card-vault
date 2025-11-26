@@ -38,6 +38,7 @@ type CardRow = {
   created_at: string;
   qr_dark?: string | null;
   qr_light?: string | null;
+  print_run?: string | null;
 };
 
 type CardMinimal = {
@@ -794,7 +795,17 @@ export default function AdminQR() {
       
       const png = await toPNG(url, code, colors);
       const base64 = png.split(",")[1];
-      folder.file(`${code}.png`, base64, { base64: true });
+      
+      // Build predictable filename: {name}_{print_run}.png
+      // Fallback to code if name not available
+      const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9-_]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 50);
+      let filename = r.name ? sanitize(r.name) : code;
+      if ((r as any).print_run) {
+        filename += `_${sanitize((r as any).print_run)}`;
+      }
+      filename += '.png';
+      
+      folder.file(filename, base64, { base64: true });
     }
     
     const blob = await zip.generateAsync({ type: "blob" });

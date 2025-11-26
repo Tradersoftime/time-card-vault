@@ -36,6 +36,7 @@ const AdminCardBuilder = () => {
   const [totalCards, setTotalCards] = useState(100);
   const [imageCode, setImageCode] = useState('');
   const [status, setStatus] = useState('active');
+  const [printRun, setPrintRun] = useState('');
   
   // Rarity distributions (initialized using percentages)
   const [rarityDistributions, setRarityDistributions] = useState<RarityDistribution[]>(
@@ -272,6 +273,7 @@ const AdminCardBuilder = () => {
       imageCode: imageCode.trim(),
       batchId: selectedBatchId,
       status,
+      printRun: printRun.trim(),
     };
   };
   
@@ -403,6 +405,19 @@ const AdminCardBuilder = () => {
                   placeholder="e.g., ANUBIS-001"
                   className="h-10"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="printRun">Print Run Code</Label>
+                <Input
+                  id="printRun"
+                  value={printRun}
+                  onChange={(e) => setPrintRun(e.target.value)}
+                  placeholder="e.g., PR001, 2024-Q1"
+                  className="h-10"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used for QR filename: {'{'}name{'}'}_{ printRun || 'code'}.svg
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Card Status</Label>

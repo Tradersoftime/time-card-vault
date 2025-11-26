@@ -41,6 +41,7 @@ interface CardData {
   claim_token?: string | null;
   print_batch_id?: string | null;
   batch_sort_order?: number | null;
+  print_run?: string | null;
   owner_user_id?: string | null;
   owner_email?: string | null;
   is_in_pending_redemption?: boolean;
