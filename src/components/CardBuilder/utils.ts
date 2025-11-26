@@ -149,7 +149,7 @@ export function generateCards(template: CardTemplate): GeneratedCard[] {
 }
 
 export function exportToCSV(cards: GeneratedCard[], filename: string): void {
-  const headers = ['name', 'suit', 'rank', 'era', 'rarity', 'time_value', 'trader_value', 'image_code', 'description', 'status'];
+  const headers = ['name', 'suit', 'rank', 'era', 'rarity', 'time_value', 'trader_value', 'image_code', 'description', 'status', 'qr_dark', 'qr_light', 'print_run'];
   
   const rows = cards.map(card => [
     card.name,
@@ -162,6 +162,9 @@ export function exportToCSV(cards: GeneratedCard[], filename: string): void {
     card.image_code,
     card.description || '',
     card.status,
+    card.qr_dark || '',
+    card.qr_light || '',
+    card.print_run || '',
   ]);
   
   const csvContent = [
