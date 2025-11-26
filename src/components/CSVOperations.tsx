@@ -170,6 +170,7 @@ export function CSVOperations({
       'current_target',
       'qr_dark',       // QR customization fields
       'qr_light',
+      'print_run',     // Print metadata
       'claim_token'    // Secure claiming token
     ];
 
@@ -195,6 +196,7 @@ export function CSVOperations({
         card.current_target || '',
         card.qr_dark || '#000000',  // QR fields
         card.qr_light || '#FFFFFF',
+        (card as any).print_run || '',  // Print metadata
         card.claim_token || ''      // Secure claiming token
       ];
     });
@@ -530,10 +532,9 @@ export function CSVOperations({
 
             // Validate required fields for new cards
             if (!hasCardId) {
-              // New card - validate required fields
+              // New card - validate required fields (name is optional)
               const missing = [];
               if (!generatedCode) missing.push('code');
-              if (!cleanRow.name) missing.push('name');
               if (!cleanRow.suit) missing.push('suit');
               if (!cleanRow.rank) missing.push('rank');
               if (!cleanRow.era) missing.push('era');
@@ -563,6 +564,7 @@ export function CSVOperations({
               current_target: cleanRow.current_target || null,
               qr_dark: cleanRow.qr_dark || null,
               qr_light: cleanRow.qr_light || null,
+              print_run: cleanRow.print_run || null,
               print_batch_id: currentBatchId || null, // Assign to current batch
               deleted_at: null, // Clear soft-delete when importing
               deleted_by: null, // Clear soft-delete when importing
