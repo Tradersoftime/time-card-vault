@@ -157,7 +157,7 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           is_claimed: boolean
-          name: string
+          name: string | null
           print_batch_id: string | null
           print_run: string | null
           qr_dark: string | null
@@ -186,7 +186,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           is_claimed?: boolean
-          name: string
+          name?: string | null
           print_batch_id?: string | null
           print_run?: string | null
           qr_dark?: string | null
@@ -215,7 +215,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           is_claimed?: boolean
-          name?: string
+          name?: string | null
           print_batch_id?: string | null
           print_run?: string | null
           qr_dark?: string | null
