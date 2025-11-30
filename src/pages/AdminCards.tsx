@@ -867,6 +867,7 @@ const AdminCards = () => {
           isOpen={showEditModal}
           onClose={handleModalClose}
           onSave={handleSaveCard}
+          batches={batches}
         />
 
         <CardCreateModal
