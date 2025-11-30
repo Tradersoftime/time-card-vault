@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Upload, GripVertical } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { PrintBatch } from '@/types/printBatch';
 import { BatchHeader } from './BatchHeader';
 import { AdminTradingCard } from './AdminTradingCard';
@@ -57,6 +58,8 @@ interface BatchSectionProps {
   cardSize: 'sm' | 'md' | 'lg';
   selectedCards: Set<string>;
   onSelectCard: (cardId: string) => void;
+  onSelectAllInBatch: (cardIds: string[]) => void;
+  onDeselectAllInBatch: (cardIds: string[]) => void;
   onEditCard: (card: CardData) => void;
   onViewQR: (card: CardData) => void;
   onViewImage: (imageUrl: string, cardName: string) => void;
@@ -151,6 +154,8 @@ export function BatchSection({
   cardSize,
   selectedCards,
   onSelectCard,
+  onSelectAllInBatch,
+  onDeselectAllInBatch,
   onEditCard,
   onViewQR,
   onViewImage,
@@ -373,6 +378,23 @@ export function BatchSection({
                 onChange={(e) => setSectionSearch(e.target.value)}
                 className="pl-10"
               />
+            </div>
+            
+            {/* Select All in Batch */}
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                checked={filteredCards.length > 0 && filteredCards.every(c => selectedCards.has(c.id))}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    onSelectAllInBatch(filteredCards.map(c => c.id));
+                  } else {
+                    onDeselectAllInBatch(filteredCards.map(c => c.id));
+                  }
+                }}
+              />
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                Select All ({filteredCards.filter(c => selectedCards.has(c.id)).length}/{filteredCards.length})
+              </span>
             </div>
             {batch?.id && (
               <Button
