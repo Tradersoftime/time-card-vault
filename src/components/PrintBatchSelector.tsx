@@ -10,6 +10,7 @@ interface PrintBatchSelectorProps {
   showUnassignedOption?: boolean;
   className?: string;
   autoSelectFallback?: boolean;
+  batches?: PrintBatch[]; // Optional pre-loaded batches
 }
 
 export function PrintBatchSelector({
@@ -19,14 +20,21 @@ export function PrintBatchSelector({
   showUnassignedOption = true,
   className,
   autoSelectFallback = true,
+  batches: preloadedBatches,
 }: PrintBatchSelectorProps) {
-  const [batches, setBatches] = useState<PrintBatch[]>([]);
+  const [internalBatches, setInternalBatches] = useState<PrintBatch[]>([]);
   const [inactiveBatch, setInactiveBatch] = useState<PrintBatch | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!preloadedBatches);
+  
+  // Use preloaded batches if provided, otherwise use internal state
+  const batches = preloadedBatches || internalBatches;
 
   useEffect(() => {
-    loadBatches();
-  }, []);
+    // Only load batches if not provided from parent
+    if (!preloadedBatches) {
+      loadBatches();
+    }
+  }, [preloadedBatches]);
 
   useEffect(() => {
     // If value is a UUID and not in the active batches, load it separately
@@ -46,7 +54,7 @@ export function PrintBatchSelector({
       .order("sort_order", { ascending: true });
 
     if (!error && data) {
-      setBatches(data);
+      setInternalBatches(data);
     }
 
     setLoading(false);
@@ -68,13 +76,22 @@ export function PrintBatchSelector({
     ? value || (showUnassignedOption ? "unassigned" : showAllOption ? "all" : undefined)
     : (value === null ? undefined : value); // Properly convert null to undefined for Radix
 
+  // Show loading skeleton if batches aren't ready yet
+  if (loading && batches.length === 0) {
+    return (
+      <div className={className}>
+        <div className="h-10 bg-muted animate-pulse rounded-md" />
+      </div>
+    );
+  }
+
   return (
     <Select 
       value={selectedValue} 
       onValueChange={(val) => onChange(val === "all" || val === "unassigned" ? null : val)}
     >
       <SelectTrigger className={className}>
-        <SelectValue placeholder={loading ? "Loading batches..." : "Select batch..."} />
+        <SelectValue placeholder="Select batch..." />
       </SelectTrigger>
       <SelectContent>
         {showAllOption && (

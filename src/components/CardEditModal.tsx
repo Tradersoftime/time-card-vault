@@ -43,9 +43,10 @@ interface CardEditModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
+  batches?: any[]; // Optional pre-loaded batches
 }
 
-export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalProps) {
+export function CardEditModal({ card, isOpen, onClose, onSave, batches }: CardEditModalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [batchTouched, setBatchTouched] = useState(false);
@@ -468,6 +469,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
                   showAllOption={false}
                   showUnassignedOption={true}
                   autoSelectFallback={false}
+                  batches={batches}
                 />
                 <p className="text-xs text-muted-foreground">
                   Change batch assignment or leave unassigned
