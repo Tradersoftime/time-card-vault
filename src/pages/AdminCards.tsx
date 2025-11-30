@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Plus, Search, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -345,6 +346,18 @@ const AdminCards = () => {
     return count;
   }, [cardsByBatch]);
 
+  // Get all visible card IDs for select all functionality
+  const allVisibleCardIds = useMemo(() => {
+    const ids: string[] = [];
+    cardsByBatch.forEach(batchCards => {
+      batchCards.forEach(card => ids.push(card.id));
+    });
+    return ids;
+  }, [cardsByBatch]);
+
+  const allSelected = allVisibleCardIds.length > 0 && 
+    allVisibleCardIds.every(id => selectedCards.has(id));
+
   const toggleBatch = (batchId: string) => {
     setExpandedBatches(prev => {
       const newSet = new Set(prev);
@@ -552,6 +565,30 @@ const AdminCards = () => {
     setSelectedCards(new Set());
   };
 
+  const selectAllCards = () => {
+    if (allSelected) {
+      setSelectedCards(new Set());
+    } else {
+      setSelectedCards(new Set(allVisibleCardIds));
+    }
+  };
+
+  const selectAllInBatch = (cardIds: string[]) => {
+    setSelectedCards(prev => {
+      const newSet = new Set(prev);
+      cardIds.forEach(id => newSet.add(id));
+      return newSet;
+    });
+  };
+
+  const deselectAllInBatch = (cardIds: string[]) => {
+    setSelectedCards(prev => {
+      const newSet = new Set(prev);
+      cardIds.forEach(id => newSet.delete(id));
+      return newSet;
+    });
+  };
+
   const handleEditBatch = async (batch: PrintBatch) => {
     const name = prompt('Batch name:', batch.name);
     if (!name) return;
@@ -691,6 +728,17 @@ const AdminCards = () => {
                 )}
               </div>
 
+              {/* Select All */}
+              <div className="flex items-center gap-2 px-3 border border-border rounded-lg bg-background/50">
+                <Checkbox 
+                  checked={allSelected}
+                  onCheckedChange={selectAllCards}
+                />
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  Select All ({selectedCards.size}/{totalFilteredCards})
+                </span>
+              </div>
+
               {/* Sort Controls */}
               <div className="flex gap-2">
                 <Select value={sortBy} onValueChange={setSortBy}>
@@ -753,6 +801,8 @@ const AdminCards = () => {
               cardSize={cardSize}
               selectedCards={selectedCards}
               onSelectCard={toggleCardSelection}
+              onSelectAllInBatch={selectAllInBatch}
+              onDeselectAllInBatch={deselectAllInBatch}
               onEditCard={handleEditCard}
               onViewQR={handleViewQR}
               onViewImage={handleViewImage}
@@ -781,6 +831,8 @@ const AdminCards = () => {
               cardSize={cardSize}
               selectedCards={selectedCards}
               onSelectCard={toggleCardSelection}
+              onSelectAllInBatch={selectAllInBatch}
+              onDeselectAllInBatch={deselectAllInBatch}
               onEditCard={handleEditCard}
               onViewQR={handleViewQR}
               onViewImage={handleViewImage}
