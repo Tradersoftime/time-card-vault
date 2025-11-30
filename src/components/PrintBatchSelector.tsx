@@ -62,7 +62,7 @@ export function PrintBatchSelector({
 
   const selectedValue = autoSelectFallback
     ? value || (showUnassignedOption ? "unassigned" : showAllOption ? "all" : undefined)
-    : (value ?? undefined);
+    : (value === null ? undefined : value); // Properly convert null to undefined for Radix
 
   return (
     <Select 

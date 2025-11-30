@@ -125,6 +125,14 @@ export function CardEditModal({ card, isOpen, onClose, onSave }: CardEditModalPr
     
     setLoading(true);
     try {
+      // Debug logging before save
+      console.log('CardEditModal handleSubmit:', {
+        cardId: card.id,
+        batchTouched,
+        originalBatch: originalBatchIdRef.current,
+        currentBatch: formData.print_batch_id,
+      });
+
       // Build update payload
       const updatePayload: any = {
         name: formData.name,
