@@ -22,6 +22,7 @@ export function PrintBatchSelector({
 }: PrintBatchSelectorProps) {
   const [batches, setBatches] = useState<PrintBatch[]>([]);
   const [inactiveBatch, setInactiveBatch] = useState<PrintBatch | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadBatches();
@@ -37,6 +38,7 @@ export function PrintBatchSelector({
   }, [value, batches]);
 
   const loadBatches = async () => {
+    setLoading(true);
     const { data, error } = await supabase
       .from("print_batches")
       .select("*")
@@ -46,6 +48,8 @@ export function PrintBatchSelector({
     if (!error && data) {
       setBatches(data);
     }
+
+    setLoading(false);
   };
 
   const loadInactiveBatch = async (batchId: string) => {
@@ -70,7 +74,7 @@ export function PrintBatchSelector({
       onValueChange={(val) => onChange(val === "all" || val === "unassigned" ? null : val)}
     >
       <SelectTrigger className={className}>
-        <SelectValue placeholder="Select batch..." />
+        <SelectValue placeholder={loading ? "Loading batches..." : "Select batch..."} />
       </SelectTrigger>
       <SelectContent>
         {showAllOption && (
