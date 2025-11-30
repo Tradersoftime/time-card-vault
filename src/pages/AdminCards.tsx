@@ -402,8 +402,8 @@ const AdminCards = () => {
     setModalImageName('');
   };
 
-  const handleSaveCard = () => {
-    loadData();
+  const handleSaveCard = async () => {
+    await loadData();
     handleModalClose();
   };
 
