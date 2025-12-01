@@ -415,13 +415,24 @@ export function CSVOperations({
         setImportPreview(data);
         setShowImportDialog(true);
         
-        // Show duplicate warnings
-        const totalCodeDupes = new Set([...codeDuplicateRowsInCsv, ...codeDuplicateRowsInDb]).size;
+        // Show update mode and duplicate warnings
+        const cardsToUpdate = new Set(codeDuplicateRowsInDb).size;
+        const trueDuplicates = new Set(codeDuplicateRowsInCsv).size;
         const totalContentDupes = new Set([...contentDuplicateRowsInCsv, ...contentDuplicateRowsInDb]).size;
         
-        if (totalCodeDupes > 0 || totalContentDupes > 0) {
+        // Show update mode notification (positive)
+        if (cardsToUpdate > 0) {
+          toast({
+            title: "📝 Update Mode Detected",
+            description: `${cardsToUpdate} existing card(s) will be updated`,
+            variant: "default"
+          });
+        }
+        
+        // Show warnings for true duplicates (negative)
+        if (trueDuplicates > 0 || totalContentDupes > 0) {
           const messages = [];
-          if (totalCodeDupes > 0) messages.push(`${totalCodeDupes} duplicate code(s)`);
+          if (trueDuplicates > 0) messages.push(`${trueDuplicates} duplicate code(s) within CSV`);
           if (totalContentDupes > 0) messages.push(`${totalContentDupes} duplicate card(s) by content`);
           
           toast({
@@ -735,23 +746,33 @@ export function CSVOperations({
             {(duplicates.codeDuplicates.withinCsv.length > 0 || duplicates.codeDuplicates.inDatabase.length > 0 || 
               duplicates.contentDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.inDatabase.length > 0) && (
               <div className="space-y-2">
-                {/* Code Duplicates Warning */}
-                {(duplicates.codeDuplicates.withinCsv.length > 0 || duplicates.codeDuplicates.inDatabase.length > 0) && (
+                {/* Update Mode Notice - Cards that will be updated */}
+                {duplicates.codeDuplicates.inDatabase.length > 0 && (
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-blue-500">📝 Update Mode</p>
+                        <p className="text-foreground mt-1">
+                          • <strong>{new Set(duplicates.codeDuplicates.inDatabase).size} existing card(s) will be updated</strong> (rows: {Array.from(new Set(duplicates.codeDuplicates.inDatabase)).map(i => i + 1).join(', ')})
+                        </p>
+                        <p className="text-muted-foreground mt-2 text-xs italic">Cards with matching codes will be updated with new values from the CSV.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* True Duplicate Warning - Same code multiple times in CSV */}
+                {duplicates.codeDuplicates.withinCsv.length > 0 && (
                   <div className="bg-destructive/10 border border-destructive rounded-lg p-4">
                     <div className="flex items-start gap-2">
                       <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
                       <div className="text-sm">
-                        <p className="font-semibold text-destructive">⚠️ Duplicate Codes Detected</p>
-                        {duplicates.codeDuplicates.withinCsv.length > 0 && (
-                          <p className="text-foreground mt-1">
-                            • <strong>{new Set(duplicates.codeDuplicates.withinCsv).size} duplicate(s) within CSV</strong> (rows: {Array.from(new Set(duplicates.codeDuplicates.withinCsv)).map(i => i + 1).join(', ')})
-                          </p>
-                        )}
-                        {duplicates.codeDuplicates.inDatabase.length > 0 && (
-                          <p className="text-foreground mt-1">
-                            • <strong>{new Set(duplicates.codeDuplicates.inDatabase).size} code(s) already exist in database</strong> (rows: {Array.from(new Set(duplicates.codeDuplicates.inDatabase)).map(i => i + 1).join(', ')})
-                          </p>
-                        )}
+                        <p className="font-semibold text-destructive">⚠️ Duplicate Codes Within CSV</p>
+                        <p className="text-foreground mt-1">
+                          • <strong>{new Set(duplicates.codeDuplicates.withinCsv).size} duplicate code(s)</strong> (rows: {Array.from(new Set(duplicates.codeDuplicates.withinCsv)).map(i => i + 1).join(', ')})
+                        </p>
+                        <p className="text-muted-foreground mt-2 text-xs italic">The same code appears multiple times in your CSV file.</p>
                       </div>
                     </div>
                   </div>
@@ -780,18 +801,20 @@ export function CSVOperations({
                   </div>
                 )}
                 
-                {/* Acknowledgment Checkbox */}
-                <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                  <Checkbox 
-                    id="acknowledge-duplicates"
-                    checked={duplicatesAcknowledged}
-                    onCheckedChange={(checked) => setDuplicatesAcknowledged(checked as boolean)}
-                    className="mt-0.5"
-                  />
-                  <label htmlFor="acknowledge-duplicates" className="text-sm cursor-pointer leading-tight">
-                    <strong>I understand there are duplicates</strong> and want to proceed with import anyway. This will create duplicate cards in the system.
-                  </label>
-                </div>
+                {/* Acknowledgment Checkbox - only for TRUE duplicates, not updates */}
+                {(duplicates.codeDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.inDatabase.length > 0) && (
+                  <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Checkbox 
+                      id="acknowledge-duplicates"
+                      checked={duplicatesAcknowledged}
+                      onCheckedChange={(checked) => setDuplicatesAcknowledged(checked as boolean)}
+                      className="mt-0.5"
+                    />
+                    <label htmlFor="acknowledge-duplicates" className="text-sm cursor-pointer leading-tight">
+                      <strong>I understand there are duplicates/conflicts</strong> and want to proceed with import anyway.
+                    </label>
+                  </div>
+                )}
               </div>
             )}
 
@@ -810,9 +833,19 @@ export function CSVOperations({
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-medium">Import Preview</h3>
-                  <Badge variant="outline">
-                    {importPreview.filter(row => row.card_id && row.card_id.trim()).length} to update, {importPreview.filter(row => !row.card_id || !row.card_id.trim()).length} to create
-                  </Badge>
+                  <div className="flex gap-2">
+                    <Badge variant="default" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">
+                      ✨ {importPreview.filter(row => (!row.card_id || !row.card_id.trim()) && !duplicates.codeDuplicates.inDatabase.includes(importPreview.indexOf(row))).length} New
+                    </Badge>
+                    <Badge variant="default" className="bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30">
+                      📝 {new Set(duplicates.codeDuplicates.inDatabase).size} Updates
+                    </Badge>
+                    {(duplicates.codeDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.withinCsv.length > 0 || duplicates.contentDuplicates.inDatabase.length > 0) && (
+                      <Badge variant="destructive" className="bg-destructive/20">
+                        ⚠️ {new Set([...duplicates.codeDuplicates.withinCsv, ...duplicates.contentDuplicates.withinCsv, ...duplicates.contentDuplicates.inDatabase]).size} Issues
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="max-h-60 overflow-y-auto border rounded-lg">
@@ -829,7 +862,7 @@ export function CSVOperations({
                        </tr>
                      </thead>
                      <tbody>
-                        {importPreview.map((row, index) => {
+                         {importPreview.map((row, index) => {
                           const isUpdate = row.card_id && row.card_id.trim();
                           const hasCode = row.code && row.code.trim();
                           const needsCodeGen = !isUpdate && !hasCode;
@@ -842,20 +875,30 @@ export function CSVOperations({
                           const isContentDuplicateInCsv = duplicates.contentDuplicates.withinCsv.includes(index);
                           const isContentDuplicateInDb = duplicates.contentDuplicates.inDatabase.includes(index);
                           
-                          const hasCodeDuplicate = isCodeDuplicateInCsv || isCodeDuplicateInDb;
+                          // True duplicates (red) vs Updates (blue) vs New (green)
+                          const isTrueDuplicate = isCodeDuplicateInCsv;
+                          const isUpdateMode = isCodeDuplicateInDb && !isCodeDuplicateInCsv;
                           const hasContentDuplicate = isContentDuplicateInCsv || isContentDuplicateInDb;
-                          const hasAnyDuplicate = hasCodeDuplicate || hasContentDuplicate;
+                          const isNewCard = !isUpdate && !isCodeDuplicateInDb && !isCodeDuplicateInCsv;
                           
                           return (
                             <tr key={index} className={`border-t ${
-                              hasCodeDuplicate ? 'bg-destructive/10' : 
-                              hasContentDuplicate ? 'bg-amber-500/10' : 
+                              isTrueDuplicate ? 'bg-destructive/10' : 
+                              hasContentDuplicate ? 'bg-amber-500/10' :
+                              isUpdateMode ? 'bg-blue-500/10' :
+                              isNewCard ? 'bg-green-500/5' :
                               !isValid ? 'bg-destructive/5' : ''
                             }`}>
                               <td className="p-2 font-medium text-muted-foreground">{index + 1}</td>
                               <td className="p-2">
-                                <Badge variant={isUpdate ? 'secondary' : 'default'} className="text-xs">
-                                  {isUpdate ? 'Update' : 'Create'}
+                                <Badge 
+                                  variant={isUpdateMode ? 'default' : isTrueDuplicate ? 'destructive' : 'default'} 
+                                  className={`text-xs ${
+                                    isUpdateMode ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30' :
+                                    isNewCard ? 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30' : ''
+                                  }`}
+                                >
+                                  {isUpdateMode ? '📝 Update' : isTrueDuplicate ? '⚠️ Duplicate' : '✨ Create'}
                                 </Badge>
                                 {!isValid && (
                                   <div className="text-xs text-destructive mt-1">
@@ -867,18 +910,21 @@ export function CSVOperations({
                                 <div className="font-mono text-sm">
                                   {hasCode ? row.code : (needsCodeGen ? <span className="text-muted-foreground italic text-xs">Auto-generated</span> : row.card_id)}
                                 </div>
-                                {hasCodeDuplicate && (
+                                {isTrueDuplicate && (
                                   <div className="text-xs text-destructive font-semibold mt-1">
-                                    {isCodeDuplicateInCsv && "DUPLICATE CODE IN CSV"}
-                                    {isCodeDuplicateInCsv && isCodeDuplicateInDb && " & "}
-                                    {isCodeDuplicateInDb && "CODE EXISTS IN DB"}
+                                    ⚠️ DUPLICATE IN CSV
+                                  </div>
+                                )}
+                                {isUpdateMode && (
+                                  <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold mt-1">
+                                    📝 Will update existing
                                   </div>
                                 )}
                                 {hasContentDuplicate && (
                                   <div className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-1">
-                                    {isContentDuplicateInCsv && "DUPLICATE CONTENT IN CSV"}
+                                    {isContentDuplicateInCsv && "⚠️ DUPLICATE CONTENT IN CSV"}
                                     {isContentDuplicateInCsv && isContentDuplicateInDb && " & "}
-                                    {isContentDuplicateInDb && "SIMILAR CARD IN DB"}
+                                    {isContentDuplicateInDb && "⚠️ SIMILAR CARD IN DB"}
                                   </div>
                                 )}
                               </td>
@@ -913,8 +959,8 @@ export function CSVOperations({
                       disabled={
                         isImporting || 
                         (
+                          // Only require acknowledgment for TRUE duplicates, not updates
                           (duplicates.codeDuplicates.withinCsv.length > 0 || 
-                           duplicates.codeDuplicates.inDatabase.length > 0 ||
                            duplicates.contentDuplicates.withinCsv.length > 0 ||
                            duplicates.contentDuplicates.inDatabase.length > 0) && 
                           !duplicatesAcknowledged
