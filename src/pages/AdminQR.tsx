@@ -245,6 +245,7 @@ export default function AdminQR() {
   const [imageMappings, setImageMappings] = useState<ImageMapping[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [showImageLibrary, setShowImageLibrary] = useState(false);
+  const [useFilenameAsCode, setUseFilenameAsCode] = useState(true);
 
   // Edit redirect
   const [editCode, setEditCode] = useState("");
@@ -443,20 +444,61 @@ export default function AdminQR() {
 
     try {
       // Get the next available code number
-      const { data: existingCodes } = await supabase
+      // Get all existing codes to check for duplicates
+      const { data: allExistingCodes } = await supabase
+        .from('image_codes')
+        .select('code');
+      
+      const existingCodesSet = new Set(allExistingCodes?.map(c => c.code) || []);
+
+      // Helper to sanitize filename to code
+      const sanitizeFilename = (filename: string): string => {
+        const nameWithoutExt = filename.replace(/\.[^.]+$/, '');
+        return nameWithoutExt
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+      };
+
+      // Helper to get unique code
+      const getUniqueCode = (baseCode: string): string => {
+        if (!existingCodesSet.has(baseCode)) {
+          existingCodesSet.add(baseCode);
+          return baseCode;
+        }
+        let suffix = 2;
+        while (existingCodesSet.has(`${baseCode}-${suffix}`)) {
+          suffix++;
+        }
+        const uniqueCode = `${baseCode}-${suffix}`;
+        existingCodesSet.add(uniqueCode);
+        return uniqueCode;
+      };
+
+      // Get next auto-generated code if needed
+      const { data: lastCodeData } = await supabase
         .from('image_codes')
         .select('code')
         .order('created_at', { ascending: false })
         .limit(1);
       
-      const lastCode = existingCodes?.[0]?.code || 'a0';
+      const lastCode = lastCodeData?.[0]?.code || 'a0';
       const lastNumber = parseInt(lastCode.replace(/[a-z]/g, '')) || 0;
       let nextNumber = lastNumber + 1;
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const extension = file.name.split('.').pop() || 'jpg';
-        const imageCode = `a${nextNumber + i}`;
+        
+        // Generate code based on user preference
+        let imageCode: string;
+        if (useFilenameAsCode) {
+          const sanitized = sanitizeFilename(file.name);
+          imageCode = getUniqueCode(sanitized);
+        } else {
+          imageCode = `a${nextNumber + i}`;
+        }
+        
         const fileName = `batch-${timestamp}/${imageCode}.${extension}`;
 
         const { data, error } = await supabase.storage
@@ -1005,6 +1047,20 @@ export default function AdminQR() {
         </div>
         
         <div className="space-y-3">
+          {/* Toggle for filename as code */}
+          <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
+            <input
+              type="checkbox"
+              id="useFilenameAsCode"
+              checked={useFilenameAsCode}
+              onChange={(e) => setUseFilenameAsCode(e.target.checked)}
+              className="w-4 h-4 cursor-pointer"
+            />
+            <label htmlFor="useFilenameAsCode" className="text-sm cursor-pointer">
+              Use filename as image code <span className="text-muted-foreground">(e.g., "spades-ace.png" → code: "spades-ace")</span>
+            </label>
+          </div>
+          
           <input
             type="file"
             accept="image/*"
