@@ -507,6 +507,7 @@ export type Database = {
           owner_email: string
           owner_user_id: string
           print_batch_id: string
+          print_run: string
           qr_dark: string
           qr_light: string
           rank: string
