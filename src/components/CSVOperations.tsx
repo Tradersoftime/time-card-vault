@@ -296,6 +296,8 @@ export function CSVOperations({
         
         data.forEach((row, index) => {
           const code = String(row.code || '').trim();
+          // Only check for duplicate codes if code is explicitly provided
+          // Auto-generated codes will be unique by design (random suffix)
           if (code) {
             if (!codesInCsv[code]) {
               codesInCsv[code] = [];
