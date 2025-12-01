@@ -206,7 +206,8 @@ const AdminCards = () => {
         print_batch_id: card.print_batch_id || null,
         batch_sort_order: card.batch_sort_order || null,
         deleted_at: card.deleted_at || null,
-        deleted_by: card.deleted_by || null
+        deleted_by: card.deleted_by || null,
+        print_run: card.print_run || null
       })) || [];
 
       setBatches(batchesData || []);
