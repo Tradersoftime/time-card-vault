@@ -47,6 +47,7 @@ export function BulkActionsBar({
   const [operation, setOperation] = useState<string>('');
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [batchDistribution, setBatchDistribution] = useState<{ batch_name: string; count: number }[]>([]);
 
   const handleBulkSetActive = async (isActive: boolean) => {
     setLoading(true);
@@ -115,6 +116,36 @@ export function BulkActionsBar({
     }
   };
 
+  const loadBatchDistribution = async () => {
+    try {
+      const { data: cards, error } = await supabase
+        .from('cards')
+        .select('print_batch_id, print_batches(name)')
+        .in('id', selectedCardIds);
+      
+      if (error) throw error;
+      
+      // Group cards by batch
+      const distribution = new Map<string, number>();
+      cards?.forEach(card => {
+        const batchName = card.print_batch_id 
+          ? (card.print_batches as any)?.name || 'Unknown Batch'
+          : 'Unassigned';
+        distribution.set(batchName, (distribution.get(batchName) || 0) + 1);
+      });
+      
+      // Convert to array and sort
+      const distributionArray = Array.from(distribution.entries()).map(([batch_name, count]) => ({
+        batch_name,
+        count
+      }));
+      
+      setBatchDistribution(distributionArray);
+    } catch (error) {
+      console.error('Error loading batch distribution:', error);
+    }
+  };
+
   const handleBulkAssignBatch = async () => {
     if (!selectedBatchId && selectedBatchId !== null) return;
     
@@ -131,20 +162,22 @@ export function BulkActionsBar({
 
       console.log('Bulk assign batch response:', data);
       const count = data?.updated_count || 0;
+      const action = selectedBatchId ? 'reassigned to batch' : 'unassigned from batch';
       toast({
         title: "Success",
-        description: `${count} card${count !== 1 ? 's' : ''} assigned to ${selectedBatchId ? 'batch' : 'unassigned'} successfully`,
+        description: `${count} card${count !== 1 ? 's' : ''} ${action} successfully`,
       });
       
       setShowBatchDialog(false);
       setSelectedBatchId(null);
+      setBatchDistribution([]);
       onClearSelection();
       onRefresh();
     } catch (error: any) {
       console.error('Error assigning cards:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to assign cards to batch",
+        description: error.message || "Failed to reassign cards to batch",
         variant: "destructive",
       });
     } finally {
@@ -332,7 +365,14 @@ export function BulkActionsBar({
               )}
             </Button>
 
-            <Dialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
+            <Dialog open={showBatchDialog} onOpenChange={(open) => {
+              setShowBatchDialog(open);
+              if (open) {
+                loadBatchDistribution();
+              } else {
+                setBatchDistribution([]);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button
                   size="sm"
@@ -340,17 +380,33 @@ export function BulkActionsBar({
                   disabled={loading}
                 >
                   <Package className="h-4 w-4 mr-1" />
-                  Assign to Batch
+                  Reassign Batch
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Assign to Print Batch</DialogTitle>
+                  <DialogTitle>Reassign to Print Batch</DialogTitle>
                   <DialogDescription>
-                    Select a batch to assign {selectedCount} card{selectedCount !== 1 ? 's' : ''} to
+                    Move {selectedCount} card{selectedCount !== 1 ? 's' : ''} to a different batch
                   </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
+                
+                {batchDistribution.length > 0 && (
+                  <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                    <p className="text-sm font-medium mb-2">Current Distribution:</p>
+                    {batchDistribution.map((item) => (
+                      <div key={item.batch_name} className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">{item.batch_name}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {item.count} card{item.count !== 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="py-2">
+                  <label className="text-sm font-medium mb-2 block">Move to:</label>
                   <PrintBatchSelector
                     value={selectedBatchId}
                     onChange={setSelectedBatchId}
@@ -368,10 +424,10 @@ export function BulkActionsBar({
                   </Button>
                   <Button 
                     onClick={handleBulkAssignBatch} 
-                    disabled={loading}
+                    disabled={loading || (!selectedBatchId && selectedBatchId !== null)}
                   >
                     {loading && operation === 'assigning' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Assign Cards
+                    Reassign Cards
                   </Button>
                 </DialogFooter>
               </DialogContent>
