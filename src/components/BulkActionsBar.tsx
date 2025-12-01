@@ -194,13 +194,22 @@ export function BulkActionsBar({
       // Fetch full card data for selected IDs
       const { data: cards, error } = await supabase
         .from('cards')
-        .select('id, code, claim_token, name, era, qr_dark, qr_light')
+        .select('id, code, claim_token, name, era, qr_dark, qr_light, print_run')
         .in('id', selectedCardIds);
       
       if (error) throw error;
       if (!cards || cards.length === 0) {
         throw new Error('No cards found');
       }
+      
+      // Sanitize filename - matches QRCodePreview logic
+      const sanitizeFilename = (name: string): string => {
+        return name
+          .replace(/[^a-zA-Z0-9-_]/g, '-') // Replace special chars with hyphen
+          .replace(/-+/g, '-') // Replace multiple hyphens with single
+          .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
+          .substring(0, 50); // Limit length
+      };
       
       // Generate QR codes for each card
       const zip = new JSZip();
@@ -223,12 +232,16 @@ export function BulkActionsBar({
         // Generate SVG without label to match single card export
         const svgString = await toSVG(url, undefined, colors);
         
-        // Sanitize filename
-        const safeName = (card.name || card.code).replace(/[^a-z0-9]/gi, '_');
+        // Build filename matching single card format: {name}_{print_run}.svg
+        let filename = sanitizeFilename(card.name || 'card');
+        if (card.print_run) {
+          filename += `_${sanitizeFilename(card.print_run)}`;
+        }
+        filename += '.svg';
         
         // Wrap SVG in Blob with proper MIME type for correct encoding
         const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-        folder.file(`${safeName}_${card.code}.svg`, blob);
+        folder.file(filename, blob);
       }
       
       // Generate and download ZIP
