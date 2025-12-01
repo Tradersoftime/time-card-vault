@@ -24,7 +24,7 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { PrintBatchSelector } from '@/components/PrintBatchSelector';
-import { Trash2, CheckSquare, Square, Loader2, Package, Download } from 'lucide-react';
+import { Trash2, CheckSquare, Square, Loader2, Package, Download, FileText } from 'lucide-react';
 import JSZip from 'jszip';
 import { toSVG } from '@/lib/qr-generator';
 import { getQRColorsForEra } from '@/lib/qr-colors';
@@ -34,13 +34,15 @@ interface BulkActionsBarProps {
   onClearSelection: () => void;
   onRefresh: () => void;
   selectedCardIds: string[];
+  onExportCSV: () => void;
 }
 
 export function BulkActionsBar({ 
   selectedCount, 
   onClearSelection, 
   onRefresh, 
-  selectedCardIds 
+  selectedCardIds,
+  onExportCSV
 }: BulkActionsBarProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -376,6 +378,16 @@ export function BulkActionsBar({
                   Download QR Codes
                 </>
               )}
+            </Button>
+
+            <Button 
+              onClick={onExportCSV} 
+              disabled={loading || selectedCount === 0}
+              variant="outline"
+              size="sm"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Export CSV ({selectedCount})
             </Button>
 
             <Dialog open={showBatchDialog} onOpenChange={(open) => {
