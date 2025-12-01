@@ -654,6 +654,7 @@ export type Database = {
         Returns: string
       }
       generate_claim_token: { Args: never; Returns: string }
+      generate_random_suffix: { Args: { p_length?: number }; Returns: string }
       redemption_receipt: {
         Args: { p_id: string }
         Returns: {
