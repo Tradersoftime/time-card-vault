@@ -581,6 +581,7 @@ export type Database = {
         Args: { p_card_id: string; p_reason?: string }
         Returns: Json
       }
+      admin_resolve_image_codes: { Args: never; Returns: Json }
       admin_restore_cards: { Args: { p_card_ids: string[] }; Returns: Json }
       admin_scan_events: {
         Args: { p_limit?: number }
