@@ -39,6 +39,7 @@ import { Download, Upload, FileText, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import Papa from 'papaparse';
 
 interface CardData {
   id: string;
@@ -262,11 +263,21 @@ export function CSVOperations({
     reader.onload = async (e) => {
       try {
         const csv = e.target?.result as string;
-        const lines = csv.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        
+        // Use PapaParse for proper CSV parsing with multi-line field support
+        const parseResult = Papa.parse(csv, {
+          header: true,           // First row is headers
+          skipEmptyLines: true,   // Ignore empty lines
+          transformHeader: (h) => h.trim().replace(/"/g, ''), // Clean headers
+        });
+        
+        const headers = parseResult.meta.fields || [];
         
         // Validate headers
-        const hasRequiredFields = headers.includes('name') && headers.includes('suit') && headers.includes('rank') && headers.includes('era');
+        const hasRequiredFields = headers.includes('name') && 
+                                  headers.includes('suit') && 
+                                  headers.includes('rank') && 
+                                  headers.includes('era');
         
         if (!hasRequiredFields) {
           toast({
@@ -277,16 +288,7 @@ export function CSVOperations({
           return;
         }
 
-        const data = lines.slice(1)
-          .filter(line => line.trim())
-          .map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-            const row: any = {};
-            headers.forEach((header, index) => {
-              row[header] = values[index] || '';
-            });
-            return row;
-          });
+        const data = parseResult.data as any[];
 
         // === CODE DUPLICATE DETECTION ===
         const codesInCsv: Record<string, number[]> = {};
