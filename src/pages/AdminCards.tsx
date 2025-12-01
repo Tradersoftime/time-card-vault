@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Search, X } from 'lucide-react';
+import { Loader2, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSearchParams } from 'react-router-dom';
 import { CardEditModal } from '@/components/CardEditModal';
@@ -556,6 +556,39 @@ const AdminCards = () => {
     }
   };
 
+  const handleRefreshImageCodes = async () => {
+    try {
+      const { data, error } = await supabase.rpc('admin_resolve_image_codes');
+
+      if (error) throw error;
+
+      if (!data.ok) {
+        toast({
+          title: "Error",
+          description: `Failed to refresh: ${data.error}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: `Updated ${data.updated_count} card${data.updated_count !== 1 ? 's' : ''} with missing images`,
+      });
+
+      if (data.updated_count > 0) {
+        await loadData();
+      }
+    } catch (error) {
+      console.error('Refresh error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh image codes",
+        variant: "destructive",
+      });
+    }
+  };
+
   const toggleCardSelection = (cardId: string) => {
     setSelectedCards(prev => {
       const newSet = new Set(prev);
@@ -780,6 +813,15 @@ const AdminCards = () => {
                     <SelectItem value="lg">LG</SelectItem>
                   </SelectContent>
                 </Select>
+                
+                <Button 
+                  onClick={handleRefreshImageCodes}
+                  variant="outline"
+                  title="Sync missing images from image codes"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Images
+                </Button>
                 
                 <Button 
                   onClick={() => setShowCreateModal(true)}
