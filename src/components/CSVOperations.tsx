@@ -561,6 +561,7 @@ export function CSVOperations({
               time_value: parseInt(cleanRow.time_value) || 0,
               trader_value: cleanRow.trader_value || null,
               image_url: resolvedImageUrl,
+              image_code: cleanRow.image_code || null,
               description: cleanRow.description || null,
               status: validatedStatus,
               current_target: cleanRow.current_target || null,
