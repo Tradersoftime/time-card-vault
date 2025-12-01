@@ -234,6 +234,12 @@ const AdminCards = () => {
     }
   };
 
+  // Get selected card objects for CSV export
+  const selectedCardObjects = useMemo(() => 
+    cards.filter(card => selectedCards.has(card.id)), 
+    [cards, selectedCards]
+  );
+
   // Filter and sort cards, then group by batch
   const { cardsByBatch, batchStats } = useMemo(() => {
     // Filter cards by global search
@@ -590,6 +596,91 @@ const AdminCards = () => {
     });
   };
 
+  const handleExportSelectedToCSV = async () => {
+    if (selectedCardObjects.length === 0) {
+      toast({
+        title: "No cards selected",
+        description: "Please select cards to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Load image codes for mapping
+      const { data: imageCodes } = await supabase
+        .from('image_codes')
+        .select('public_url, code');
+
+      const imageCodeMap = new Map(
+        imageCodes?.map(ic => [ic.public_url, ic.code]) || []
+      );
+
+      const resolveImageField = (card: CardData) => {
+        if (card.image_code) {
+          return { image_url: card.image_url, image_code: card.image_code };
+        }
+        if (card.image_url && imageCodeMap.has(card.image_url)) {
+          return { 
+            image_url: card.image_url, 
+            image_code: imageCodeMap.get(card.image_url) 
+          };
+        }
+        return { image_url: card.image_url, image_code: null };
+      };
+
+      const headers = [
+        'card_id', 'code', 'name', 'suit', 'rank', 'era', 'rarity',
+        'time_value', 'trader_value', 'image_code', 'image_url',
+        'description', 'status', 'is_active', 'current_target',
+        'qr_dark', 'qr_light', 'print_run', 'claim_token'
+      ];
+
+      const rows = selectedCardObjects.map(card => {
+        const { image_url, image_code } = resolveImageField(card);
+        return [
+          card.id, card.code, card.name, card.suit, card.rank, card.era,
+          card.rarity || '', card.time_value, card.trader_value || '',
+          image_code || '', image_url || '', card.description || '',
+          card.status, card.is_active, card.current_target || '',
+          card.qr_dark || '#000000', card.qr_light || '#FFFFFF',
+          (card as any).print_run || '', card.claim_token || ''
+        ];
+      });
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(field => 
+          typeof field === 'string' && (field.includes(',') || field.includes('"') || field.includes('\n'))
+            ? `"${field.replace(/"/g, '""')}"`
+            : field
+        ).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `cards_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Export successful",
+        description: `Exported ${selectedCardObjects.length} cards to CSV`,
+      });
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export cards to CSV",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleEditBatch = async (batch: PrintBatch) => {
     const name = prompt('Batch name:', batch.name);
     if (!name) return;
@@ -698,7 +789,7 @@ const AdminCards = () => {
                   Add New Card
                 </Button>
                 <CSVOperations 
-                  selectedCards={[]}
+                  selectedCards={selectedCardObjects}
                   onImportComplete={loadData}
                   currentBatchId={csvImportBatchId}
                   showBatchContext={!!csvImportBatchId}
@@ -1050,6 +1141,7 @@ const AdminCards = () => {
             selectedCardIds={Array.from(selectedCards)}
             onClearSelection={deselectAllCards}
             onRefresh={loadData}
+            onExportCSV={handleExportSelectedToCSV}
           />
         )}
       </div>
