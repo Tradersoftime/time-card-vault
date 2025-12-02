@@ -246,6 +246,7 @@ export default function AdminQR() {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const [useFilenameAsCode, setUseFilenameAsCode] = useState(true);
+  const [replaceExisting, setReplaceExisting] = useState(false);
 
   // Edit redirect
   const [editCode, setEditCode] = useState("");
@@ -441,15 +442,19 @@ export default function AdminQR() {
     setUploadingImages(true);
     const timestamp = Date.now();
     const newMappings: ImageMapping[] = [];
+    const skippedFiles: { filename: string; existingCode: string }[] = [];
+    const replacedFiles: { filename: string; code: string }[] = [];
 
     try {
-      // Get the next available code number
-      // Get all existing codes to check for duplicates
-      const { data: allExistingCodes } = await supabase
+      // Get all existing image codes with their filenames
+      const { data: allExistingImages } = await supabase
         .from('image_codes')
-        .select('code');
+        .select('code, filename, storage_path, id');
       
-      const existingCodesSet = new Set(allExistingCodes?.map(c => c.code) || []);
+      const existingCodesSet = new Set(allExistingImages?.map(c => c.code) || []);
+      const existingFilenameMap = new Map(
+        allExistingImages?.map(c => [c.filename, { code: c.code, storage_path: c.storage_path, id: c.id }]) || []
+      );
 
       // Helper to sanitize filename to code
       const sanitizeFilename = (filename: string): string => {
@@ -486,11 +491,67 @@ export default function AdminQR() {
       const lastNumber = parseInt(lastCode.replace(/[a-z]/g, '')) || 0;
       let nextNumber = lastNumber + 1;
 
+      const { data: user } = await supabase.auth.getUser();
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const extension = file.name.split('.').pop() || 'jpg';
         
-        // Generate code based on user preference
+        // Check if filename already exists
+        const existingImage = existingFilenameMap.get(file.name);
+        
+        if (existingImage) {
+          if (replaceExisting) {
+            // Delete old file from storage
+            if (existingImage.storage_path) {
+              await supabase.storage
+                .from('card-images')
+                .remove([existingImage.storage_path]);
+            }
+            
+            // Upload new file
+            const fileName = `batch-${timestamp}/${existingImage.code}.${extension}`;
+            const { data, error } = await supabase.storage
+              .from('card-images')
+              .upload(fileName, file);
+
+            if (error) {
+              console.error('Upload error:', error);
+              continue;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('card-images')
+              .getPublicUrl(fileName);
+
+            // Update database record
+            const { error: dbError } = await supabase
+              .from('image_codes')
+              .update({
+                storage_path: fileName,
+                public_url: publicUrl,
+              })
+              .eq('id', existingImage.id);
+
+            if (dbError) {
+              console.error('Database update error:', dbError);
+              continue;
+            }
+
+            replacedFiles.push({ filename: file.name, code: existingImage.code });
+            newMappings.push({
+              code: existingImage.code,
+              url: publicUrl,
+              filename: file.name
+            });
+          } else {
+            // Skip duplicate
+            skippedFiles.push({ filename: file.name, existingCode: existingImage.code });
+          }
+          continue;
+        }
+        
+        // New file - generate code and upload
         let imageCode: string;
         if (useFilenameAsCode) {
           const sanitized = sanitizeFilename(file.name);
@@ -515,7 +576,6 @@ export default function AdminQR() {
           .getPublicUrl(fileName);
 
         // Store in database for persistence
-        const { data: user } = await supabase.auth.getUser();
         const { error: dbError } = await supabase
           .from('image_codes')
           .insert({
@@ -539,7 +599,23 @@ export default function AdminQR() {
       }
 
       setImageMappings(prev => [...prev, ...newMappings]);
-      setMsg(`✅ Uploaded ${newMappings.length} images with codes ${newMappings.map(m => m.code).join(', ')} and saved to database`);
+      
+      // Build result message
+      const parts: string[] = [];
+      if (newMappings.length > 0) {
+        const newCount = newMappings.length - replacedFiles.length;
+        if (newCount > 0) parts.push(`${newCount} new`);
+        if (replacedFiles.length > 0) parts.push(`${replacedFiles.length} replaced`);
+      }
+      if (skippedFiles.length > 0) {
+        parts.push(`${skippedFiles.length} skipped (already exist)`);
+      }
+      
+      if (parts.length > 0) {
+        setMsg(`✅ Images: ${parts.join(', ')}`);
+      } else {
+        setMsg('No images processed');
+      }
     } catch (error) {
       setMsg('Error uploading images');
     } finally {
@@ -1058,6 +1134,20 @@ export default function AdminQR() {
             />
             <label htmlFor="useFilenameAsCode" className="text-sm cursor-pointer">
               Use filename as image code <span className="text-muted-foreground">(e.g., "spades-ace.png" → code: "spades-ace")</span>
+            </label>
+          </div>
+          
+          {/* Toggle for replace existing */}
+          <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
+            <input
+              type="checkbox"
+              id="replaceExisting"
+              checked={replaceExisting}
+              onChange={(e) => setReplaceExisting(e.target.checked)}
+              className="w-4 h-4 cursor-pointer"
+            />
+            <label htmlFor="replaceExisting" className="text-sm cursor-pointer">
+              Replace existing images <span className="text-muted-foreground">(overwrite files with same filename instead of skipping)</span>
             </label>
           </div>
           
