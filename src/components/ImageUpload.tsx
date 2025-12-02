@@ -47,6 +47,23 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     try {
       setUploading(true);
       
+      // Check if filename already exists in image_codes
+      const { data: existingImage } = await supabase
+        .from('image_codes')
+        .select('code, public_url')
+        .eq('filename', file.name)
+        .maybeSingle();
+
+      if (existingImage) {
+        // Use existing image instead of uploading duplicate
+        setPreview(existingImage.public_url);
+        onImageUploaded(existingImage.public_url);
+        setImageCode(existingImage.code);
+        onImageCodeChanged?.(existingImage.code);
+        toast.success(`Using existing image (code: ${existingImage.code})`);
+        return;
+      }
+      
       // Generate unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${cardCode || Date.now()}-${Date.now()}.${fileExt}`;
