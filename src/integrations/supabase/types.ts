@@ -357,6 +357,65 @@ export type Database = {
         }
         Relationships: []
       }
+      support_tickets: {
+        Row: {
+          admin_notes: string | null
+          card_id: string | null
+          category: string
+          created_at: string
+          id: string
+          message: string
+          page_url: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          subject: string
+          updated_at: string
+          user_email: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          card_id?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          message: string
+          page_url?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+          user_email: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          card_id?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          message?: string
+          page_url?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_email?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_cards: {
         Row: {
           card_id: string
