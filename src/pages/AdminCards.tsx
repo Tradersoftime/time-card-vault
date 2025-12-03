@@ -56,6 +56,7 @@ const AdminCards = () => {
   const [cards, setCards] = useState<CardData[]>([]);
   const [batches, setBatches] = useState<PrintBatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
@@ -104,7 +105,7 @@ const AdminCards = () => {
 
   useEffect(() => {
     if (user) {
-      loadData();
+      loadData(true); // Show full loader on initial load
     }
   }, [user]);
 
@@ -132,9 +133,12 @@ const AdminCards = () => {
     localStorage.setItem('adminCards_sortDirection', sortDirection);
   }, [sortBy, sortDirection]);
 
-  const loadData = async () => {
+  const loadData = async (showFullLoader = false) => {
     try {
-      setLoading(true);
+      // Only show full-page loader on initial load, not on background refresh
+      if (showFullLoader || cards.length === 0) {
+        setLoading(true);
+      }
       
       // Check admin access first
       const { data: adminCheck, error: adminError } = await supabase
@@ -231,6 +235,7 @@ const AdminCards = () => {
       });
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -410,7 +415,7 @@ const AdminCards = () => {
   };
 
   const handleSaveCard = async () => {
-    await loadData();
+    await loadData(false); // Background refresh - preserve scroll position
     handleModalClose();
   };
 
@@ -447,7 +452,7 @@ const AdminCards = () => {
             : `Card assigned to ${assignEmail}`,
         });
         setShowAssignDialog(false);
-        loadData();
+        loadData(false);
       } else {
         const errorMsg = data.error === 'user_not_found' 
           ? "User not found with that email"
@@ -506,7 +511,7 @@ const AdminCards = () => {
           description: `Card released from ${releaseCardData.ownerEmail}${warningMsg}`,
         });
         setShowReleaseDialog(false);
-        loadData();
+        loadData(false);
       } else {
         const errorMsg = data.error === 'not_owned'
           ? "Card is not currently owned"
@@ -542,7 +547,7 @@ const AdminCards = () => {
           title: "Success",
           description: "Card deleted successfully",
         });
-        loadData();
+        loadData(false);
       } else {
         throw new Error(data.error || 'Delete failed');
       }
@@ -582,7 +587,7 @@ const AdminCards = () => {
       });
 
       if (updated_count > 0 || cleared_count > 0) {
-        await loadData();
+        await loadData(false);
       }
     } catch (error) {
       console.error('Refresh error:', error);
@@ -732,7 +737,7 @@ const AdminCards = () => {
       if (error) throw error;
 
       toast({ title: "Success", description: "Batch updated" });
-      loadData();
+      loadData(false);
     } catch (error) {
       console.error('Error updating batch:', error);
       toast({ title: "Error", description: "Failed to update batch", variant: "destructive" });
@@ -751,7 +756,7 @@ const AdminCards = () => {
       if (error) throw error;
 
       toast({ title: "Success", description: "Batch archived" });
-      loadData();
+      loadData(false);
     } catch (error) {
       console.error('Error archiving batch:', error);
       toast({ title: "Error", description: "Failed to archive batch", variant: "destructive" });
@@ -770,7 +775,7 @@ const AdminCards = () => {
       if (error) throw error;
 
       toast({ title: "Success", description: "Batch deleted" });
-      loadData();
+      loadData(false);
     } catch (error) {
       console.error('Error deleting batch:', error);
       toast({ title: "Error", description: "Failed to delete batch", variant: "destructive" });
@@ -782,7 +787,7 @@ const AdminCards = () => {
     setShowCsvImportDialog(true);
   };
 
-  if (loading) {
+  if (loading && initialLoading) {
     return (
       <div className="min-h-screen hero-gradient flex items-center justify-center">
         <div className="glass-panel p-8 rounded-2xl text-center">
