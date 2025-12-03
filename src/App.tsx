@@ -3,6 +3,7 @@ import AdminQR from "./pages/AdminQR";
 import AdminCards from "./pages/AdminCards";
 import AdminRedemptions from "./pages/AdminRedemptions";
 import AdminSupport from "./pages/AdminSupport";
+import AdminActivity from "./pages/AdminActivity";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -28,6 +29,7 @@ import ScanPro from "./pages/ScanPro";
 import NotFound from "./pages/NotFound";
 import AdminCardBuilder from "./pages/AdminCardBuilder";
 import AdminBatchStats from "./pages/AdminBatchStats";
+import { AdminLayout } from "./components/admin/AdminLayout";
 
 const queryClient = new QueryClient();
 
@@ -47,20 +49,26 @@ const App = () => (
                 <Route path="/claim" element={<ClaimToken />} />
                 <Route path="/c/:token" element={<ClaimToken />} />
                 <Route path="/me/cards" element={<MyCards />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/admin/users" element={<AdminUsers />} />
                 <Route path="/auth/admin" element={<AdminLogin />} />
                 <Route path="/auth/reset" element={<ResetPassword />} />
                 <Route path="/scan" element={<ScanPro />} />
                 <Route path="/quick-scan" element={<ScanPro />} />
                 <Route path="/scan-pro" element={<ScanPro />} />
-                <Route path="/admin/qr" element={<AdminQR />} />
-                <Route path="/admin/cards" element={<AdminCards />} />
-                <Route path="/admin/card-builder" element={<AdminCardBuilder />} />
-                <Route path="/admin/batch-stats" element={<AdminBatchStats />} />
-                <Route path="/admin/redemptions" element={<AdminRedemptions />} />
-                <Route path="/admin/support" element={<AdminSupport />} />
                 <Route path="/receipt/:id" element={<Receipt />} />
+                
+                {/* Admin routes with sidebar layout */}
+                <Route path="/admin" element={<AdminLayout />}>
+                  <Route index element={<Admin />} />
+                  <Route path="users" element={<AdminUsers />} />
+                  <Route path="qr" element={<AdminQR />} />
+                  <Route path="cards" element={<AdminCards />} />
+                  <Route path="card-builder" element={<AdminCardBuilder />} />
+                  <Route path="batch-stats" element={<AdminBatchStats />} />
+                  <Route path="redemptions" element={<AdminRedemptions />} />
+                  <Route path="support" element={<AdminSupport />} />
+                  <Route path="activity" element={<AdminActivity />} />
+                </Route>
+                
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
