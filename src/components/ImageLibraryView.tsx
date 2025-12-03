@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Trash2, Copy, RefreshCw, Download, Search, ChevronDown, Check, Edit2, X } from 'lucide-react';
+import { Trash2, Copy, RefreshCw, Download, Search, ChevronDown, Check, Edit2, X, Eye } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -332,23 +332,26 @@ export const ImageLibraryView: React.FC = () => {
           {processedImages.map((img) => (
             <div
               key={img.id}
-              className="relative group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg transition-all"
+              onClick={() => toggleSelect(img.id)}
+              className={`relative group bg-card border rounded-lg overflow-hidden cursor-pointer transition-all ${
+                selectedIds.has(img.id)
+                  ? 'border-primary ring-2 ring-primary/50 bg-primary/5'
+                  : 'border-border hover:shadow-lg'
+              }`}
             >
-              {/* Checkbox */}
-              <div className="absolute top-2 left-2 z-10">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(img.id)}
-                  onChange={() => toggleSelect(img.id)}
-                  className="w-5 h-5 cursor-pointer"
-                />
+              {/* Selection indicator */}
+              <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                  selectedIds.has(img.id)
+                    ? 'bg-primary border-primary'
+                    : 'bg-background/80 border-muted-foreground/50'
+                }`}>
+                  {selectedIds.has(img.id) && <Check className="w-3 h-3 text-primary-foreground" />}
+                </div>
               </div>
 
               {/* Image */}
-              <div
-                className="aspect-square bg-muted cursor-pointer"
-                onClick={() => openImagePreview(img.public_url, img.filename, img.code)}
-              >
+              <div className="aspect-square bg-muted">
                 <img
                   src={img.public_url}
                   alt={img.filename}
@@ -357,7 +360,7 @@ export const ImageLibraryView: React.FC = () => {
               </div>
 
               {/* Info */}
-              <div className="p-3 space-y-2">
+              <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
                 {/* Code with inline edit */}
                 {editingId === img.id ? (
                   <div className="flex items-center gap-1">
@@ -404,6 +407,15 @@ export const ImageLibraryView: React.FC = () => {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openImagePreview(img.public_url, img.filename, img.code)}
+                    className="h-8 px-2"
+                  >
+                    <Eye className="w-3 h-3 mr-1" />
+                    View
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
