@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, CreditCard, ArrowLeft, LogIn, UserPlus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Link } from 'react-router-dom';
 
 export default function Login() {
@@ -14,6 +15,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [signUpSuccess, setSignUpSuccess] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -257,6 +259,19 @@ export default function Login() {
                   minLength={6}
                   className="glass-panel"
                 />
+              </div>
+            )}
+
+            {!isSignUp && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                />
+                <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+                  Remember me
+                </Label>
               </div>
             )}
 
