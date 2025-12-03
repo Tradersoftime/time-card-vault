@@ -100,18 +100,18 @@ export default function ClaimCard() {
                   )}
                 </div>
                 
-                <div className="flex-1 space-y-4">
-                  <div>
-                    <h2 className="text-3xl font-bold text-foreground mb-2">{card.name}</h2>
-                    <div className="text-lg text-muted-foreground mb-4">
-                      {card.era} • {card.suit} {card.rank}
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <h2 className="text-3xl font-bold text-foreground mb-2 uppercase">{card.name}</h2>
+                      <div className="text-lg text-muted-foreground mb-4 uppercase">
+                        {card.era} • {card.suit} {card.rank}
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="glass-panel p-4 rounded-lg">
-                      <div className="text-sm text-muted-foreground">Rarity</div>
-                      <div className="text-lg font-medium text-foreground">{card.rarity ?? "—"}</div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="glass-panel p-4 rounded-lg">
+                        <div className="text-sm text-muted-foreground">Rarity</div>
+                        <div className="text-lg font-medium text-foreground uppercase">{card.rarity ?? "—"}</div>
                     </div>
                     <div className="glass-panel p-4 rounded-lg">
                       <div className="text-sm text-muted-foreground">Trader Value</div>

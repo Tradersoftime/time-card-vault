@@ -241,7 +241,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave, batches }: CardEd
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Edit Card: {card.name}
+            Edit Card: <span className="uppercase">{card.name}</span>
             <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">
               Code: {card.code}
             </Badge>
