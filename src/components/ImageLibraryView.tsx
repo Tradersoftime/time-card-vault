@@ -100,6 +100,12 @@ export const ImageLibraryView: React.FC = () => {
       const image = imageCodes.find(img => img.id === id);
       if (!image) return;
 
+      // Clear image_url on any cards using this image_code FIRST
+      await supabase
+        .from('cards')
+        .update({ image_url: null })
+        .eq('image_code', image.code);
+
       // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('card-images')
@@ -128,6 +134,15 @@ export const ImageLibraryView: React.FC = () => {
 
     try {
       const imagesToDelete = imageCodes.filter(img => selectedIds.has(img.id));
+      
+      // Clear image_url on any cards using these image_codes FIRST
+      const codesToClear = imagesToDelete.map(img => img.code);
+      for (const code of codesToClear) {
+        await supabase
+          .from('cards')
+          .update({ image_url: null })
+          .eq('image_code', code);
+      }
       
       // Delete from storage
       const storagePaths = imagesToDelete.map(img => img.storage_path);

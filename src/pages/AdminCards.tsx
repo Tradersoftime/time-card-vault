@@ -571,12 +571,17 @@ const AdminCards = () => {
         return;
       }
 
+      const { updated_count, cleared_count } = data;
+      const messages: string[] = [];
+      if (updated_count > 0) messages.push(`Updated ${updated_count} card(s)`);
+      if (cleared_count > 0) messages.push(`Cleared ${cleared_count} orphaned image(s)`);
+
       toast({
-        title: "Success",
-        description: `Updated ${data.updated_count} card${data.updated_count !== 1 ? 's' : ''} with missing images`,
+        title: "Image Codes Refreshed",
+        description: messages.length > 0 ? messages.join(', ') : "All cards are up to date",
       });
 
-      if (data.updated_count > 0) {
+      if (updated_count > 0 || cleared_count > 0) {
         await loadData();
       }
     } catch (error) {
