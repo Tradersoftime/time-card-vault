@@ -104,14 +104,14 @@ export function TradingCard({ card, baseWidth = 200, showClaimedBadge = false, c
 
         {/* Card Info */}
         <div className="space-y-1.5">
-          <h3 className="font-semibold text-sm leading-tight text-foreground">{card.name}</h3>
+          <h3 className="font-semibold text-sm leading-tight text-foreground uppercase">{card.name}</h3>
           
           <div className="space-y-1">
-            <div className="text-xs font-medium text-muted-foreground">
+            <div className="text-xs font-medium text-muted-foreground uppercase">
               {card.era}
             </div>
             <div className="text-xl font-bold flex items-center gap-2">
-              <span className="text-foreground">{card.rank}</span>
+              <span className="text-foreground uppercase">{card.rank}</span>
               <span className={cn("text-2xl", getSuitColor(card.suit))}>{getSuitIcon(card.suit)}</span>
             </div>
           </div>

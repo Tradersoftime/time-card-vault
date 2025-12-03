@@ -82,7 +82,7 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">{card.name}</DialogTitle>
+          <DialogTitle className="text-xl font-semibold uppercase">{card.name}</DialogTitle>
         </DialogHeader>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -106,13 +106,13 @@ export function ImageModal({ isOpen, onClose, card }: ImageModalProps) {
           {/* Card Details */}
           <div className="space-y-4">
             <div className="space-y-3">
-              <div className="text-lg font-medium text-muted-foreground flex items-center gap-2">
+              <div className="text-lg font-medium text-muted-foreground flex items-center gap-2 uppercase">
                 {card.era}{card.rarity && (
                   <span className="text-muted-foreground">- {card.rarity}</span>
                 )}
               </div>
               <div className="text-2xl font-bold flex items-center gap-3">
-                <span className="text-foreground">{card.rank}</span>
+                <span className="text-foreground uppercase">{card.rank}</span>
                 <span className={cn("text-3xl", getSuitColor(card.suit))}>{getSuitIcon(card.suit)}</span>
               </div>
             </div>

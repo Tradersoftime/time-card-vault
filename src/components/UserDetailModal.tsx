@@ -352,8 +352,8 @@ export function UserDetailModal({ user, onClose, onUserUpdated }: UserDetailModa
                               />
                             )}
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-medium truncate">{card.name}</h4>
-                              <p className="text-sm text-muted-foreground">
+                              <h4 className="font-medium truncate uppercase">{card.name}</h4>
+                              <p className="text-sm text-muted-foreground uppercase">
                                 {card.era} • {card.suit} {card.rank}
                               </p>
                               <p className="text-xs text-muted-foreground">

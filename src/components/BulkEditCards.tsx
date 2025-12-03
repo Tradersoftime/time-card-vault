@@ -138,7 +138,7 @@ export const BulkEditCards = ({ cards, onSave, onCancel }: BulkEditCardsProps) =
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-lg">{card.name}</CardTitle>
+                  <CardTitle className="text-lg uppercase">{card.name}</CardTitle>
                   <Badge variant="secondary" className="mt-1">{card.code}</Badge>
                 </div>
                 <div className="text-sm text-muted-foreground">

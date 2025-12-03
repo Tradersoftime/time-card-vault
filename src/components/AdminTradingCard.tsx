@@ -223,12 +223,12 @@ export function AdminTradingCard({
 
         {/* Card Info */}
         <div className="space-y-1.5">
-          <h3 className="font-semibold text-sm leading-tight line-clamp-2 text-foreground">
+          <h3 className="font-semibold text-sm leading-tight line-clamp-2 text-foreground uppercase">
             {card.name}
           </h3>
           
           <div className="space-y-1">
-            <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <div className="text-xs font-medium text-muted-foreground flex items-center gap-1 uppercase">
               {card.era}{card.rarity && (
                 <span className="text-muted-foreground">- {card.rarity}</span>
               )}
@@ -260,7 +260,7 @@ export function AdminTradingCard({
               </div>
             )}
             <div className="text-xl font-bold flex items-center gap-2">
-              <span className="text-foreground">{card.rank}</span>
+              <span className="text-foreground uppercase">{card.rank}</span>
               <span className={cn("text-2xl", getSuitColor(card.suit))}>{getSuitIcon(card.suit)}</span>
             </div>
             <div className="space-y-0.5 text-xs">
