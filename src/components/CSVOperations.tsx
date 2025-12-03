@@ -484,8 +484,21 @@ export function CSVOperations({
               if (typeof value === 'string') {
                 const normalizeFields = ['suit', 'rank', 'era', 'rarity', 'trader_value', 'status'];
                 if (normalizeFields.includes(key) && value) {
-                  // Title case: first letter uppercase, rest lowercase
-                  value = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                  // Special handling for rank abbreviations - convert to full names
+                  if (key === 'rank') {
+                    const rankAbbreviations: Record<string, string> = {
+                      'A': 'Ace',
+                      'K': 'King',
+                      'Q': 'Queen',
+                      'J': 'Jack',
+                      '1': 'Ace',
+                    };
+                    const upperValue = value.toUpperCase();
+                    value = rankAbbreviations[upperValue] || (value.charAt(0).toUpperCase() + value.slice(1).toLowerCase());
+                  } else {
+                    // Title case: first letter uppercase, rest lowercase
+                    value = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                  }
                   // Special handling for "Market Maker" rarity
                   if (key === 'rarity' && value.toLowerCase() === 'market maker') {
                     value = 'Market Maker';
