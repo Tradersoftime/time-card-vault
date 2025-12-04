@@ -3,9 +3,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
-import { Sun, Moon, LogOut, User, CreditCard, Shield, ScanLine, Menu, X, Settings } from 'lucide-react';
+import { Sun, Moon, LogOut, CreditCard, Shield, ScanLine, Menu, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export function Navbar() {
   const { user, signOut } = useAuth();
@@ -13,20 +14,34 @@ export function Navbar() {
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!user) { if (mounted) setIsAdmin(false); return; }
-      const { data } = await supabase
-        .from('admins')
-        .select('user_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (mounted) setIsAdmin(!!data);
+      if (!user) { 
+        if (mounted) {
+          setIsAdmin(false);
+          setProfile(null);
+        }
+        return; 
+      }
+      // Fetch admin status and profile in parallel
+      const [adminRes, profileRes] = await Promise.all([
+        supabase.from('admins').select('user_id').eq('user_id', user.id).maybeSingle(),
+        supabase.from('profiles').select('display_name, avatar_url').eq('user_id', user.id).maybeSingle()
+      ]);
+      if (mounted) {
+        setIsAdmin(!!adminRes.data);
+        setProfile(profileRes.data);
+      }
     })();
     return () => { mounted = false; };
   }, [user]);
+
+  // Get display name or fallback to email username
+  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'User';
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -115,8 +130,13 @@ export function Navbar() {
                     isActive('/me/profile') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  <User className="h-4 w-4" />
-                  <span className="hidden lg:inline">{user.email}</span>
+                  <Avatar className="h-7 w-7 border border-primary/20">
+                    <AvatarImage src={profile?.avatar_url || undefined} />
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="hidden lg:inline">{displayName}</span>
                 </Link>
                 <Button variant="ghost" size="sm" onClick={signOut} className="interactive">
                   <LogOut className="h-4 w-4" />
@@ -184,7 +204,7 @@ export function Navbar() {
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
                     }`}
                   >
-                    <User className="h-4 w-4" />
+                    <CreditCard className="h-4 w-4" />
                     <span>My Collection</span>
                   </Link>
 
@@ -216,13 +236,14 @@ export function Navbar() {
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
                       }`}
                     >
-                      <Settings className="h-4 w-4" />
-                      <span>Profile Settings</span>
+                      <Avatar className="h-6 w-6 border border-primary/20">
+                        <AvatarImage src={profile?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{displayName}</span>
                     </Link>
-                    <div className="flex items-center space-x-2 px-4 py-2 text-sm text-muted-foreground">
-                      <User className="h-4 w-4" />
-                      <span className="truncate">{user.email}</span>
-                    </div>
                     <button
                       onClick={handleSignOut}
                       className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors w-full"
