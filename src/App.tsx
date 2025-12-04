@@ -30,6 +30,7 @@ import NotFound from "./pages/NotFound";
 import AdminCardBuilder from "./pages/AdminCardBuilder";
 import AdminBatchStats from "./pages/AdminBatchStats";
 import HelpCenter from "./pages/HelpCenter";
+import CardGuide from "./pages/CardGuide";
 import { AdminLayout } from "./components/admin/AdminLayout";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
                 <Route path="/scan-pro" element={<ScanPro />} />
                 <Route path="/receipt/:id" element={<Receipt />} />
                 <Route path="/help" element={<HelpCenter />} />
+                <Route path="/card-guide" element={<CardGuide />} />
                 
                 {/* Admin routes with sidebar layout */}
                 <Route path="/admin" element={<AdminLayout />}>

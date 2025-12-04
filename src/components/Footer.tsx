@@ -29,9 +29,9 @@ export function Footer() {
               <Link to="/me/cards" className="block text-muted-foreground hover:text-foreground transition-colors">
                 My Collection
               </Link>
-              <div className="text-muted-foreground">
-                Scan Card (Soon)
-              </div>
+              <Link to="/scan" className="block text-muted-foreground hover:text-foreground transition-colors">
+                Scan Card (Mobile Only)
+              </Link>
             </div>
           </div>
 
@@ -40,14 +40,11 @@ export function Footer() {
             <h4 className="font-semibold">Support</h4>
             <div className="space-y-2 text-sm">
               <Link to="/help" className="block text-muted-foreground hover:text-foreground transition-colors">
-                Help Center
+                Contact Support
               </Link>
-              <div className="text-muted-foreground">
-                Card Guide (Soon)
-              </div>
-              <div className="text-muted-foreground">
-                Contact Support (Soon)
-              </div>
+              <Link to="/card-guide" className="block text-muted-foreground hover:text-foreground transition-colors">
+                Card Guide
+              </Link>
             </div>
           </div>
 
