@@ -7,6 +7,7 @@ import { Sun, Moon, LogOut, CreditCard, Shield, ScanLine, Menu, X } from 'lucide
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 export function Navbar() {
   const { user, signOut } = useAuth();
@@ -14,7 +15,7 @@ export function Navbar() {
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null; cardCount: number } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -26,14 +27,15 @@ export function Navbar() {
         }
         return; 
       }
-      // Fetch admin status and profile in parallel
-      const [adminRes, profileRes] = await Promise.all([
+      // Fetch admin status, profile, and card count in parallel
+      const [adminRes, profileRes, cardCountRes] = await Promise.all([
         supabase.from('admins').select('user_id').eq('user_id', user.id).maybeSingle(),
-        supabase.from('profiles').select('display_name, avatar_url').eq('user_id', user.id).maybeSingle()
+        supabase.from('profiles').select('display_name, avatar_url').eq('user_id', user.id).maybeSingle(),
+        supabase.from('user_cards').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
       ]);
       if (mounted) {
         setIsAdmin(!!adminRes.data);
-        setProfile(profileRes.data);
+        setProfile(profileRes.data ? { ...profileRes.data, cardCount: cardCountRes.count ?? 0 } : null);
       }
     })();
     return () => { mounted = false; };
@@ -137,6 +139,11 @@ export function Navbar() {
                     </AvatarFallback>
                   </Avatar>
                   <span className="hidden lg:inline">{displayName}</span>
+                  {profile && profile.cardCount > 0 && (
+                    <Badge variant="secondary" className="ml-1 bg-primary/20 text-primary text-xs px-1.5 py-0">
+                      {profile.cardCount}
+                    </Badge>
+                  )}
                 </Link>
                 <Button variant="ghost" size="sm" onClick={signOut} className="interactive">
                   <LogOut className="h-4 w-4" />
@@ -243,6 +250,11 @@ export function Navbar() {
                         </AvatarFallback>
                       </Avatar>
                       <span>{displayName}</span>
+                      {profile && profile.cardCount > 0 && (
+                        <Badge variant="secondary" className="bg-primary/20 text-primary text-xs px-1.5 py-0">
+                          {profile.cardCount}
+                        </Badge>
+                      )}
                     </Link>
                     <button
                       onClick={handleSignOut}

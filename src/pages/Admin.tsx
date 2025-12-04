@@ -80,8 +80,8 @@ export default function Admin() {
     { label: "Total Users", value: stats.totalUsers, icon: Users, color: "text-blue-400" },
     { label: "Active Cards", value: stats.totalCards, icon: CreditCard, color: "text-emerald-400" },
     { label: "Pending Redemptions", value: stats.pendingRedemptions, icon: Gift, color: "text-orange-400" },
-    { label: "Open Tickets", value: stats.pendingSupportTickets, icon: LifeBuoy, color: "text-purple-400" },
     { label: "TIME Credited", value: stats.timeCredited.toLocaleString(), icon: Clock, color: "text-primary" },
+    { label: "Open Tickets", value: stats.pendingSupportTickets, icon: LifeBuoy, color: "text-purple-400" },
   ];
 
   const quickActions = [
