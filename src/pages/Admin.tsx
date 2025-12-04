@@ -19,11 +19,12 @@ type Stats = {
   totalUsers: number;
   totalCards: number;
   pendingRedemptions: number;
+  pendingSupportTickets: number;
   timeCredited: number;
 };
 
 export default function Admin() {
-  const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalCards: 0, pendingRedemptions: 0, timeCredited: 0 });
+  const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalCards: 0, pendingRedemptions: 0, pendingSupportTickets: 0, timeCredited: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,6 +53,12 @@ export default function Admin() {
         .select("*", { count: "exact", head: true })
         .is("deleted_at", null);
 
+      // Get pending support tickets
+      const { count: supportTicketCount } = await supabase
+        .from("support_tickets")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "open");
+
       const pendingCount = pendingRes.data?.length ?? 0;
       const creditedData = creditedRes.data as any[] ?? [];
       const totalTime = creditedData.reduce((sum, r) => sum + (r.amount_time ?? 0), 0);
@@ -60,6 +67,7 @@ export default function Admin() {
         totalUsers: userCount ?? 0,
         totalCards: cardCount ?? 0,
         pendingRedemptions: pendingCount,
+        pendingSupportTickets: supportTicketCount ?? 0,
         timeCredited: totalTime,
       });
     } catch (err) {
@@ -72,6 +80,7 @@ export default function Admin() {
     { label: "Total Users", value: stats.totalUsers, icon: Users, color: "text-blue-400" },
     { label: "Active Cards", value: stats.totalCards, icon: CreditCard, color: "text-emerald-400" },
     { label: "Pending Redemptions", value: stats.pendingRedemptions, icon: Gift, color: "text-orange-400" },
+    { label: "Open Tickets", value: stats.pendingSupportTickets, icon: LifeBuoy, color: "text-purple-400" },
     { label: "TIME Credited", value: stats.timeCredited.toLocaleString(), icon: Clock, color: "text-primary" },
   ];
 
@@ -169,6 +178,33 @@ export default function Admin() {
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium text-sm whitespace-nowrap"
               >
                 Review Now
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Support Tickets Alert */}
+      {stats.pendingSupportTickets > 0 && (
+        <Card className="border-purple-500/30 bg-purple-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/10">
+                  <LifeBuoy className="h-5 w-5 text-purple-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">
+                    {stats.pendingSupportTickets} open support ticket{stats.pendingSupportTickets !== 1 ? "s" : ""} need attention
+                  </p>
+                  <p className="text-sm text-muted-foreground">Users are waiting for help with their requests</p>
+                </div>
+              </div>
+              <Link
+                to="/admin/support"
+                className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors font-medium text-sm whitespace-nowrap"
+              >
+                View Tickets
               </Link>
             </div>
           </CardContent>
