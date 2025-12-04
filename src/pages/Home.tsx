@@ -31,8 +31,8 @@ export default function Home() {
                 />
               </div>
               <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Scan, collect, and redeem exclusive trading cards. 
-                Build your premium collection across eras of history.
+                Collect trading cards, Scan and Redeem exclusive time token rewards. 
+                Build your premium collection of traders across eras of history.
               </p>
             </div>
 
