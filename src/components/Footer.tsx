@@ -39,9 +39,9 @@ export function Footer() {
           <div className="space-y-4">
             <h4 className="font-semibold">Support</h4>
             <div className="space-y-2 text-sm">
-              <div className="text-muted-foreground">
-                Help Center (Soon)
-              </div>
+              <Link to="/help" className="block text-muted-foreground hover:text-foreground transition-colors">
+                Help Center
+              </Link>
               <div className="text-muted-foreground">
                 Card Guide (Soon)
               </div>
