@@ -302,7 +302,9 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
+          display_name: string | null
           email: string
           id: string
           role: string
@@ -310,7 +312,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
+          display_name?: string | null
           email: string
           id?: string
           role?: string
@@ -318,7 +322,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
+          display_name?: string | null
           email?: string
           id?: string
           role?: string
@@ -709,6 +715,7 @@ export type Database = {
       }
       claim_card_by_token: { Args: { p_token: string }; Returns: Json }
       cleanup_old_deleted_cards: { Args: never; Returns: Json }
+      delete_own_account: { Args: never; Returns: Json }
       generate_card_code: {
         Args: { p_batch_id?: string; p_rank: string; p_suit: string }
         Returns: string

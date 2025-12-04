@@ -31,6 +31,7 @@ import AdminCardBuilder from "./pages/AdminCardBuilder";
 import AdminBatchStats from "./pages/AdminBatchStats";
 import HelpCenter from "./pages/HelpCenter";
 import CardGuide from "./pages/CardGuide";
+import Profile from "./pages/Profile";
 import { AdminLayout } from "./components/admin/AdminLayout";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const App = () => (
                 <Route path="/claim" element={<ClaimToken />} />
                 <Route path="/c/:token" element={<ClaimToken />} />
                 <Route path="/me/cards" element={<MyCards />} />
+                <Route path="/me/profile" element={<Profile />} />
                 <Route path="/auth/admin" element={<AdminLogin />} />
                 <Route path="/auth/reset" element={<ResetPassword />} />
                 <Route path="/scan" element={<ScanPro />} />

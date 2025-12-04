@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
-import { Sun, Moon, LogOut, User, CreditCard, Shield, ScanLine, Menu, X, Clock } from 'lucide-react';
+import { Sun, Moon, LogOut, User, CreditCard, Shield, ScanLine, Menu, X, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 
@@ -109,10 +109,15 @@ export function Navbar() {
             {/* Desktop User Menu */}
             {user ? (
               <div className="hidden md:flex items-center space-x-3">
-                <div className="hidden lg:flex items-center space-x-2 text-sm">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">{user.email}</span>
-                </div>
+                <Link
+                  to="/me/profile"
+                  className={`flex items-center space-x-2 text-sm interactive ${
+                    isActive('/me/profile') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <User className="h-4 w-4" />
+                  <span className="hidden lg:inline">{user.email}</span>
+                </Link>
                 <Button variant="ghost" size="sm" onClick={signOut} className="interactive">
                   <LogOut className="h-4 w-4" />
                   <span className="hidden lg:inline ml-2">Sign Out</span>
@@ -203,6 +208,17 @@ export function Navbar() {
               <div className="pt-4 border-t border-primary/20">
                 {user ? (
                   <>
+                    <Link
+                      to="/me/profile"
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive('/me/profile') 
+                          ? 'bg-primary/10 text-primary' 
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+                      }`}
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span>Profile Settings</span>
+                    </Link>
                     <div className="flex items-center space-x-2 px-4 py-2 text-sm text-muted-foreground">
                       <User className="h-4 w-4" />
                       <span className="truncate">{user.email}</span>
