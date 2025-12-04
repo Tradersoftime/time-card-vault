@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { MessageCircle, Send, HelpCircle, CreditCard } from 'lucide-react';
-import cardGuide from '@/assets/card-guide.png';
+import { MessageCircle, Send, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -88,26 +87,6 @@ export default function HelpCenter() {
                 Or fill out the form below to submit a support ticket directly from this page.
               </p>
             </div>
-          </div>
-        </div>
-
-        {/* Card Guide Section */}
-        <div className="glass-panel rounded-xl p-6 mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-              <CreditCard className="h-5 w-5 text-primary" />
-            </div>
-            <h2 className="text-xl font-semibold">Understanding Your Cards</h2>
-          </div>
-          <p className="text-muted-foreground mb-6">
-            Learn about all the elements that make up your trading cards.
-          </p>
-          <div className="flex justify-center">
-            <img 
-              src={cardGuide} 
-              alt="Card Guide - Explaining all elements of a trading card including rank, suit, trader name, TLV, rarity, era, abilities, and QR code"
-              className="max-w-full h-auto rounded-lg"
-            />
           </div>
         </div>
 
